@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "A test pattern card and timestamp overlay against a dark background.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a color bar test pattern with no app functionality."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no actual app UI displayed, only a video test card."
+        },
+        {
+          "score": 0.0,
+          "reason": "Placeholder test bars do not provide engaging content."
+        }
+      ]
+    },
+    {
+      "note": "A test pattern display with timestamp overlay at 3 seconds.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "No app features or useful actions are visible."
+        },
+        {
+          "score": 0.0,
+          "reason": "Only a test signal graphic is visible instead of an app interface."
+        },
+        {
+          "score": 0.0,
+          "reason": "A static test screen does not entice viewers to keep watching."
+        }
+      ]
+    }
+  ]
+}

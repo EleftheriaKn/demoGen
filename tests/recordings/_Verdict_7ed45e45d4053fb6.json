@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "Color bar test pattern display with timestamp overlay.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows an abstract calibration pattern instead of any app functionality."
+        },
+        {
+          "score": 0.0,
+          "reason": "It displays raw test graphics and debug timestamps rather than a clean UI."
+        },
+        {
+          "score": 0.0,
+          "reason": "It looks like placeholder test footage with no demo content."
+        }
+      ]
+    },
+    {
+      "note": "Color bar test pattern display with updated line overlay.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "No user-facing app functionality is visible, only test bars."
+        },
+        {
+          "score": 0.0,
+          "reason": "It displays a video test pattern with debug text instead of an app interface."
+        },
+        {
+          "score": 0.0,
+          "reason": "It appears to be non-functional calibration footage."
+        }
+      ]
+    }
+  ]
+}

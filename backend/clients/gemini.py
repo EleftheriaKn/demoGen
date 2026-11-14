@@ -15,7 +15,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Optional, TypeVar
+from typing import Any, Optional, Sequence, TypeVar
 
 from pydantic import BaseModel
 
@@ -36,16 +36,20 @@ def prompt(name: str, **values: str) -> str:
     return (PROMPTS / f"{name}.md").read_text(encoding="utf-8").format(**values)
 
 
-def recording_path(text: str, schema: type[BaseModel]) -> Path:
+def recording_path(text: str, schema: type[BaseModel], images: Sequence[Path] = ()) -> Path:
     # ponytail: key includes the schema's Field descriptions, so editing a contract orphans its
     # recordings (replay then fails loudly); re-record with `pytest --live`.
     assert RECORDINGS is not None
-    key = json.dumps([schema.__name__, schema.model_json_schema(), text], sort_keys=True)
+    parts: list = [schema.__name__, schema.model_json_schema(), text]
+    if images:  # text-only keys stay as they were, so older recordings still replay
+        parts.append([hashlib.sha256(Path(i).read_bytes()).hexdigest() for i in images])
+    key = json.dumps(parts, sort_keys=True)
     return RECORDINGS / f"{schema.__name__}_{hashlib.sha256(key.encode()).hexdigest()[:16]}.json"
 
 
-def generate(text: str, schema: type[T]) -> T:
-    path = recording_path(text, schema) if RECORDINGS is not None else None
+def generate(text: str, schema: type[T], images: Sequence[Path] = ()) -> T:
+    """``images`` are JPEG files sent after the text, in order."""
+    path = recording_path(text, schema, images) if RECORDINGS is not None else None
     if not LIVE:
         if path is None or not path.exists():
             raise MissingRecording(f"no Gemini recording {path}; run `pytest --live` to record it")
@@ -54,7 +58,7 @@ def generate(text: str, schema: type[T]) -> T:
     model = os.environ["GEMINI_MODEL"]  # config errors raise once, not after retries
     for attempt in range(RETRIES + 1):
         try:
-            raw = _call(model, text, schema)
+            raw = _call(model, text, schema, images)
             result = schema.model_validate_json(raw)
             break
         except Exception:
@@ -66,14 +70,15 @@ def generate(text: str, schema: type[T]) -> T:
     return result
 
 
-def _call(model: str, text: str, schema: type[BaseModel]) -> str:
+def _call(model: str, text: str, schema: type[BaseModel], images: Sequence[Path] = ()) -> str:
     from google import genai
     from google.genai import types
 
+    contents: list[Any] = [text, *(types.Part.from_bytes(data=Path(i).read_bytes(), mime_type="image/jpeg") for i in images)]
     client = genai.Client()  # reads GEMINI_API_KEY; keep a reference or it closes mid-request
     resp = client.models.generate_content(
         model=model,
-        contents=text,
+        contents=contents,
         config=types.GenerateContentConfig(
             temperature=0,
             response_mime_type="application/json",

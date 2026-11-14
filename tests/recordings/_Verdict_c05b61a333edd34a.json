@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "A video test pattern with color bars displayed on a dark background.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a color bar test screen instead of the PantryPal app."
+        },
+        {
+          "score": 0.0,
+          "reason": "It displays a raw test card rather than an actual app UI."
+        },
+        {
+          "score": 0.0,
+          "reason": "A generic test pattern provides no context or appeal to a judge."
+        }
+      ]
+    },
+    {
+      "note": "A video test pattern featuring color bars and geometric shapes on a dark background.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It displays a synthetic test video rather than fridge scanning or recipes."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no actual application interface visible, only test footage."
+        },
+        {
+          "score": 0.0,
+          "reason": "Test bars do not engage viewers or showcase any project progress."
+        }
+      ]
+    }
+  ]
+}
