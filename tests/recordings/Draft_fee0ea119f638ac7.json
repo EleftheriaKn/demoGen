@@ -1,0 +1,122 @@
+{
+  "hooks": [
+    "Staring at a half-empty fridge with no dinner plan?",
+    "Stop wasting food and time wondering what to cook tonight.",
+    "Turn your random fridge ingredients into complete dinners instantly."
+  ],
+  "hook_card_prompt": "Bold title card reading 'PantryPal' in clean modern typography over a vibrant kitchen pantry green aesthetic background.",
+  "problem": {
+    "voice_line": "People waste food and time because they don't know what to cook with what they already have.",
+    "segment_id": "c01",
+    "source_start": 0.0,
+    "source_end": 3.5,
+    "claims": [
+      {
+        "text": "People waste food and time because they don't know what to cook with what they already have.",
+        "evidence": []
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Just snap a photo of your open fridge to detect ingredients.",
+      "segment_id": "c02",
+      "source_start": 5.0,
+      "source_end": 9.5,
+      "claims": [
+        {
+          "text": "snap a photo of your open fridge to detect ingredients",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            },
+            {
+              "type": "readme",
+              "ref": "README#How it works"
+            },
+            {
+              "type": "file",
+              "ref": "backend/vision.py"
+            },
+            {
+              "type": "file",
+              "ref": "frontend/src/Camera.tsx"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "voice_line": "PantryPal suggests three recipes ranked by how many of your ingredients they use.",
+      "segment_id": "c04",
+      "source_start": 12.0,
+      "source_end": 18.5,
+      "claims": [
+        {
+          "text": "suggests three recipes ranked by how many of your ingredients they use",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            },
+            {
+              "type": "readme",
+              "ref": "README#Features"
+            },
+            {
+              "type": "file",
+              "ref": "backend/recipes.py"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "Vision algorithms detect ingredients from the photo, and our engine ranks recipes matching your pantry.",
+    "segment_id": "c04",
+    "source_start": 13.0,
+    "source_end": 17.0,
+    "claims": [
+      {
+        "text": "Vision algorithms detect ingredients from the photo",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#How it works"
+          },
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          }
+        ]
+      },
+      {
+        "text": "our engine ranks recipes matching your pantry",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          },
+          {
+            "type": "file",
+            "ref": "backend/recipes.py"
+          }
+        ]
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Busy home cooks and students effortlessly transform leftovers into delicious meals without waste.",
+    "segment_id": "c05",
+    "source_start": 19.0,
+    "source_end": 22.0,
+    "claims": []
+  },
+  "ask": {
+    "voice_line": "Vote for PantryPal to eliminate kitchen food waste today.",
+    "card_prompt": "End card with PantryPal branding, tagline 'Snap a photo of your fridge, get 3 recipes', and a call to vote.",
+    "claims": []
+  }
+}
