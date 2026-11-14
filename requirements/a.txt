@@ -1,2 +1,2 @@
 -r common.txt
-google-genai
+google-genai>=3.3  # response_json_schema

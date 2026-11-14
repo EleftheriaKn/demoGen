@@ -1,0 +1,32 @@
+{
+  "name": "PantryPal",
+  "one_liner": "Snap a photo of your fridge, get 3 recipes.",
+  "problem": "People waste food and time because they don't know what to cook with what they already have.",
+  "audience": "Busy home cooks and students with a half-empty fridge.",
+  "features": [
+    {
+      "feature_id": "f1",
+      "name": "Fridge scan",
+      "description": "Detects ingredients from one photo of the open fridge.",
+      "evidence": ["README#How it works", "backend/vision.py", "frontend/src/Camera.tsx"]
+    },
+    {
+      "feature_id": "f2",
+      "name": "Three recipes",
+      "description": "Suggests three recipes ranked by how many of your ingredients they use.",
+      "evidence": ["README#Features", "backend/recipes.py", "backend/ranking.py"]
+    },
+    {
+      "feature_id": "f3",
+      "name": "Pricing",
+      "description": "Shows what each recipe costs.",
+      "evidence": ["README#Pricing"]
+    },
+    {
+      "feature_id": "f4",
+      "name": "Shopping list",
+      "description": "Lists the few missing ingredients for a chosen recipe.",
+      "evidence": ["README#Features", "frontend/src/ShoppingList.tsx"]
+    }
+  ]
+}
