@@ -6,7 +6,9 @@ Nov 14, 2026 · @thanos
 
 DemoCut turns a GitHub repo, one rough screen recording and the judging brief into a 2–3 minute
 demo video, cut from the real footage. Gemini decides what to show, fal makes the voice, music and
-title cards, and ffmpeg cuts it. We are an editor, not a generator: almost every frame is real footage.
+title cards, and ffmpeg cuts it. We are an editor, not a generator: the real footage is the backbone
+(at least 70% of the runtime). Where footage is weak, fal adds title cards and infographics **built
+from the real frames**, and every fact on them is truth-checked.
 
 **The demo is a mobile app.** The user gives it three things and gets the video back:
 
@@ -144,6 +146,59 @@ or logs**. Ingest gets it from the environment (`GITHUB_TOKEN`) to clone private
 repos need no token. Scopes: `read:user` and `repo` (for private repos), or no `repo` scope if we only
 demo public repos.
 
+## Generated shots: infographics from the real footage
+
+Gemini and fal can do more than title cards. A shot can be an **infographic** made from the
+recording: fal gets real frames as reference images, so the picture uses the app's real screens
+and colours. It's still an editor: generated shots explain the footage, they never replace it.
+
+**fal draws, we write.** Image models still garble text (Greek most of all), and text inside a
+generated image would skip the truth check. So fal makes only the picture (background, illustration,
+layout), and render puts every word on top in our font. Every word on screen then comes from
+`script.json`, is spelled right and has passed the truth check.
+
+| Kind of shot | What fal makes | What render adds | Where it goes |
+|---|---|---|---|
+| Title card | Background in the app's style (frames as reference) | Title, one-liner | Hook, ask |
+| Infographic | Diagram or layout, e.g. "how it works" in 3 steps, with real screens inside | Step titles, bullets, a number | Problem, how, impact |
+| Framed real frame | Nothing, or a styled background | A real frame inside a phone/laptop mockup or picture-in-picture, slow zoom | Anywhere footage is too small or busy |
+| Motion b-roll (optional) | A short clip animated from a real frame | Captions only | Hook; at most 1–2 per video |
+
+**Rules**
+
+1. **Demo beats stay real footage.** Generated shots only go in hook, problem, how, impact and ask.
+2. **At least 70% of the runtime is real footage**, counting framed real frames. The script prompt
+   asks for it; the rubric checks it in code from `timeline.json`.
+3. **Every fact on an infographic is a backed claim.** Overlay text goes in the shot's `claims`,
+   so the truth check covers it like a voice line.
+4. **Generated shots are marked.** `Shot.generated` already exists; the board shows a badge, and the
+   pitch says it out loud: "the footage is real, the explainer is generated from it".
+5. **Best of 4** drafts per generated image, picked by the judge (as in A7). Cheap mode: no fal,
+   plain colour background plus render's overlay, so the whole flow works without fal credit.
+6. **Motion b-roll is slow and costly** (minutes per clip): 1–2 max, run in parallel, cached, and
+   first in the cut order.
+
+**Contract proposal (optional fields only: A, B and C agree first, rule 3)**
+
+An infographic stays `kind: "card"`, so no existing value changes. New optional fields:
+
+```python
+class Overlay(Contract):
+    layout: Literal["title", "bullets", "steps", "stat"]
+    title: Optional[str] = None
+    items: list[str] = []          # bullets or steps, max 4, each a backed claim's wording
+    stat: Optional[str] = None     # one big number, e.g. "3 recipes in 5 s"
+
+class ShotVisual(Contract):        # added fields
+    reference_frames: list[str] = []   # frames/... from candidates.json, sent to fal as references
+    inset_frame: Optional[str] = None  # a real frame shown inside the shot (mockup / picture-in-picture)
+    overlay: Optional[Overlay] = None  # text render draws on top
+
+class TimelineVisual(Contract):    # added fields, copied from the script by timeline
+    inset_frame: Optional[str] = None
+    overlay: Optional[Overlay] = None
+```
+
 ## Who owns which files
 
 No file has two owners, so three people can push to `main` all night without merge conflicts.
@@ -172,6 +227,7 @@ A makes every decision and every generated asset. Test each stage alone with
 | A8 | Zoom boxes (should have) | One call per chosen frame writes a zoom box into `script.json` | 11:00 | To do |
 | A9 | Our own video | Version 1 at 12:00; fixes only through prompts or code; version 2 by 14:00 | 14:00 | To do |
 | A10 | Brief from free text (mobile app) | `understand` fills `brief.criteria` from `brief.text` when the app sends only text; 7-minute take works (low media resolution in cheap mode) | 05:30 | Proposed |
+| A11 | Infographic shots | `script.py` picks which non-demo shots are infographics, writes `overlay` + `reference_frames` (overlay text only from backed claims); `assets.py` sends the frames to fal as references, best of 4; rubric checks ≥ 70% real footage | 11:00 | Proposed |
 
 ## Tickets · B · Render (ffmpeg)
 
@@ -189,6 +245,7 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B8 | Robustness | Handles no audio, very short or long moments, a failed fal call; resumes mid-run | 09:00 | To do |
 | B9 | Final video | Version 1 checked frame by frame, bugs fixed, version 2 uploaded | 15:30 | To do |
 | B10 | Phone footage (mobile app) | A portrait, HEVC, variable-frame-rate `.mov` take of 7 minutes renders correctly: rotation applied, portrait over a blurred fill, no A/V drift. Ingest clones private repos with `GITHUB_TOKEN` | 05:30 | Proposed |
+| B11 | Overlays, mockups, picture-in-picture | Render draws `overlay` text (title / bullets / steps / stat, Greek and English) over cards; `inset_frame` inside a device mockup or picture-in-picture with a slow zoom; stills get gentle motion; works with plain backgrounds in cheap mode | 11:00 | Proposed |
 
 ## Tickets · C · App, board, MCP and pitch
 
@@ -208,6 +265,7 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 | C10 | Mobile app flow | `web/index.html` works on a phone: repo → recording → brief → progress → player; installable (manifest); repo-URL field works without login | 05:30 | Proposed |
 | C11 | GitHub login | OAuth login; repo list from `GET /user/repos`; tap a repo fills `repo_url`; token kept server-side only | 09:00 | Proposed |
 | C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Proposed |
+| C13 | Generated badges | Board marks generated shots (`Shot.generated`) and shows the real-footage share from the rubric | 11:00 | Proposed |
 
 ## Make runs fast
 
@@ -243,10 +301,11 @@ Three checkpoints decide what gets cut. Each person sleeps once, staggered, so t
 | 17:30–18:00 | Buffer | | |
 
 **Cut order when a checkpoint fails:** animated zoom and B-roll first, then best-of-4 cards (use plain
-cards), then music, then the MCP tool, then GitHub login (keep the paste-a-repo-URL field). Never cut
+cards), then fal infographic backgrounds (keep render's text overlays on plain backgrounds), then music, then the MCP tool, then GitHub login (keep the paste-a-repo-URL field). Never cut
 the truth check: it is the pitch. Never cut the three inputs on the phone: they are the pitch too.
 
-> The "Proposed" tickets (A10, B10, C10–C12) come from the mobile-app decision (Nov 15). Owners
+> The "Proposed" tickets come from two decisions on Nov 15: the mobile app (A10, B10, C10–C12) and
+> infographics from the real footage (A11, B11, C13). Owners
 > confirm them and set the times; they don't change who owns which files.
 
 ## Pitch: 3 minutes
@@ -274,7 +333,8 @@ claims made vs rejected, and the 20-second test score.
   code really does), the take (the product really working) and the brief (what the judges score).
   The three together let us pick what matters to these judges and prove every claim.
 - *"Isn't this just Higgsfield?"* No: Higgsfield generates new pixels; DemoCut edits your real
-  footage and won't let the video claim what the product can't do.
+  footage and won't let the video claim what the product can't do. Our few generated shots are
+  built from your real frames, marked as generated, and every fact on them is checked.
 
 ## When things break
 
