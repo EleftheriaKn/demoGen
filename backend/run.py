@@ -99,13 +99,13 @@ def new_run_id() -> str:
     return f"run-{uuid.uuid4().hex[:8]}"
 
 
-def create_run(cfg: RunConfig, recording: Path) -> Path:
-    """Create runs/<cfg.run_id>/ with run.json and the recording copied in."""
+def create_run(cfg: RunConfig, recording: Path, move: bool = False) -> Path:
+    """Create runs/<cfg.run_id>/ with run.json and the recording copied (or moved) in."""
     run_dir = RUNS / cfg.run_id
     run_dir.mkdir(parents=True)
     RunConfig.model_validate(cfg.model_dump())
     (run_dir / "run.json").write_text(cfg.model_dump_json(indent=2))
-    shutil.copy2(recording, run_dir / cfg.recording)
+    (shutil.move if move else shutil.copy2)(recording, run_dir / cfg.recording)
     return run_dir
 
 
