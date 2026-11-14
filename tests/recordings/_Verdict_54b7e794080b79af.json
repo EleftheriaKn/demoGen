@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "Test pattern display with timestamp header.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows only a synthetic test pattern, not the app."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no actual app UI present on screen."
+        },
+        {
+          "score": 0.0,
+          "reason": "A static color test pattern is unengaging to judges."
+        }
+      ]
+    },
+    {
+      "note": "Test pattern display with timestamp header and overlay block.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "No app functionality is displayed."
+        },
+        {
+          "score": 0.0,
+          "reason": "No real application UI is shown."
+        },
+        {
+          "score": 0.0,
+          "reason": "A test pattern card does not spark interest."
+        }
+      ]
+    }
+  ]
+}

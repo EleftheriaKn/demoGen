@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "Synthetic test pattern screen with color bars and crosshair overlay.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a test pattern rather than any app functionality."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no actual app UI visible."
+        },
+        {
+          "score": 0.0,
+          "reason": "It contains only placeholder graphics with nothing engaging."
+        }
+      ]
+    },
+    {
+      "note": "Synthetic test pattern screen with color bars and geometric shapes.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It displays a video test pattern instead of PantryPal features."
+        },
+        {
+          "score": 0.0,
+          "reason": "No legible app interface is present."
+        },
+        {
+          "score": 0.0,
+          "reason": "A blank/test screen does not generate interest for a demo."
+        }
+      ]
+    }
+  ]
+}

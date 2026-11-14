@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "A test pattern with color bars and geometric shapes on a dark background.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a test card rather than the app performing any task."
+        },
+        {
+          "score": 0.1,
+          "reason": "No actual app interface or readable content is visible."
+        },
+        {
+          "score": 0.0,
+          "reason": "A placeholder test pattern is unengaging."
+        }
+      ]
+    },
+    {
+      "note": "A video test card with color bars and lines on a dark background.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "No app functionality is demonstrated."
+        },
+        {
+          "score": 0.1,
+          "reason": "There is no app UI shown, only a test screen."
+        },
+        {
+          "score": 0.0,
+          "reason": "A test pattern does not encourage continued watching."
+        }
+      ]
+    }
+  ]
+}
