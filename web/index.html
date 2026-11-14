@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DemoCut</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e3e1dc;
+    --accent: #2f6fde; --ok: #2e8b57; --bad: #c0392b; --skip: #9a9893;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141413; --panel: #1e1e1c; --ink: #ecebe7; --muted: #9d9b95; --line: #33322f;
+            --accent: #6d9bf0; --ok: #5cc28a; --bad: #ec7063; --skip: #6f6d68; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  .grid > * { min-width: 0; }  /* let long chips / thumb strips scroll instead of widening the page */
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+                  background: var(--bg); color: var(--ink); font: inherit; }
+  .row { display: flex; gap: 10px; } .row > div { flex: 1; }
+  button { margin-top: 14px; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: var(--accent);
+           color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 6px 0 14px; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  ol.stages { list-style: none; padding: 0; margin: 0 0 14px; display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+  ol.stages li { font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); }
+  ol.stages li.running { border-color: var(--accent); color: var(--ink); }
+  ol.stages li.done { border-color: var(--ok); color: var(--ink); }
+  ol.stages li.skipped { color: var(--skip); }
+  ol.stages li.failed { border-color: var(--bad); color: var(--bad); }
+  ol.stages li::before { content: "○ "; } ol.stages li.running::before { content: "◐ "; }
+  ol.stages li.done::before, ol.stages li.skipped::before { content: "● "; } ol.stages li.failed::before { content: "✕ "; }
+  .log { font: 12px/1.5 ui-monospace, Menlo, monospace; background: var(--bg); border: 1px solid var(--line);
+         border-radius: 6px; padding: 8px; height: 180px; overflow: auto; white-space: pre-wrap; }
+  video { width: 100%; border-radius: 8px; background: #000; margin-top: 14px; display: none; }
+  .links { font-size: 13px; margin-top: 8px; } .links a { color: var(--accent); margin-right: 12px; }
+  ul.runs { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  ul.runs li { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  ul.runs li:hover { color: var(--accent); }
+  .tag { font-size: 12px; } .tag.done { color: var(--ok); } .tag.failed { color: var(--bad); }
+  .empty { color: var(--muted); font-size: 13px; }
+
+  /* decisions (C6) */
+  #decisions { margin-top: 20px; display: none; }
+  #decisions h3 { font-size: 15px; margin: 18px 0 8px; } #decisions h3:first-of-type { margin-top: 0; }
+  .summary-line { font-size: 13px; color: var(--muted); margin: -4px 0 8px; }
+  .claims, .rubric, .facts, .hooks { list-style: none; margin: 0; padding: 0; }
+  .claims li, .rubric li, .facts li { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
+           padding: 1px 6px; border-radius: 4px; margin-right: 6px; border: 1px solid currentColor; }
+  .b-backed { color: var(--ok); } .b-rewritten { color: #c98a00; } .b-dropped { color: var(--bad); } .b-pending { color: var(--muted); }
+  .claims li.dropped .text { text-decoration: line-through; color: var(--muted); }
+  .why { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .chip { display: inline-block; font: 11px ui-monospace, Menlo, monospace; background: var(--bg); border: 1px solid var(--line);
+          border-radius: 4px; padding: 0 5px; margin: 3px 4px 0 0; color: var(--muted); max-width: 100%; overflow-wrap: anywhere; }
+  .hooks li { display: grid; grid-template-columns: 1fr 52px; gap: 8px; align-items: center; font-size: 14px; padding: 4px 0; }
+  .hooks li.chosen { font-weight: 600; }
+  .hooks .score { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .hooks .score > div { height: 100%; background: var(--muted); } .hooks li.chosen .score > div { background: var(--accent); }
+  .pick { padding: 8px 0; border-top: 1px solid var(--line); }
+  .pick .head { font-size: 13px; display: flex; justify-content: space-between; gap: 8px; }
+  .thumbs { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; }
+  .thumbs figure { margin: 0; flex: 0 0 auto; text-align: center; font-size: 11px; color: var(--muted); }
+  .thumbs img { display: block; height: 64px; border-radius: 4px; border: 2px solid transparent; opacity: .55; }
+  .thumbs figure.chosen img { border-color: var(--accent); opacity: 1; }
+  .rubric li::before { content: "✓ "; color: var(--ok); font-weight: 700; }
+  .rubric li.fail::before { content: "✕ "; color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>DemoCut</h1>
+  <p class="sub">Repo + one rough take + the brief → a demo video cut from real footage.</p>
+
+  <div class="grid">
+    <div>
+      <section>
+        <h2>New run</h2>
+        <form id="form">
+          <label for="repo_url">GitHub repo URL</label>
+          <input id="repo_url" name="repo_url" type="url" required placeholder="https://github.com/you/app">
+
+          <label for="recording">Screen recording</label>
+          <input id="recording" name="recording" type="file" accept="video/*">
+          <div class="hint">Leave empty to use the fixture take.</div>
+
+          <label for="criteria">Judging criteria</label>
+          <input id="criteria" name="criteria" value="usefulness,craft,aura">
+
+          <div class="row">
+            <div>
+              <label for="time_limit_s">Time limit (s)</label>
+              <input id="time_limit_s" name="time_limit_s" type="number" min="10" value="180">
+            </div>
+            <div>
+              <label for="mode">Mode</label>
+              <select id="mode" name="mode"><option value="cheap">cheap</option><option value="full">full</option></select>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="language">Language</label>
+              <select id="language" name="language"><option value="en">English</option><option value="el">Greek</option></select>
+            </div>
+            <div>
+              <label for="second_language">2nd language</label>
+              <select id="second_language" name="second_language"><option value="">None</option><option value="el">Greek</option><option value="en">English</option></select>
+            </div>
+          </div>
+          <button id="go" type="submit">Make the video</button>
+        </form>
+      </section>
+
+      <section style="margin-top:20px">
+        <h2>Runs</h2>
+        <ul class="runs" id="runs"><li class="empty">No runs yet.</li></ul>
+      </section>
+    </div>
+
+    <section>
+      <h2 id="run-title">No run selected</h2>
+      <div class="status"><span id="status">Start a run or pick one from the list.</span><span id="pct"></span></div>
+      <div class="bar"><div id="bar"></div></div>
+      <ol class="stages" id="stages"></ol>
+      <div class="log" id="log"></div>
+      <video id="player" controls></video>
+      <div class="links" id="links"></div>
+
+      <div id="decisions">
+        <h3>Truth check</h3>
+        <div class="summary-line" id="claims-sum"></div>
+        <ul class="claims" id="claims"></ul>
+
+        <h3>Opening hook</h3>
+        <ul class="hooks" id="hooks"></ul>
+
+        <h3>Rankings</h3>
+        <div id="picks"></div>
+
+        <h3>Facts from the repo</h3>
+        <div class="summary-line" id="facts-sum"></div>
+        <ul class="facts" id="facts"></ul>
+
+        <h3>Final check</h3>
+        <ul class="rubric" id="rubric"></ul>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const STAGES = ["ingest","transcribe","understand","candidates","judge_frames","script",
+                "assets","timeline","rubric","captions","render"];
+const $ = (id) => document.getElementById(id);
+const DECISION_STAGES = new Set(["understand", "judge_frames", "script", "assets", "rubric"]);
+let source = null;
+let currentRun = null;
+
+function resetView(runId) {
+  $("run-title").textContent = runId;
+  $("status").textContent = "Waiting for events…";
+  $("pct").textContent = "";
+  $("bar").style.width = "0";
+  $("log").textContent = "";
+  $("links").innerHTML = "";
+  const v = $("player"); v.style.display = "none"; v.removeAttribute("src"); v.load();
+  $("stages").innerHTML = STAGES.map(s => `<li id="st-${s}">${s}</li>`).join("");
+  $("decisions").style.display = "none";
+}
+
+// ---- decisions (C6): everything here comes from the run's JSON files -----------------
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct = (x) => Math.round((x ?? 0) * 100);
+const isImage = (p) => /\.(png|jpe?g|webp)$/i.test(p);
+const KIND_LABEL = { frame_pick: "Best frame of", take_pick: "Best title card for" };
+
+async function getJson(runId, file) {
+  try {
+    const r = await fetch(`/runs/${runId}/files/${file}`);
+    return r.ok ? await r.json() : null;
+  } catch (e) { return null; }
+}
+
+async function renderDecisions(runId) {
+  const [dec, script, summary] = await Promise.all(
+    ["decisions.json", "script.json", "summary.json"].map(f => getJson(runId, f)));
+  if (!dec && !script && !summary) return;
+  $("decisions").style.display = "block";
+  const decisions = dec?.decisions ?? [];
+  const bySubject = (kind, id) => decisions.find(d => d.kind === kind && d.subject === id);
+  const base = `/runs/${runId}/files/`;
+
+  // Truth check: every claim in the script, with what the judge did to it.
+  const claims = (script?.shots ?? []).flatMap(s => s.claims.map(c => ({ ...c, shot: s.shot_id })));
+  const count = (st) => claims.filter(c => c.status === st).length;
+  $("claims-sum").textContent = claims.length
+    ? `${claims.length} claims · ${count("backed")} backed · ${count("rewritten")} rewritten · ${count("dropped")} rejected`
+    : "No claims yet.";
+  $("claims").innerHTML = claims.map(c => {
+    const d = bySubject("claim_check", c.claim_id);
+    const ev = c.evidence.map(e => `<span class="chip">${esc(e.type)}: ${esc(e.ref)}</span>`).join("");
+    return `<li class="${esc(c.status)}"><span class="badge b-${esc(c.status)}">${c.status === "dropped" ? "rejected" : esc(c.status)}</span>`
+      + `<span class="text">“${esc(c.text)}”</span> <span class="chip">${esc(c.shot)}</span>`
+      + (d && c.status !== "backed" ? `<span class="why">${esc(d.reason)}</span>` : "")
+      + (ev ? `<div>${ev}</div>` : "") + `</li>`;
+  }).join("");
+
+  // Hooks, best first.
+  const hooks = [...(script?.hooks ?? [])].sort((a, b) => b.score - a.score);
+  $("hooks").innerHTML = hooks.map(h =>
+    `<li class="${h.hook_id === script.chosen_hook_id ? "chosen" : ""}">`
+    + `<span>${h.hook_id === script.chosen_hook_id ? "★ " : ""}${esc(h.text)}</span>`
+    + `<div class="score" title="${pct(h.score)}%"><div style="width:${pct(h.score)}%"></div></div></li>`
+  ).join("") || `<li class="empty">No hooks yet.</li>`;
+
+  // Rankings: frame picks and card picks, options side by side, the winner highlighted.
+  const picks = decisions.filter(d => d.kind === "frame_pick" || d.kind === "take_pick");
+  $("picks").innerHTML = picks.map(d => {
+    const opts = d.options.map(o => isImage(o)
+      ? `<figure class="${o === d.chosen ? "chosen" : ""}"><img loading="lazy" src="${base}${esc(o)}" alt="${esc(o)}">${o === d.chosen ? "chosen" : ""}</figure>`
+      : `<span class="chip">${o === d.chosen ? "★ " : ""}${esc(o)}</span>`).join("");
+    return `<div class="pick"><div class="head"><span>${KIND_LABEL[d.kind]} <b>${esc(d.subject)}</b></span>`
+      + `<span>judge ${pct(d.judge_score)}%</span></div><div class="thumbs">${opts}</div>`
+      + `<span class="why">${esc(d.reason)}</span></div>`;
+  }).join("") || `<div class="empty">No rankings yet.</div>`;
+
+  // Facts: what understand found in the repo, each with its evidence.
+  $("facts-sum").textContent = summary ? `${summary.name}: ${summary.one_liner}` : "";
+  $("facts").innerHTML = (summary?.features ?? []).map(f =>
+    `<li><b>${esc(f.name)}</b>: ${esc(f.description)}<div>${f.evidence.map(e => `<span class="chip">${esc(e)}</span>`).join("")}</div></li>`
+  ).join("") || `<li class="empty">No facts yet.</li>`;
+
+  // Final rubric.
+  const rubric = dec?.rubric ?? [];
+  $("rubric").innerHTML = rubric.map(r =>
+    `<li class="${r.passed ? "" : "fail"}">${esc(r.question)}<span class="why">${esc(r.reason)}</span></li>`
+  ).join("") + (dec?.recut ? `<li class="fail">Recut ${esc(dec.recut.shot_id)}<span class="why">${esc(dec.recut.reason)}</span></li>` : "")
+    || `<li class="empty">Not checked yet.</li>`;
+}
+
+function setStage(stage, cls) {
+  const li = $("st-" + stage);
+  if (li) li.className = cls;
+}
+
+function onEvent(ev) {
+  const time = new Date(ev.ts).toLocaleTimeString();
+  const log = $("log");
+  log.textContent += `${time}  [${ev.stage}] ${ev.msg}\n`;
+  log.scrollTop = log.scrollHeight;
+  $("bar").style.width = (ev.progress * 100) + "%";
+  $("pct").textContent = Math.round(ev.progress * 100) + "%";
+  $("status").textContent = ev.msg;
+  if (ev.stage !== "run") {
+    if (ev.msg.endsWith("skipped (already done)")) setStage(ev.stage, "skipped");
+    else if (ev.msg.includes(" started")) setStage(ev.stage, "running");
+    else if (ev.msg.endsWith(" done")) {
+      setStage(ev.stage, "done");
+      if (DECISION_STAGES.has(ev.stage)) renderDecisions(currentRun);
+    }
+  } else if (ev.msg.startsWith("Run failed")) {
+    document.querySelectorAll("ol.stages li.running").forEach(li => li.className = "failed");
+  }
+}
+
+function onEnd(runId, status) {
+  $("status").textContent = status === "done" ? "Done." : "Run failed. See the log, fix it, and run again: it resumes.";
+  const base = `/runs/${runId}/files/`;
+  if (status === "done") {
+    const v = $("player"); v.src = base + "final.mp4"; v.style.display = "block";
+  }
+  $("links").innerHTML = ["final.mp4", "captions.srt", "decisions.json", "script.json"]
+    .map(f => `<a href="${base}${f}" target="_blank">${f}</a>`).join("");
+  $("go").disabled = false;
+  renderDecisions(runId);
+  loadRuns();
+}
+
+function watch(runId) {
+  if (source) source.close();
+  currentRun = runId;
+  history.replaceState(null, "", "#" + runId);  // shareable: /#run-1234 opens this run
+  resetView(runId);
+  source = new EventSource(`/runs/${runId}/events`);
+  source.onmessage = (m) => onEvent(JSON.parse(m.data));
+  source.addEventListener("end", (m) => { source.close(); source = null; onEnd(runId, JSON.parse(m.data).status); });
+  source.onerror = () => { $("status").textContent = "Lost connection to the server."; };
+}
+
+async function loadRuns() {
+  try {
+    const runs = await (await fetch("/runs")).json();
+    $("runs").innerHTML = runs.length
+      ? runs.map(r => `<li data-id="${r.run_id}"><span>${r.run_id}</span><span class="tag ${r.status}">${r.status}</span></li>`).join("")
+      : `<li class="empty">No runs yet.</li>`;
+    $("runs").querySelectorAll("li[data-id]").forEach(li => li.onclick = () => watch(li.dataset.id));
+  } catch (e) { /* server not up yet */ }
+}
+
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  $("go").disabled = true;
+  const fd = new FormData(e.target);
+  if (!$("recording").files.length) fd.delete("recording");
+  const res = await fetch("/runs", { method: "POST", body: fd });
+  if (!res.ok) {
+    $("status").textContent = "Could not start: " + (await res.text());
+    $("go").disabled = false;
+    return;
+  }
+  const { run_id } = await res.json();
+  watch(run_id);
+  loadRuns();
+};
+
+loadRuns();
+if (location.hash.length > 1) watch(decodeURIComponent(location.hash.slice(1)));
+</script>
+</body>
+</html>

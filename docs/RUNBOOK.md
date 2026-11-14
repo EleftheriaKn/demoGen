@@ -6,7 +6,20 @@ Nov 14, 2026 · @thanos
 
 DemoCut turns a GitHub repo, one rough screen recording and the judging brief into a 2–3 minute
 demo video, cut from the real footage. Gemini decides what to show, fal makes the voice, music and
-title cards, and ffmpeg cuts it. We are an editor, not a generator: almost every frame is real footage.
+title cards, and ffmpeg cuts it. We are an editor, not a generator: the real footage is the backbone
+(at least 70% of the runtime). Where footage is weak, fal adds title cards and infographics **built
+from the real frames**, and every fact on them is truth-checked.
+
+**The demo is a mobile app.** The user gives it three things and gets the video back:
+
+1. **A GitHub repo**: log in with GitHub, the app lists your repos, tap one.
+2. **A screen recording**: up to 7 minutes, recorded on the phone (or picked from the gallery).
+3. **A judging brief**: a few lines typed (or pasted) from the hackathon page.
+
+**Why we win:** other tools take only one of these. A repo-only tool can't show the product
+working; a video-only editor doesn't know what the code really does; neither knows what the
+judges score. With all three, DemoCut cuts the moments the judges care about and the truth check
+proves every claim against the code.
 
 Start Sat 22:00. Code freeze Sun 18:00. The starter code is in `democut-starter.zip`; full code and
 fixtures are on the DemoCut Architecture page.
@@ -35,7 +48,8 @@ Python does everything except the board, which is one plain HTML page. No React,
 | Video | ffmpeg 5+ with libass and freetype | Cut, fit, caption, mix, render |
 | Scene cuts | PySceneDetect (`scenedetect`) | Snaps Gemini's timestamps to real cuts |
 | API | FastAPI + uvicorn, events streamed with SSE | Starts runs, streams progress, serves files |
-| Board | One `web/index.html`, plain JavaScript | Upload, progress, player; no build step |
+| Board / mobile app | One `web/index.html`, plain JavaScript, mobile-first and installable (PWA: manifest + "Add to Home Screen") | Login, repo picker, record/upload, brief, progress, player; no build step, no app store |
+| Login | GitHub OAuth app (FastAPI routes) | Lists the user's repos; the token also lets ingest clone private repos |
 | Agent tool | `mcp` 2.x (`MCPServer`) | `make_demo_video` for Claude Code |
 | Storage | Plain files in `runs/<id>/`, cache in `.cache/` | Resume any run; re-runs cost nothing |
 | Repo | One GitHub repo, everyone on `main` | Fewest moving parts |
@@ -46,8 +60,9 @@ The board, the API and the MCP tool all start the same thing: `run.py`, which ru
 
 ![DemoCut pipeline · 10 stages, colour = owner](pipeline.png)
 
-Inputs: GitHub repo URL · rough screen recording · judging brief and time limit
-→ **Board, API or MCP tool, then `run.py`** (C): writes `run.json`, runs the 10 stages in order,
+Inputs: GitHub repo (picked after GitHub login, or a pasted URL) · screen recording (≤ 7 min) ·
+judging brief (free text) and time limit
+→ **Mobile app / board, API or MCP tool, then `run.py`** (C): writes `run.json`, runs the 10 stages in order,
 and skips any stage whose output file already exists.
 
 | # | Stage | Owner | Tool | Writes |
@@ -72,6 +87,117 @@ Outputs: `final.mp4` · `captions.srt` · `decisions.json`. Every stage reads an
 
 Each stage is one Python file with a `run(run_dir, cfg)` function. It reads the files before it and
 writes one new file; that file existing means the stage is done.
+
+## The mobile app
+
+The phone is the only thing the user touches. Three screens, then a progress screen and the player.
+
+| Step | Screen | What happens |
+|---|---|---|
+| 1 | **Log in with GitHub** | GitHub OAuth. The API calls `GET /user/repos?sort=updated` and shows the list; the user taps one. Fallback: a "paste a repo URL" field (no login). |
+| 2 | **Recording** | The user picks a screen recording made with the phone's own screen recorder (iOS Control Centre / Android quick settings), or films with the camera. The app checks the length (≤ 7 min) before uploading. |
+| 3 | **Brief** | A text box: paste the judging brief; time limit (default 3 min) and language (English or Greek). |
+| 4 | **Making your video** | Live progress from `/runs/{id}/events` (SSE), one line per stage. |
+| 5 | **Done** | Plays `final.mp4`, with buttons to download and share. |
+
+A web page can't screen-record other apps on a phone (no screen capture API on mobile
+browsers), and a native app would need ReplayKit / MediaProjection plus an app store build. So the
+phone's built-in screen recorder makes the take and the app uploads it: same result, no native code.
+
+### How big is a 7-minute recording?
+
+Size = bitrate × 420 s ÷ 8. Phones record at very different bitrates:
+
+| Recording | Bitrate | 7 minutes |
+|---|---|---|
+| Screen recording, 720p | ~4 Mbit/s | **210,000,000 bytes** (~210 MB) |
+| Camera 1080p30, HEVC (iPhone default, ~60 MB/min) | ~8 Mbit/s | **420,000,000 bytes** (~420 MB) |
+| Camera 1080p30, H.264 ("most compatible" / many Androids) | ~17 Mbit/s | **892,500,000 bytes** (~890 MB) |
+| Camera 4K30, HEVC (~170 MB/min) | ~23 Mbit/s | **1,207,500,000 bytes** (~1.2 GB): too big |
+
+**Limits we set:** max **7:00** (420 s, checked in the app and again by the API with ffprobe) and max
+**1 GiB = 1,073,741,824 bytes** per upload. Ask users to record at 1080p or lower (screen recordings
+already are). A typical take is 200–450 MB.
+
+What this means for the build:
+
+- **Upload in chunks.** One 400 MB POST over phone Wi-Fi fails too often. The app sends 8 MB parts
+  and the API appends them, so a dropped connection resumes instead of restarting (C).
+- **The API must be reachable from the phone**: a tunnel (`cloudflared` / `ngrok`) to the laptop is
+  enough for the demo (C).
+- **Phone footage is portrait, HEVC, variable frame rate, often `.mov` with a rotation flag.** The
+  render must handle all of that: portrait footage goes into a 16:9 frame over a blurred copy of
+  itself instead of black bars (B).
+- **Gemini** takes the whole take in one call: the Files API allows 2 GB per file, and 7 minutes is
+  roughly 125k tokens at default media resolution (about 40k at low). A long take makes the run slower,
+  not impossible; use low media resolution in cheap mode (A).
+
+### The brief is free text
+
+The user types or pastes the brief. Today `run.json` has `brief.criteria` (a list) and `time_limit_s`.
+Proposal: add an **optional** `brief.text` (the brief as typed) to `contracts.py`. A's understand
+stage extracts `criteria` from it when the app sends only text. This only adds an optional field,
+so nothing breaks, but rule 3 still applies: **A, B and C agree first**.
+
+### The GitHub token
+
+The token stays on the server (in the login session) and is **never written to `run.json`, events
+or logs**. Ingest gets it from the environment (`GITHUB_TOKEN`) to clone private repos; public
+repos need no token. Scopes: `read:user` and `repo` (for private repos), or no `repo` scope if we only
+demo public repos.
+
+## Generated shots: infographics from the real footage
+
+Gemini and fal can do more than title cards. A shot can be an **infographic** made from the
+recording: fal gets real frames as reference images, so the picture uses the app's real screens
+and colours. It's still an editor: generated shots explain the footage, they never replace it.
+
+**fal draws, we write.** Image models still garble text (Greek most of all), and text inside a
+generated image would skip the truth check. So fal makes only the picture (background, illustration,
+layout), and render puts every word on top in our font. Every word on screen then comes from
+`script.json`, is spelled right and has passed the truth check.
+
+| Kind of shot | What fal makes | What render adds | Where it goes |
+|---|---|---|---|
+| Title card | Background in the app's style (frames as reference) | Title, one-liner | Hook, ask |
+| Infographic | Diagram or layout, e.g. "how it works" in 3 steps, with real screens inside | Step titles, bullets, a number | Problem, how, impact |
+| Framed real frame | Nothing, or a styled background | A real frame inside a phone/laptop mockup or picture-in-picture, slow zoom | Anywhere footage is too small or busy |
+| Motion b-roll (optional) | A short clip animated from a real frame | Captions only | Hook; at most 1–2 per video |
+
+**Rules**
+
+1. **Demo beats stay real footage.** Generated shots only go in hook, problem, how, impact and ask.
+2. **At least 70% of the runtime is real footage**, counting framed real frames. The script prompt
+   asks for it; the rubric checks it in code from `timeline.json`.
+3. **Every fact on an infographic is a backed claim.** Overlay text goes in the shot's `claims`,
+   so the truth check covers it like a voice line.
+4. **Generated shots are marked.** `Shot.generated` already exists; the board shows a badge, and the
+   pitch says it out loud: "the footage is real, the explainer is generated from it".
+5. **Best of 4** drafts per generated image, picked by the judge (as in A7). Cheap mode: no fal,
+   plain colour background plus render's overlay, so the whole flow works without fal credit.
+6. **Motion b-roll is slow and costly** (minutes per clip): 1–2 max, run in parallel, cached, and
+   first in the cut order.
+
+**Contract proposal (optional fields only: A, B and C agree first, rule 3)**
+
+An infographic stays `kind: "card"`, so no existing value changes. New optional fields:
+
+```python
+class Overlay(Contract):
+    layout: Literal["title", "bullets", "steps", "stat"]
+    title: Optional[str] = None
+    items: list[str] = []          # bullets or steps, max 4, each a backed claim's wording
+    stat: Optional[str] = None     # one big number, e.g. "3 recipes in 5 s"
+
+class ShotVisual(Contract):        # added fields
+    reference_frames: list[str] = []   # frames/... from candidates.json, sent to fal as references
+    inset_frame: Optional[str] = None  # a real frame shown inside the shot (mockup / picture-in-picture)
+    overlay: Optional[Overlay] = None  # text render draws on top
+
+class TimelineVisual(Contract):    # added fields, copied from the script by timeline
+    inset_frame: Optional[str] = None
+    overlay: Optional[Overlay] = None
+```
 
 ## Who owns which files
 
@@ -100,6 +226,8 @@ A makes every decision and every generated asset. Test each stage alone with
 | A7 | Title cards and music | Best of 4 cards picked by the judge; plain cards in cheap mode; music bed | 11:00 | To do |
 | A8 | Zoom boxes (should have) | One call per chosen frame writes a zoom box into `script.json` | 11:00 | To do |
 | A9 | Our own video | Version 1 at 12:00; fixes only through prompts or code; version 2 by 14:00 | 14:00 | To do |
+| A10 | Brief from free text (mobile app) | `understand` fills `brief.criteria` from `brief.text` when the app sends only text; 7-minute take works (low media resolution in cheap mode) | 05:30 | Proposed |
+| A11 | Infographic shots | `script.py` picks which non-demo shots are infographics, writes `overlay` + `reference_frames` (overlay text only from backed claims); `assets.py` sends the frames to fal as references, best of 4; rubric checks ≥ 70% real footage | 11:00 | Proposed |
 
 ## Tickets · B · Render (ffmpeg)
 
@@ -108,14 +236,16 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | ID | Ticket | Done when | By | Status |
 |---|---|---|---|---|
 | B1 | Setup: ffmpeg 5+, font, fake media | `scripts/make_fake_media.sh` runs; `NotoSans-Bold.ttf` in `fonts/` | 23:00 | Done |
-| B2 | Render half on fixtures | timeline → captions → render gives `runs/dev/final.mp4` | 23:30 | To do |
-| B3 | Render on the real test take | Works on C's take in `samples/`, whatever its size and frame rate | 00:30 | To do |
+| B2 | Render half on fixtures | timeline → captions → render gives `runs/dev/final.mp4` | 23:30 | Done |
+| B3 | Render on the real test take | Works on C's take in `samples/`, whatever its size and frame rate | 00:30 | Done on 7 test takes; recheck on C's take |
 | B4 | `ingest.py` | Clones a real repo; `repo_files.json`; `audio.wav` when the take has sound | 01:00 | To do |
 | B5 | `candidates.py` | Scene cuts and 3 frames per moment from A's `moments.json` | 02:00 | To do |
 | B6 | Checkpoint 1, with A | Test take + fixture script + real voices → captioned MP4 | 02:00 | To do |
 | B7 | First full run, with A, then speed | A full run takes under 15 minutes; add a 720p preview mode if not | 05:30 | To do |
 | B8 | Robustness | Handles no audio, very short or long moments, a failed fal call; resumes mid-run | 09:00 | To do |
 | B9 | Final video | Version 1 checked frame by frame, bugs fixed, version 2 uploaded | 15:30 | To do |
+| B10 | Phone footage (mobile app) | A portrait, HEVC, variable-frame-rate `.mov` take of 7 minutes renders correctly: rotation applied, portrait over a blurred fill, no A/V drift. Ingest clones private repos with `GITHUB_TOKEN` | 05:30 | Proposed |
+| B11 | Overlays, mockups, picture-in-picture | Render draws `overlay` text (title / bullets / steps / stat, Greek and English) over cards; `inset_frame` inside a device mockup or picture-in-picture with a slow zoom; stills get gentle motion; works with plain backgrounds in cheap mode | 11:00 | Proposed |
 
 ## Tickets · C · App, board, MCP and pitch
 
@@ -132,6 +262,10 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 | C7 | DemoCut's own take | Rough 4-minute recording of DemoCut in use | 10:00 | To do |
 | C8 | 20-second test | 5–10 people: our cut vs a video another team made by hand | 13:00 | To do |
 | C9 | Pitch, slides, README | 3-minute script, 3 slides, cached live demo; manual OBS video by 15:00 if checkpoint 3 fails | 14:00 | To do |
+| C10 | Mobile app flow | `web/index.html` works on a phone: repo → recording → brief → progress → player; installable (manifest); repo-URL field works without login | 05:30 | Proposed |
+| C11 | GitHub login | OAuth login; repo list from `GET /user/repos`; tap a repo fills `repo_url`; token kept server-side only | 09:00 | Proposed |
+| C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Proposed |
+| C13 | Generated badges | Board marks generated shots (`Shot.generated`) and shows the real-footage share from the rubric | 11:00 | Proposed |
 
 ## Make runs fast
 
@@ -167,7 +301,12 @@ Three checkpoints decide what gets cut. Each person sleeps once, staggered, so t
 | 17:30–18:00 | Buffer | | |
 
 **Cut order when a checkpoint fails:** animated zoom and B-roll first, then best-of-4 cards (use plain
-cards), then music, then the MCP tool. Never cut the truth check: it is the pitch.
+cards), then fal infographic backgrounds (keep render's text overlays on plain backgrounds), then music, then the MCP tool, then GitHub login (keep the paste-a-repo-URL field). Never cut
+the truth check: it is the pitch. Never cut the three inputs on the phone: they are the pitch too.
+
+> The "Proposed" tickets come from two decisions on Nov 15: the mobile app (A10, B10, C10–C12) and
+> infographics from the real footage (A11, B11, C13). Owners
+> confirm them and set the times; they don't change who owns which files.
 
 ## Pitch: 3 minutes
 
@@ -178,7 +317,7 @@ Open on the video itself, then reveal that nobody edited it.
 | 0:00–0:15 | Our submission video | First 15 seconds, full screen |
 | 0:15–0:30 | The pain | "Every team here spent its last hours on this video." |
 | 0:30–0:50 | Reveal | Raw take next to the final cut; time and cost to make it |
-| 0:50–1:40 | How it works | Cached run on the board: moments ranked, one claim rejected |
+| 0:50–1:40 | How it works | On the phone: tap a repo, pick the take, paste the brief. Then a cached run: moments ranked, one claim rejected |
 | 1:40–2:00 | Proof | 20-second test result and time to video |
 | 2:00–2:25 | Agents can call it | Claude Code calls `make_demo_video` on a cached run |
 | 2:25–3:00 | Close | Who needs it next: every hackathon, launch and open-source release |
@@ -190,8 +329,12 @@ claims made vs rejected, and the 20-second test score.
 
 - *"How is this different from Proof & Demo?"* It's hands-off from one take, an agent can call it,
   and fal generates takes the judge chooses between.
+- *"Lots of tools already make demo videos. Why yours?"* None takes all three: the repo (what the
+  code really does), the take (the product really working) and the brief (what the judges score).
+  The three together let us pick what matters to these judges and prove every claim.
 - *"Isn't this just Higgsfield?"* No: Higgsfield generates new pixels; DemoCut edits your real
-  footage and won't let the video claim what the product can't do.
+  footage and won't let the video claim what the product can't do. Our few generated shots are
+  built from your real frames, marked as generated, and every fact on them is checked.
 
 ## When things break
 

@@ -3,3 +3,5 @@ fastapi
 uvicorn[standard]
 fal-client
 mcp
+python-multipart
+httpx
