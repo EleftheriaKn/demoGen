@@ -70,7 +70,8 @@ def _call(model: str, text: str, schema: type[BaseModel]) -> str:
     from google import genai
     from google.genai import types
 
-    resp = genai.Client().models.generate_content(  # reads GEMINI_API_KEY
+    client = genai.Client()  # reads GEMINI_API_KEY; keep a reference or it closes mid-request
+    resp = client.models.generate_content(
         model=model,
         contents=text,
         config=types.GenerateContentConfig(

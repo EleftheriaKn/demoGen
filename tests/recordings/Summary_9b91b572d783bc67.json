@@ -1,32 +1,35 @@
 {
   "name": "PantryPal",
-  "one_liner": "Snap a photo of your fridge, get 3 recipes.",
-  "problem": "People waste food and time because they don't know what to cook with what they already have.",
-  "audience": "Busy home cooks and students with a half-empty fridge.",
+  "one_liner": "Snap a photo of your fridge and get three recipes you can cook right now.",
+  "problem": "Deciding what to cook with the ingredients currently available in your fridge can be difficult and time-consuming.",
+  "audience": "Home cooks looking to make meals from ingredients they already have on hand.",
   "features": [
     {
       "feature_id": "f1",
-      "name": "Fridge scan",
-      "description": "Detects ingredients from one photo of the open fridge.",
-      "evidence": ["README#How it works", "backend/vision.py", "frontend/src/Camera.tsx"]
+      "name": "Ingredient detection",
+      "description": "Identifies ingredients visible in a single photo of your open fridge.",
+      "evidence": [
+        "README#Features",
+        "backend/vision.py"
+      ]
     },
     {
       "feature_id": "f2",
-      "name": "Three recipes",
-      "description": "Suggests three recipes ranked by how many of your ingredients they use.",
-      "evidence": ["README#Features", "backend/recipes.py", "backend/ranking.py"]
+      "name": "Ranked recipe suggestions",
+      "description": "Suggests three recipes ranked by how many of your available ingredients they use.",
+      "evidence": [
+        "README#Features",
+        "backend/recipes.py"
+      ]
     },
     {
       "feature_id": "f3",
-      "name": "Pricing",
-      "description": "Shows what each recipe costs.",
-      "evidence": ["README#Pricing"]
-    },
-    {
-      "feature_id": "f4",
       "name": "Shopping list",
-      "description": "Lists the few missing ingredients for a chosen recipe.",
-      "evidence": ["README#Features", "frontend/src/ShoppingList.tsx"]
+      "description": "Creates a shopping list for the few missing ingredients needed to complete suggested recipes.",
+      "evidence": [
+        "README#Features",
+        "frontend/src/ShoppingList.tsx"
+      ]
     }
   ]
 }
