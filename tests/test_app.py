@@ -70,6 +70,25 @@ def test_board_is_served():
     assert "renderDecisions" in r.text and 'id="claims"' in r.text and 'id="rubric"' in r.text
 
 
+def test_installable_on_phone():
+    client = TestClient(api.app)
+    m = client.get("/manifest.webmanifest")
+    assert m.status_code == 200 and m.json()["display"] == "standalone" and m.json()["start_url"] == "/"
+    for icon in m.json()["icons"]:
+        assert client.get(icon["src"]).headers["content-type"] == "image/png"
+    assert "javascript" in client.get("/sw.js").headers["content-type"]
+    page = client.get("/").text
+    assert 'rel="manifest"' in page and 'data-step="3"' in page and "MAX_S = 420" in page
+
+
+def test_brief_text_saved(runs):
+    client = TestClient(api.app)
+    r = client.post("/runs", data={"repo_url": "https://github.com/x/y", "brief_text": "  Judged on usefulness.  "})
+    assert (runs / r.json()["run_id"] / "brief.txt").read_text() == "Judged on usefulness.\n"
+    r = client.post("/runs", data={"repo_url": "https://github.com/x/y"})
+    assert not (runs / r.json()["run_id"] / "brief.txt").exists()
+
+
 def test_decision_files_served(runs):
     d = orchestrator.new_run_from_fixture()
     orchestrator.run_pipeline(d)

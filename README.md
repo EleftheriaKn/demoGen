@@ -32,10 +32,28 @@ DEMOCUT_FAKE=all uvicorn backend.app:app  # then open http://127.0.0.1:8000
 
 All three start the same pipeline (`backend/run.py`) in its own process.
 
-**1. The board.** `uvicorn backend.app:app`, open http://127.0.0.1:8000, paste the repo URL,
-pick the recording, set the brief, press *Make the video*. You see each stage live, then the
-video, then how it decided: claims backed or rejected, ranked frames and hooks, the facts it
-found in the repo and the final check. `http://127.0.0.1:8000/#<run_id>` opens one run.
+**1. The board / phone app.** `uvicorn backend.app:app`, open http://127.0.0.1:8000. Three
+steps: paste the repo URL, pick the recording (up to 7 minutes and 1 GB, checked on the device
+before upload), paste the brief. You see each stage live, then the video with Download and Share,
+then how it decided: claims backed or rejected, ranked frames and hooks, the facts it found in the
+repo and the final check. `http://127.0.0.1:8000/#<run_id>` opens one run. On a phone, use the
+browser's *Add to Home Screen* / *Install* to get it as an app.
+
+**On your phone (same Wi-Fi as the laptop).** Start the server so other devices can reach it,
+then open the address it prints for your laptop on the phone:
+
+```bash
+uvicorn backend.app:app --host 0.0.0.0 --port 8000
+ipconfig getifaddr en0        # macOS: the laptop's address, e.g. 192.168.1.23
+# phone: http://192.168.1.23:8000
+```
+
+Recordings up to 7:00 and 1 GiB upload in 8 MB parts; if the Wi-Fi drops, the upload carries on
+from where it stopped (even after reloading the page and picking the same file). The server checks
+both limits again with ffprobe before a run starts. Over plain `http`, phones don't offer *Install*
+and *Share* falls back to copying the link; upload and playback work. If the venue Wi-Fi keeps
+devices apart, a tunnel such as `cloudflared tunnel --url http://localhost:8000` gives an `https`
+link instead (optional, not a project dependency).
 
 **2. The command line.**
 
@@ -96,7 +114,10 @@ outputs from `fixtures/run/`, so every stage can be built and tested before the 
 | Method | Path | What |
 |---|---|---|
 | `GET` | `/` | The board |
-| `POST` | `/runs` | Start a run (form: `repo_url`, `recording`, `criteria`, `time_limit_s`, `language`, `second_language`, `mode`) |
+| `POST` | `/uploads` | Start a resumable upload (`{filename, size}`), max 1 GiB |
+| `PUT` | `/uploads/{id}?offset=N` | Add one part (raw bytes); a wrong offset answers 409 with what arrived |
+| `GET` | `/uploads/{id}` | How much arrived, to resume |
+| `POST` | `/runs` | Start a run (form: `repo_url`, `upload_id` or `recording`, `brief_text`, `criteria`, `time_limit_s`, `language`, `second_language`, `mode`); the take must be ≤ 7:00 and ≤ 1 GiB |
 | `GET` | `/runs` | Runs, newest first |
 | `GET` | `/runs/{id}` | Status, config, finished stages |
 | `GET` | `/runs/{id}/events` | Live progress (Server-Sent Events) until the run ends |

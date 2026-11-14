@@ -2,8 +2,11 @@
 
     uvicorn backend.app:app --reload            # http://127.0.0.1:8000/docs
 
-GET  /                         the board (web/index.html)
+GET  /                         the board (web/index.html); installable: /manifest.webmanifest, /sw.js, /web/*
 POST /runs                    start a run (multipart form; no recording = fixture take)
+POST /uploads                 start a resumable upload {filename, size} -> {upload_id, chunk_size}
+PUT  /uploads/{id}?offset=N   append one part (raw bytes); a wrong offset -> 409 with what arrived
+GET  /uploads/{id}            how much arrived (to resume after a dropped connection)
 GET  /runs                    list runs, newest first
 GET  /runs/{id}               run.json + status + finished stages
 GET  /runs/{id}/events        Server-Sent Events: every events.jsonl line, live, until the run ends
@@ -22,11 +25,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend import run as orchestrator
 from backend.contracts import Brief, RunConfig
@@ -38,6 +43,11 @@ app = FastAPI(title="DemoCut")
 _procs: dict[str, subprocess.Popen] = {}
 
 POLL_S = 0.25
+# Runbook limits for a take: 7:00 and 1 GiB, checked on the phone AND here.
+MAX_TAKE_S = 420
+MAX_TAKE_BYTES = 1024**3
+CHUNK_BYTES = 8 * 1024**2
+VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".3gp", ".avi"}
 LANGUAGES = ("en", "el")  # runbook: English and Greek only, for now
 
 
@@ -79,6 +89,45 @@ def run_status(run_dir: Path) -> str:
     return "running" if evs else "queued"
 
 
+def uploads_root() -> Path:
+    return runs_root() / "_uploads"
+
+
+def check_take(path: Path) -> None:
+    """Server-side limits: a real, readable video of at most 7:00 and 1 GiB (ffprobe, via B's ff)."""
+    from backend.pipeline.ff import video_info
+
+    size = path.stat().st_size
+    if size > MAX_TAKE_BYTES:
+        raise HTTPException(413, f"recording is {size:,} bytes; the limit is 1 GiB ({MAX_TAKE_BYTES:,})")
+    try:
+        dur = video_info(path).duration
+    except Exception:
+        raise HTTPException(422, "the recording is not a video we can read")
+    if not dur or dur <= 0:
+        raise HTTPException(422, "could not read the recording's length")
+    if dur > MAX_TAKE_S + 0.5:
+        raise HTTPException(422, f"recording is {int(dur // 60)}:{int(dur % 60):02d} long; the limit is 7:00")
+
+
+def _upload_paths(upload_id: str) -> tuple[Path, Path]:
+    if not upload_id.isalnum() or len(upload_id) > 64:
+        raise HTTPException(404, "no such upload")
+    d = uploads_root()
+    meta, data = d / f"{upload_id}.json", d / f"{upload_id}.part"
+    if not meta.exists():
+        raise HTTPException(404, "no such upload")
+    return meta, data
+
+
+def _upload_state(upload_id: str) -> dict:
+    meta, data = _upload_paths(upload_id)
+    m = json.loads(meta.read_text())
+    m["received"] = data.stat().st_size if data.exists() else 0
+    m["complete"] = m["received"] == m["size"]
+    return m
+
+
 def start_pipeline(run_dir: Path) -> subprocess.Popen:
     log = open(run_dir / "pipeline.log", "ab")
     proc = subprocess.Popen(
@@ -97,6 +146,62 @@ def board() -> FileResponse:
     return FileResponse(ROOT / "web" / "index.html")
 
 
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def manifest() -> FileResponse:
+    return FileResponse(ROOT / "web" / "manifest.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker() -> FileResponse:
+    # Served from / so its scope covers the whole app (needed for "Install").
+    return FileResponse(ROOT / "web" / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
+
+app.mount("/web", StaticFiles(directory=ROOT / "web"), name="web")
+
+
+@app.post("/uploads", status_code=201)
+async def start_upload(body: dict = Body(...)) -> dict:
+    """Start a resumable upload. The phone then PUTs 8 MB parts in order."""
+    filename, size = str(body.get("filename", "")), body.get("size")
+    ext = Path(filename).suffix.lower()
+    if ext not in VIDEO_EXTS:
+        raise HTTPException(422, f"not a video file: {filename!r}")
+    if not isinstance(size, int) or size <= 0:
+        raise HTTPException(422, "size must be the file size in bytes")
+    if size > MAX_TAKE_BYTES:
+        raise HTTPException(413, f"recording is {size:,} bytes; the limit is 1 GiB ({MAX_TAKE_BYTES:,})")
+    upload_id = uuid.uuid4().hex
+    uploads_root().mkdir(parents=True, exist_ok=True)
+    (uploads_root() / f"{upload_id}.json").write_text(json.dumps({"upload_id": upload_id, "ext": ext, "size": size}))
+    (uploads_root() / f"{upload_id}.part").touch()
+    return {"upload_id": upload_id, "chunk_size": CHUNK_BYTES, "received": 0}
+
+
+@app.get("/uploads/{upload_id}")
+def upload_status(upload_id: str) -> dict:
+    return _upload_state(upload_id)
+
+
+@app.put("/uploads/{upload_id}")
+async def upload_chunk(upload_id: str, request: Request, offset: int) -> dict:
+    """Append one part at ``offset``. Resend from ``received`` if the offsets don't match."""
+    state = _upload_state(upload_id)
+    if offset != state["received"]:
+        raise HTTPException(409, {"msg": "offset mismatch", "received": state["received"]})
+    _, data = _upload_paths(upload_id)
+    written = 0
+    with open(data, "ab") as f:
+        async for piece in request.stream():
+            written += len(piece)
+            if state["received"] + written > state["size"]:
+                f.truncate(state["received"])  # drop this part, keep what arrived before
+                raise HTTPException(413, "more bytes than the declared size")
+            f.write(piece)
+    state = _upload_state(upload_id)
+    return {"received": state["received"], "complete": state["complete"]}
+
+
 @app.post("/runs", status_code=201)
 async def create_run(
     repo_url: str = Form(...),
@@ -104,8 +209,10 @@ async def create_run(
     time_limit_s: int = Form(180),
     language: str = Form("en"),
     second_language: Optional[str] = Form(None),
+    brief_text: str = Form("", description="The judging brief as pasted; saved as brief.txt in the run."),
     mode: str = Form("cheap"),
-    recording: Optional[UploadFile] = File(None, description="Screen recording; omit to use the fixture take."),
+    recording: Optional[UploadFile] = File(None, description="Small recording in one go; omit to use the fixture take."),
+    upload_id: Optional[str] = Form(None, description="A finished POST /uploads (big recordings from the phone)."),
 ) -> dict:
     second_language = second_language or None
     if language not in LANGUAGES or second_language not in (None, *LANGUAGES) or second_language == language:
@@ -117,22 +224,43 @@ async def create_run(
         second_language=second_language,
     )
     run_id = orchestrator.new_run_id()
-    try:
-        if recording is None or not recording.filename:
+    with tempfile.TemporaryDirectory() as tmp:
+        if upload_id:
+            state = _upload_state(upload_id)
+            if not state["complete"]:
+                raise HTTPException(409, {"msg": "upload not finished", "received": state["received"], "size": state["size"]})
+            _, src = _upload_paths(upload_id)
+            name = "recording" + state["ext"]
+        elif recording is not None and recording.filename:
+            name = "recording" + (Path(recording.filename).suffix.lower() or ".mp4")
+            src = Path(tmp) / name
+            with open(src, "wb") as f:
+                while piece := recording.file.read(CHUNK_BYTES):
+                    f.write(piece)
+                    if f.tell() > MAX_TAKE_BYTES:
+                        raise HTTPException(413, f"recording is over the 1 GiB limit ({MAX_TAKE_BYTES:,} bytes)")
+        else:
             src = orchestrator.FIXTURE_RUN / orchestrator.load_run(orchestrator.FIXTURE_RUN).recording
             name = src.name
+        if src.parent != orchestrator.FIXTURE_RUN:
+            try:
+                check_take(src)
+            except HTTPException:
+                if upload_id:  # a rejected take is not kept
+                    for f in _upload_paths(upload_id):
+                        f.unlink(missing_ok=True)
+                raise
+        try:
             cfg = RunConfig(run_id=run_id, repo_url=repo_url, recording=name, brief=brief, mode=mode)
-            run_dir = orchestrator.create_run(cfg, src)
-        else:
-            name = "recording" + (Path(recording.filename).suffix.lower() or ".mp4")
-            cfg = RunConfig(run_id=run_id, repo_url=repo_url, recording=name, brief=brief, mode=mode)
-            with tempfile.TemporaryDirectory() as tmp:
-                src = Path(tmp) / name
-                with open(src, "wb") as f:
-                    shutil.copyfileobj(recording.file, f)
-                run_dir = orchestrator.create_run(cfg, src)
-    except ValueError as e:  # pydantic validation
-        raise HTTPException(422, str(e))
+            run_dir = orchestrator.create_run(cfg, src, move=src.parent != orchestrator.FIXTURE_RUN)
+        except ValueError as e:  # pydantic validation
+            raise HTTPException(422, str(e))
+    if upload_id:  # the take now lives in the run folder
+        for f in _upload_paths(upload_id):
+            f.unlink(missing_ok=True)
+    if brief_text.strip():
+        # Until A, B and C agree on an optional brief.text in run.json (runbook), it lives next to it.
+        (run_dir / "brief.txt").write_text(brief_text.strip() + "\n")
     start_pipeline(run_dir)
     return {"run_id": run_id, "events": f"/runs/{run_id}/events", "final": f"/runs/{run_id}/files/final.mp4"}
 

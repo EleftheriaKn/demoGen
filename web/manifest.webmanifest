@@ -1,0 +1,15 @@
+{
+  "name": "DemoCut",
+  "short_name": "DemoCut",
+  "description": "Turn a repo, one rough screen recording and the judging brief into a demo video.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#141413",
+  "theme_color": "#2f6fde",
+  "icons": [
+    { "src": "/web/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/web/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
