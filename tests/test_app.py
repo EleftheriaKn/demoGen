@@ -81,3 +81,6 @@ def test_api_upload_recording_and_validation(runs):
     assert cfg["recording"] == "recording.mov" and cfg["brief"]["criteria"] == ["craft"]
     assert client.post("/runs", data={"repo_url": "x", "mode": "turbo"}).status_code == 422
     assert client.get("/runs/nope").status_code == 404
+    # English and Greek only
+    assert client.post("/runs", data={"repo_url": "x", "language": "fr"}).status_code == 422
+    assert client.post("/runs", data={"repo_url": "x", "language": "el", "second_language": "el"}).status_code == 422

@@ -38,6 +38,7 @@ app = FastAPI(title="DemoCut")
 _procs: dict[str, subprocess.Popen] = {}
 
 POLL_S = 0.25
+LANGUAGES = ("en", "el")  # runbook: English and Greek only, for now
 
 
 def runs_root() -> Path:
@@ -106,11 +107,14 @@ async def create_run(
     mode: str = Form("cheap"),
     recording: Optional[UploadFile] = File(None, description="Screen recording; omit to use the fixture take."),
 ) -> dict:
+    second_language = second_language or None
+    if language not in LANGUAGES or second_language not in (None, *LANGUAGES) or second_language == language:
+        raise HTTPException(422, f"languages must be one of {LANGUAGES} (second one different or empty)")
     brief = Brief(
         criteria=[c.strip() for c in criteria.split(",") if c.strip()],
         time_limit_s=time_limit_s,
         language=language,
-        second_language=second_language or None,
+        second_language=second_language,
     )
     run_id = orchestrator.new_run_id()
     try:
