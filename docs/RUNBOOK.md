@@ -146,6 +146,31 @@ or logs**. Ingest gets it from the environment (`GITHUB_TOKEN`) to clone private
 repos need no token. Scopes: `read:user` and `repo` (for private repos), or no `repo` scope if we only
 demo public repos.
 
+### Starting the server (today, until C14–C16)
+
+The board, the API and the phone app are one FastAPI process (`backend/app.py`, run by uvicorn).
+Each run it starts is a separate `python -m backend.run runs/<id>` process, logging to
+`runs/<id>/pipeline.log`.
+
+```bash
+cd demoGen
+set -a; source .env; set +a          # nothing loads .env by itself; skip while running without keys
+DEMOCUT_FAKE=transcribe,understand,judge_frames,script,assets,rubric \
+  .venv/bin/uvicorn backend.app:app --host 0.0.0.0 --port 8000
+```
+
+- `--host 0.0.0.0` lets the phone reach it; `127.0.0.1` keeps it laptop-only.
+- `DEMOCUT_FAKE` lists the stages not built yet; take each one off as it becomes real. The list above
+  runs B's stages for real on the uploaded take (tested Nov 15 with C's TodoMVC take: 12 s).
+- Linux with ufw: open the port to the Wi-Fi once, e.g. `sudo ufw allow from 172.20.0.0/20 to any port 8000 proto tcp`
+  (use your own network). macOS asks the first time.
+- The laptop's address: `ip -4 -br addr` (Linux) or `ipconfig getifaddr en0` (macOS). Phone:
+  `http://<address>:8000`. Stopgap QR: `qrencode -t ansiutf8 http://<address>:8000`.
+- Venue Wi-Fi that keeps devices apart: join the laptop to the phone's hotspot, or
+  `cloudflared tunnel --url http://localhost:8000` (anyone with the link can start runs: close it after).
+- Every request is in the uvicorn log with the device's address (`172.20.x.x - "POST /runs"`), but
+  nothing says *which* device that is or that it is new: that is C15.
+
 ## Generated shots: infographics from the real footage
 
 Gemini and fal can do more than title cards. A shot can be an **infographic** made from the
@@ -262,10 +287,13 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 | C7 | DemoCut's own take | Rough 4-minute recording of DemoCut in use | 10:00 | To do |
 | C8 | 20-second test | 5–10 people: our cut vs a video another team made by hand | 13:00 | To do |
 | C9 | Pitch, slides, README | 3-minute script, 3 slides, cached live demo; manual OBS video by 15:00 if checkpoint 3 fails | 14:00 | To do |
-| C10 | Mobile app flow | `web/index.html` works on a phone: repo → recording → brief → progress → player; installable (manifest); repo-URL field works without login | 05:30 | Proposed |
+| C10 | Mobile app flow | `web/index.html` works on a phone: repo → recording → brief → progress → player; installable (manifest); repo-URL field works without login | 05:30 | Done |
 | C11 | GitHub login | OAuth login; repo list from `GET /user/repos`; tap a repo fills `repo_url`; token kept server-side only | 09:00 | Proposed |
-| C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Proposed |
+| C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Done |
 | C13 | Generated badges | Board marks generated shots (`Shot.generated`) and shows the real-footage share from the rubric | 11:00 | Proposed |
+| C14 | One command starts the server | `python -m backend.serve` (Linux and macOS): loads `.env` if present (never prints keys), binds `0.0.0.0:8000`, prints `DemoCut ready` with every phone address on the Wi-Fi, which stages run real or fake, and a warning for real stages missing a key; `--tunnel` starts cloudflared when installed and prints its `https` link; Ctrl-C stops it cleanly. README's phone section points to it | 09:00 | Proposed |
+| C15 | Log new devices | The first request from a device prints one line, e.g. `new device: iPhone · Safari · 172.20.1.42`, and appends it to `runs/devices.jsonl` (time, address, device, browser: nothing else). A device id cookie (address + browser as fallback) keeps reloads and later requests quiet. `POST /runs` logs which device started which run, and the run's start event carries the device | 09:00 | Proposed |
+| C16 | QR code to open the app | At start the terminal shows a QR code of the phone address (or the tunnel link); the board on a laptop shows the same QR (`GET /qr.svg`, made in Python, e.g. `segno`, so no system tool is needed). Done when scanning the laptop screen opens the board on the phone, on Linux and macOS | 09:00 | Proposed |
 
 ## Make runs fast
 
@@ -304,7 +332,8 @@ Three checkpoints decide what gets cut. Each person sleeps once, staggered, so t
 cards), then fal infographic backgrounds (keep render's text overlays on plain backgrounds), then music, then the MCP tool, then GitHub login (keep the paste-a-repo-URL field). Never cut
 the truth check: it is the pitch. Never cut the three inputs on the phone: they are the pitch too.
 
-> The "Proposed" tickets come from two decisions on Nov 15: the mobile app (A10, B10, C10–C12) and
+> The "Proposed" tickets come from decisions on Nov 15: the mobile app (A10, B10, C10–C12), starting the
+> server, device log and QR code (C14–C16) and
 > infographics from the real footage (A11, B11, C13). Owners
 > confirm them and set the times; they don't change who owns which files.
 
