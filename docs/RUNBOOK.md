@@ -108,7 +108,7 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | ID | Ticket | Done when | By | Status |
 |---|---|---|---|---|
 | B1 | Setup: ffmpeg 5+, font, fake media | `scripts/make_fake_media.sh` runs; `NotoSans-Bold.ttf` in `fonts/` | 23:00 | Done |
-| B2 | Render half on fixtures | timeline → captions → render gives `runs/dev/final.mp4` | 23:30 | To do |
+| B2 | Render half on fixtures | timeline → captions → render gives `runs/dev/final.mp4` | 23:30 | Done |
 | B3 | Render on the real test take | Works on C's take in `samples/`, whatever its size and frame rate | 00:30 | To do |
 | B4 | `ingest.py` | Clones a real repo; `repo_files.json`; `audio.wav` when the take has sound | 01:00 | To do |
 | B5 | `candidates.py` | Scene cuts and 3 frames per moment from A's `moments.json` | 02:00 | To do |
