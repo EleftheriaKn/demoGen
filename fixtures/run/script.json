@@ -1,0 +1,122 @@
+{
+  "language": "en",
+  "hooks": [
+    {
+      "hook_id": "h1",
+      "text": "Meet PantryPal, the recipe app.",
+      "score": 0.41
+    },
+    {
+      "hook_id": "h2",
+      "text": "What if your fridge could tell you what's for dinner?",
+      "score": 0.88
+    },
+    {
+      "hook_id": "h3",
+      "text": "Stop throwing away food.",
+      "score": 0.67
+    }
+  ],
+  "chosen_hook_id": "h2",
+  "shots": [
+    {
+      "shot_id": "s01",
+      "beat": "hook",
+      "voice_line": "What if your fridge could tell you what's for dinner?",
+      "visual": {
+        "kind": "card",
+        "segment_id": null,
+        "source_start": null,
+        "source_end": null,
+        "card_prompt": "Bold title card: 'PantryPal' over a warm fridge-light orange background",
+        "focus_box": null
+      },
+      "claims": [],
+      "generated": true
+    },
+    {
+      "shot_id": "s02",
+      "beat": "problem",
+      "voice_line": "Every night it's the same question. With PantryPal, you just snap one photo of your fridge.",
+      "visual": {
+        "kind": "footage",
+        "segment_id": "c02",
+        "source_start": 5.0,
+        "source_end": 9.5,
+        "card_prompt": null,
+        "focus_box": null
+      },
+      "claims": [
+        {
+          "claim_id": "cl1",
+          "text": "you just snap one photo of your fridge",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            },
+            {
+              "type": "readme",
+              "ref": "README#How it works"
+            }
+          ],
+          "status": "backed"
+        }
+      ],
+      "generated": false
+    },
+    {
+      "shot_id": "s03",
+      "beat": "demo",
+      "voice_line": "It finds your ingredients and serves up three recipes in seconds.",
+      "visual": {
+        "kind": "footage",
+        "segment_id": "c04",
+        "source_start": 12.0,
+        "source_end": 18.0,
+        "card_prompt": null,
+        "focus_box": [
+          0.55,
+          0.2,
+          0.4,
+          0.6
+        ]
+      },
+      "claims": [
+        {
+          "claim_id": "cl2",
+          "text": "serves up three recipes",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            },
+            {
+              "type": "file",
+              "ref": "backend/recipes.py"
+            }
+          ],
+          "status": "backed"
+        },
+        {
+          "claim_id": "cl3",
+          "text": "in seconds",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ],
+          "status": "rewritten"
+        },
+        {
+          "claim_id": "cl4",
+          "text": "works fully offline",
+          "evidence": [],
+          "status": "dropped"
+        }
+      ],
+      "generated": false
+    }
+  ]
+}

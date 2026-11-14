@@ -1,0 +1,34 @@
+{
+  "repo_url": "https://github.com/example/pantrypal",
+  "readme": "# PantryPal\n\nSnap a photo of your fridge, get 3 recipes.\n\n## How it works\n\n1. Open PantryPal and tap the camera button.\n2. Take one photo of your open fridge.\n3. PantryPal detects the ingredients and suggests three recipes you can cook right now.\n\n## Features\n\n- Ingredient detection from a single photo\n- Three recipes ranked by how many of your ingredients they use\n- Shopping list for the few things you are missing\n\n## Screenshots\n\n![Home screen](docs/home.png)\n\n## Run it\n\n```\npip install -r requirements.txt\nuvicorn backend.main:app\n```\n",
+  "tree": [
+    "README.md",
+    "requirements.txt",
+    "backend/__init__.py",
+    "backend/main.py",
+    "backend/vision.py",
+    "backend/recipes.py",
+    "frontend/package.json",
+    "frontend/src/App.tsx",
+    "frontend/src/Camera.tsx",
+    "frontend/src/ShoppingList.tsx",
+    "docs/home.png"
+  ],
+  "key_files": [
+    {
+      "path": "backend/vision.py",
+      "content": "def detect_ingredients(image_bytes: bytes) -> list[str]:\n    \"\"\"Ask the vision model which ingredients are visible.\"\"\"\n    ...\n"
+    },
+    {
+      "path": "backend/recipes.py",
+      "content": "def suggest(ingredients: list[str], n: int = 3) -> list[dict]:\n    \"\"\"Return n recipes ranked by ingredient overlap.\"\"\"\n    ...\n"
+    },
+    {
+      "path": "frontend/src/Camera.tsx",
+      "content": "export function Camera() {\n  // full-screen camera with a single shutter button\n}\n"
+    }
+  ],
+  "screenshots": [
+    "screenshots/home.png"
+  ]
+}

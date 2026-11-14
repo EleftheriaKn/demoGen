@@ -1,0 +1,40 @@
+{
+  "voice": [
+    {
+      "shot_id": "s01",
+      "path": "voice/s01.mp3",
+      "duration_s": 4.075,
+      "language": "en"
+    },
+    {
+      "shot_id": "s02",
+      "path": "voice/s02.mp3",
+      "duration_s": 5.068,
+      "language": "en"
+    },
+    {
+      "shot_id": "s03",
+      "path": "voice/s03.mp3",
+      "duration_s": 6.06,
+      "language": "en"
+    }
+  ],
+  "music": {
+    "path": "music.wav",
+    "duration_s": 15.0
+  },
+  "cards": [
+    {
+      "shot_id": "s01",
+      "path": "cards/s01.png",
+      "drafts": [
+        "cards/drafts/s01_0.png",
+        "cards/drafts/s01_1.png",
+        "cards/drafts/s01_2.png",
+        "cards/drafts/s01_3.png"
+      ],
+      "chosen_index": 2
+    }
+  ],
+  "broll": []
+}

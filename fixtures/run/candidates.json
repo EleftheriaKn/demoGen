@@ -1,0 +1,76 @@
+{
+  "segments": [
+    {
+      "segment_id": "c01",
+      "start": 0.0,
+      "end": 4.0,
+      "source": "scene",
+      "moment_id": null,
+      "frames": [
+        "frames/c01_1s.jpg",
+        "frames/c01_2s.jpg",
+        "frames/c01_3s.jpg"
+      ]
+    },
+    {
+      "segment_id": "c02",
+      "start": 5.0,
+      "end": 10.0,
+      "source": "moment",
+      "moment_id": "m2",
+      "frames": [
+        "frames/c02_6.25s.jpg",
+        "frames/c02_7.5s.jpg",
+        "frames/c02_8.75s.jpg"
+      ]
+    },
+    {
+      "segment_id": "c03",
+      "start": 10.0,
+      "end": 12.0,
+      "source": "scene",
+      "moment_id": null,
+      "frames": [
+        "frames/c03_10.5s.jpg",
+        "frames/c03_11s.jpg",
+        "frames/c03_11.5s.jpg"
+      ]
+    },
+    {
+      "segment_id": "c04",
+      "start": 12.0,
+      "end": 19.0,
+      "source": "moment",
+      "moment_id": "m3",
+      "frames": [
+        "frames/c04_13.75s.jpg",
+        "frames/c04_15.5s.jpg",
+        "frames/c04_17.25s.jpg"
+      ]
+    },
+    {
+      "segment_id": "c05",
+      "start": 19.0,
+      "end": 22.0,
+      "source": "scene",
+      "moment_id": null,
+      "frames": [
+        "frames/c05_19.75s.jpg",
+        "frames/c05_20.5s.jpg",
+        "frames/c05_21.25s.jpg"
+      ]
+    },
+    {
+      "segment_id": "c06",
+      "start": 22.0,
+      "end": 28.0,
+      "source": "moment",
+      "moment_id": "m4",
+      "frames": [
+        "frames/c06_23.5s.jpg",
+        "frames/c06_25s.jpg",
+        "frames/c06_26.5s.jpg"
+      ]
+    }
+  ]
+}

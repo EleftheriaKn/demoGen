@@ -1,0 +1,270 @@
+{
+  "decisions": [
+    {
+      "decision_id": "d01",
+      "stage": "judge_frames",
+      "kind": "frame_pick",
+      "subject": "c02",
+      "options": [
+        "frames/c02_6.25s.jpg",
+        "frames/c02_7.5s.jpg",
+        "frames/c02_8.75s.jpg"
+      ],
+      "chosen": "frames/c02_7.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.75,
+          "reason": "Camera view of the fridge, clear action."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.85,
+          "reason": "Camera view of the fridge, clear action."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.65,
+          "reason": "Camera view of the fridge, clear action."
+        }
+      ],
+      "heuristic_score": 0.7,
+      "judge_score": 0.74,
+      "reason": "Sharpest frame of the fridge photo being taken."
+    },
+    {
+      "decision_id": "d02",
+      "stage": "judge_frames",
+      "kind": "frame_pick",
+      "subject": "c04",
+      "options": [
+        "frames/c04_13.75s.jpg",
+        "frames/c04_15.5s.jpg",
+        "frames/c04_17.25s.jpg"
+      ],
+      "chosen": "frames/c04_15.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 1,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.95,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.9,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        }
+      ],
+      "heuristic_score": 0.7,
+      "judge_score": 0.9,
+      "reason": "All three recipe cards fully visible."
+    },
+    {
+      "decision_id": "d03",
+      "stage": "script",
+      "kind": "hook_pick",
+      "subject": "hook",
+      "options": [
+        "h1",
+        "h2",
+        "h3"
+      ],
+      "chosen": "h2",
+      "answers": [
+        {
+          "question": "Does the hook make a judge curious in under 5 seconds?",
+          "score": 0.9,
+          "reason": "Question format, relatable."
+        },
+        {
+          "question": "Is it specific to this app?",
+          "score": 0.85,
+          "reason": "Names the fridge + dinner problem."
+        }
+      ],
+      "heuristic_score": null,
+      "judge_score": 0.88,
+      "reason": "h2 poses the problem as a question; h1 is generic."
+    },
+    {
+      "decision_id": "d04",
+      "stage": "script",
+      "kind": "claim_check",
+      "subject": "cl1",
+      "options": [
+        "keep",
+        "rewrite",
+        "drop"
+      ],
+      "chosen": "keep",
+      "answers": [
+        {
+          "question": "Is the claim supported by footage, README or code?",
+          "score": 0.95,
+          "reason": "Footage c02 shows exactly one photo being taken."
+        }
+      ],
+      "heuristic_score": null,
+      "judge_score": 0.95,
+      "reason": "Footage c02 shows exactly one photo being taken."
+    },
+    {
+      "decision_id": "d05",
+      "stage": "script",
+      "kind": "claim_check",
+      "subject": "cl2",
+      "options": [
+        "keep",
+        "rewrite",
+        "drop"
+      ],
+      "chosen": "keep",
+      "answers": [
+        {
+          "question": "Is the claim supported by footage, README or code?",
+          "score": 0.97,
+          "reason": "Three recipe cards visible in c04; recipes.py defaults to n=3."
+        }
+      ],
+      "heuristic_score": null,
+      "judge_score": 0.97,
+      "reason": "Three recipe cards visible in c04; recipes.py defaults to n=3."
+    },
+    {
+      "decision_id": "d06",
+      "stage": "script",
+      "kind": "claim_check",
+      "subject": "cl3",
+      "options": [
+        "keep",
+        "rewrite",
+        "drop"
+      ],
+      "chosen": "rewrite",
+      "answers": [
+        {
+          "question": "Is the claim supported by footage, README or code?",
+          "score": 0.4,
+          "reason": "Original 'under one second' not supported; c04 shows ~2 s, softened to 'in seconds'."
+        }
+      ],
+      "heuristic_score": null,
+      "judge_score": 0.7,
+      "reason": "Original 'under one second' not supported; c04 shows ~2 s, softened to 'in seconds'."
+    },
+    {
+      "decision_id": "d07",
+      "stage": "script",
+      "kind": "claim_check",
+      "subject": "cl4",
+      "options": [
+        "keep",
+        "rewrite",
+        "drop"
+      ],
+      "chosen": "drop",
+      "answers": [
+        {
+          "question": "Is the claim supported by footage, README or code?",
+          "score": 0.0,
+          "reason": "No footage, README or code mentions offline mode; claim removed."
+        }
+      ],
+      "heuristic_score": null,
+      "judge_score": 0.9,
+      "reason": "No footage, README or code mentions offline mode; claim removed."
+    },
+    {
+      "decision_id": "d08",
+      "stage": "assets",
+      "kind": "take_pick",
+      "subject": "s01",
+      "options": [
+        "cards/drafts/s01_0.png",
+        "cards/drafts/s01_1.png",
+        "cards/drafts/s01_2.png",
+        "cards/drafts/s01_3.png"
+      ],
+      "chosen": "cards/drafts/s01_2.png",
+      "answers": [
+        {
+          "question": "Is the title legible at phone size?",
+          "score": 0.9,
+          "reason": "High contrast white on orange."
+        },
+        {
+          "question": "Does it match the app's look?",
+          "score": 0.8,
+          "reason": "Warm palette like the app UI."
+        }
+      ],
+      "heuristic_score": 0.75,
+      "judge_score": 0.85,
+      "reason": "Draft 2 has the most legible title."
+    },
+    {
+      "decision_id": "d09",
+      "stage": "rubric",
+      "kind": "rubric_check",
+      "subject": "final",
+      "options": [
+        "pass",
+        "recut"
+      ],
+      "chosen": "pass",
+      "answers": [
+        {
+          "question": "Problem stated by 0:20?",
+          "score": 1.0,
+          "reason": "Problem beat (s02) starts at 0:04."
+        },
+        {
+          "question": "Under the 180 s time limit?",
+          "score": 1.0,
+          "reason": "Final cut is 15 s."
+        },
+        {
+          "question": "Is every remaining claim backed by footage or the repo?",
+          "score": 1.0,
+          "reason": "cl1-cl3 backed or rewritten; cl4 dropped."
+        },
+        {
+          "question": "Is the app's core result shown on screen?",
+          "score": 1.0,
+          "reason": "s03 zooms into the three recipe cards."
+        }
+      ],
+      "heuristic_score": null,
+      "judge_score": 0.92,
+      "reason": "All 4 rubric questions pass; no recut needed."
+    }
+  ],
+  "rubric": [
+    {
+      "question": "Problem stated by 0:20?",
+      "passed": true,
+      "reason": "Problem beat (s02) starts at 0:04."
+    },
+    {
+      "question": "Under the 180 s time limit?",
+      "passed": true,
+      "reason": "Final cut is 15 s."
+    },
+    {
+      "question": "Is every remaining claim backed by footage or the repo?",
+      "passed": true,
+      "reason": "cl1-cl3 backed or rewritten; cl4 dropped."
+    },
+    {
+      "question": "Is the app's core result shown on screen?",
+      "passed": true,
+      "reason": "s03 zooms into the three recipe cards."
+    }
+  ],
+  "recut": null
+}

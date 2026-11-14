@@ -1,0 +1,16 @@
+{
+  "run_id": "fixture-pantrypal",
+  "repo_url": "https://github.com/example/pantrypal",
+  "recording": "recording.mp4",
+  "brief": {
+    "criteria": [
+      "usefulness",
+      "craft",
+      "aura"
+    ],
+    "time_limit_s": 180,
+    "language": "en",
+    "second_language": "el"
+  },
+  "mode": "cheap"
+}

@@ -1,0 +1,69 @@
+{
+  "fps": 30,
+  "width": 1280,
+  "height": 720,
+  "duration_s": 15.0,
+  "shots": [
+    {
+      "shot_id": "s01",
+      "start": 0.0,
+      "duration_s": 4.0,
+      "voice_path": "voice/s01.mp3",
+      "visual": {
+        "kind": "card",
+        "path": "cards/s01.png",
+        "source_start": null,
+        "source_end": null,
+        "speed": 1.0,
+        "freeze_s": 0.0,
+        "zoom": null
+      },
+      "caption": "What if your fridge could tell you what's for dinner?"
+    },
+    {
+      "shot_id": "s02",
+      "start": 4.0,
+      "duration_s": 5.0,
+      "voice_path": "voice/s02.mp3",
+      "visual": {
+        "kind": "footage",
+        "path": "recording.mp4",
+        "source_start": 5.0,
+        "source_end": 9.5,
+        "speed": 1.0,
+        "freeze_s": 0.5,
+        "zoom": null
+      },
+      "caption": "Every night it's the same question. With PantryPal, you just snap one photo of your fridge."
+    },
+    {
+      "shot_id": "s03",
+      "start": 9.0,
+      "duration_s": 6.0,
+      "voice_path": "voice/s03.mp3",
+      "visual": {
+        "kind": "footage",
+        "path": "recording.mp4",
+        "source_start": 12.0,
+        "source_end": 18.0,
+        "speed": 1.0,
+        "freeze_s": 0.0,
+        "zoom": {
+          "box": [
+            0.55,
+            0.2,
+            0.4,
+            0.6
+          ],
+          "ease_s": 0.8
+        }
+      },
+      "caption": "It finds your ingredients and serves up three recipes in seconds."
+    }
+  ],
+  "music": {
+    "path": "music.wav",
+    "gain_db": -18.0,
+    "duck": true
+  }
+}

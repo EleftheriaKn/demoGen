@@ -1,0 +1,12 @@
+1
+00:00:00,000 --> 00:00:04,000
+What if your fridge could tell you what's for dinner?
+
+2
+00:00:04,000 --> 00:00:09,000
+Every night it's the same question. With PantryPal, you just snap one photo of your fridge.
+
+3
+00:00:09,000 --> 00:00:15,000
+It finds your ingredients and serves up three recipes in seconds.
+

@@ -1,0 +1,423 @@
+{
+  "questions": [
+    "Does the frame show the app doing something useful for the user?",
+    "Is the UI clean and legible (no dev tools, no clutter)?",
+    "Would this frame make a judge want to keep watching?"
+  ],
+  "scores": [
+    {
+      "segment_id": "c01",
+      "frame": "frames/c01_1s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.2,
+          "reason": "Empty home screen, nothing happening yet."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.7,
+          "reason": "Empty home screen, nothing happening yet."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.3,
+          "reason": "Empty home screen, nothing happening yet."
+        }
+      ],
+      "heuristic_score": 0.6,
+      "total": 0.44
+    },
+    {
+      "segment_id": "c01",
+      "frame": "frames/c01_2s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.25,
+          "reason": "Empty home screen, nothing happening yet."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.75,
+          "reason": "Empty home screen, nothing happening yet."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.35,
+          "reason": "Empty home screen, nothing happening yet."
+        }
+      ],
+      "heuristic_score": 0.7,
+      "total": 0.5
+    },
+    {
+      "segment_id": "c01",
+      "frame": "frames/c01_3s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.15,
+          "reason": "Empty home screen, nothing happening yet."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.65,
+          "reason": "Empty home screen, nothing happening yet."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.25,
+          "reason": "Empty home screen, nothing happening yet."
+        }
+      ],
+      "heuristic_score": 0.8,
+      "total": 0.44
+    },
+    {
+      "segment_id": "c02",
+      "frame": "frames/c02_6.25s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.7,
+          "reason": "Camera view of the fridge, clear action."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.8,
+          "reason": "Camera view of the fridge, clear action."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.6,
+          "reason": "Camera view of the fridge, clear action."
+        }
+      ],
+      "heuristic_score": 0.6,
+      "total": 0.68
+    },
+    {
+      "segment_id": "c02",
+      "frame": "frames/c02_7.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.75,
+          "reason": "Camera view of the fridge, clear action."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.85,
+          "reason": "Camera view of the fridge, clear action."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.65,
+          "reason": "Camera view of the fridge, clear action."
+        }
+      ],
+      "heuristic_score": 0.7,
+      "total": 0.74
+    },
+    {
+      "segment_id": "c02",
+      "frame": "frames/c02_8.75s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.65,
+          "reason": "Camera view of the fridge, clear action."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.75,
+          "reason": "Camera view of the fridge, clear action."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.55,
+          "reason": "Camera view of the fridge, clear action."
+        }
+      ],
+      "heuristic_score": 0.8,
+      "total": 0.68
+    },
+    {
+      "segment_id": "c03",
+      "frame": "frames/c03_10.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.3,
+          "reason": "Transition while the photo uploads."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.6,
+          "reason": "Transition while the photo uploads."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.3,
+          "reason": "Transition while the photo uploads."
+        }
+      ],
+      "heuristic_score": 0.6,
+      "total": 0.44
+    },
+    {
+      "segment_id": "c03",
+      "frame": "frames/c03_11s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.35,
+          "reason": "Transition while the photo uploads."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.65,
+          "reason": "Transition while the photo uploads."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.35,
+          "reason": "Transition while the photo uploads."
+        }
+      ],
+      "heuristic_score": 0.7,
+      "total": 0.5
+    },
+    {
+      "segment_id": "c03",
+      "frame": "frames/c03_11.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.25,
+          "reason": "Transition while the photo uploads."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.55,
+          "reason": "Transition while the photo uploads."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.25,
+          "reason": "Transition while the photo uploads."
+        }
+      ],
+      "heuristic_score": 0.8,
+      "total": 0.44
+    },
+    {
+      "segment_id": "c04",
+      "frame": "frames/c04_13.75s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.95,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.9,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.85,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        }
+      ],
+      "heuristic_score": 0.6,
+      "total": 0.84
+    },
+    {
+      "segment_id": "c04",
+      "frame": "frames/c04_15.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 1,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.95,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.9,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        }
+      ],
+      "heuristic_score": 0.7,
+      "total": 0.9
+    },
+    {
+      "segment_id": "c04",
+      "frame": "frames/c04_17.25s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.9,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.85,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.8,
+          "reason": "Recipe cards with highlighted ingredients: the payoff."
+        }
+      ],
+      "heuristic_score": 0.8,
+      "total": 0.84
+    },
+    {
+      "segment_id": "c05",
+      "frame": "frames/c05_19.75s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.4,
+          "reason": "User scrolling back to the top."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.6,
+          "reason": "User scrolling back to the top."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.4,
+          "reason": "User scrolling back to the top."
+        }
+      ],
+      "heuristic_score": 0.6,
+      "total": 0.493
+    },
+    {
+      "segment_id": "c05",
+      "frame": "frames/c05_20.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.45,
+          "reason": "User scrolling back to the top."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.65,
+          "reason": "User scrolling back to the top."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.45,
+          "reason": "User scrolling back to the top."
+        }
+      ],
+      "heuristic_score": 0.7,
+      "total": 0.553
+    },
+    {
+      "segment_id": "c05",
+      "frame": "frames/c05_21.25s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.35,
+          "reason": "User scrolling back to the top."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.55,
+          "reason": "User scrolling back to the top."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.35,
+          "reason": "User scrolling back to the top."
+        }
+      ],
+      "heuristic_score": 0.8,
+      "total": 0.493
+    },
+    {
+      "segment_id": "c06",
+      "frame": "frames/c06_23.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.05,
+          "reason": "Settings menu, unrelated to the demo."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.4,
+          "reason": "Settings menu, unrelated to the demo."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.1,
+          "reason": "Settings menu, unrelated to the demo."
+        }
+      ],
+      "heuristic_score": 0.3,
+      "total": 0.207
+    },
+    {
+      "segment_id": "c06",
+      "frame": "frames/c06_25s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0.1,
+          "reason": "Settings menu, unrelated to the demo."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.45,
+          "reason": "Settings menu, unrelated to the demo."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.15,
+          "reason": "Settings menu, unrelated to the demo."
+        }
+      ],
+      "heuristic_score": 0.3,
+      "total": 0.247
+    },
+    {
+      "segment_id": "c06",
+      "frame": "frames/c06_26.5s.jpg",
+      "answers": [
+        {
+          "question": "Does the frame show the app doing something useful for the user?",
+          "score": 0,
+          "reason": "Settings menu, unrelated to the demo."
+        },
+        {
+          "question": "Is the UI clean and legible (no dev tools, no clutter)?",
+          "score": 0.35,
+          "reason": "Settings menu, unrelated to the demo."
+        },
+        {
+          "question": "Would this frame make a judge want to keep watching?",
+          "score": 0.05,
+          "reason": "Settings menu, unrelated to the demo."
+        }
+      ],
+      "heuristic_score": 0.3,
+      "total": 0.167
+    }
+  ]
+}

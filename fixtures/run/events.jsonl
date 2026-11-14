@@ -1,0 +1,24 @@
+{"run_id": "fixture-pantrypal", "stage": "run", "msg": "Run started", "progress": 0.0, "ts": "2026-11-14T12:00:00+00:00", "data": {"mode": "cheap"}}
+{"run_id": "fixture-pantrypal", "stage": "ingest", "msg": "ingest started", "progress": 0.0, "ts": "2026-11-14T12:00:04+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "ingest", "msg": "Fetched repo (11 files) and extracted audio", "progress": 0.091, "ts": "2026-11-14T12:00:08+00:00", "data": {"outputs": ["repo_files.json", "audio.wav", "screenshots/"]}}
+{"run_id": "fixture-pantrypal", "stage": "transcribe", "msg": "transcribe started", "progress": 0.091, "ts": "2026-11-14T12:00:12+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "transcribe", "msg": "Transcribed 34 words", "progress": 0.182, "ts": "2026-11-14T12:00:16+00:00", "data": {"outputs": ["transcript.json"]}}
+{"run_id": "fixture-pantrypal", "stage": "understand", "msg": "understand started", "progress": 0.182, "ts": "2026-11-14T12:00:20+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "understand", "msg": "Found 3 features and 4 moments", "progress": 0.273, "ts": "2026-11-14T12:00:24+00:00", "data": {"outputs": ["summary.json", "moments.json"]}}
+{"run_id": "fixture-pantrypal", "stage": "candidates", "msg": "candidates started", "progress": 0.273, "ts": "2026-11-14T12:00:28+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "candidates", "msg": "Cut 6 candidate segments, 18 frames", "progress": 0.364, "ts": "2026-11-14T12:00:32+00:00", "data": {"outputs": ["candidates.json", "frames/"]}}
+{"run_id": "fixture-pantrypal", "stage": "judge_frames", "msg": "judge_frames started", "progress": 0.364, "ts": "2026-11-14T12:00:36+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "judge_frames", "msg": "Scored 18 frames", "progress": 0.455, "ts": "2026-11-14T12:00:40+00:00", "data": {"outputs": ["frame_scores.json", "decisions.json"]}}
+{"run_id": "fixture-pantrypal", "stage": "script", "msg": "script started", "progress": 0.455, "ts": "2026-11-14T12:00:44+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "script", "msg": "Wrote 3 shots; 1 claim rewritten, 1 dropped", "progress": 0.545, "ts": "2026-11-14T12:00:48+00:00", "data": {"outputs": ["script.json", "decisions.json"]}}
+{"run_id": "fixture-pantrypal", "stage": "assets", "msg": "assets started", "progress": 0.545, "ts": "2026-11-14T12:00:52+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "assets", "msg": "Generated 3 voice lines, 1 card, music", "progress": 0.636, "ts": "2026-11-14T12:00:56+00:00", "data": {"outputs": ["assets.json", "voice/", "music.wav", "cards/", "decisions.json"]}}
+{"run_id": "fixture-pantrypal", "stage": "timeline", "msg": "timeline started", "progress": 0.636, "ts": "2026-11-14T12:01:00+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "timeline", "msg": "Timeline 15.0 s", "progress": 0.727, "ts": "2026-11-14T12:01:04+00:00", "data": {"outputs": ["timeline.json"]}}
+{"run_id": "fixture-pantrypal", "stage": "rubric", "msg": "rubric started", "progress": 0.727, "ts": "2026-11-14T12:01:08+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "rubric", "msg": "Rubric 4/4 passed", "progress": 0.818, "ts": "2026-11-14T12:01:12+00:00", "data": {"outputs": ["decisions.json"]}}
+{"run_id": "fixture-pantrypal", "stage": "captions", "msg": "captions started", "progress": 0.818, "ts": "2026-11-14T12:01:16+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "captions", "msg": "Wrote 3 caption cues (srt, ass)", "progress": 0.909, "ts": "2026-11-14T12:01:20+00:00", "data": {"outputs": ["captions.srt", "captions.ass"]}}
+{"run_id": "fixture-pantrypal", "stage": "render", "msg": "render started", "progress": 0.909, "ts": "2026-11-14T12:01:24+00:00", "data": {}}
+{"run_id": "fixture-pantrypal", "stage": "render", "msg": "Rendered final.mp4", "progress": 1.0, "ts": "2026-11-14T12:01:28+00:00", "data": {"outputs": ["shots/", "final.mp4"]}}
+{"run_id": "fixture-pantrypal", "stage": "run", "msg": "Run complete", "progress": 1.0, "ts": "2026-11-14T12:01:32+00:00", "data": {"final": "final.mp4"}}
