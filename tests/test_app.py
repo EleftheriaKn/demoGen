@@ -89,11 +89,18 @@ def test_brief_text_saved(runs):
     assert not (runs / r.json()["run_id"] / "brief.txt").exists()
 
 
+def test_cut_panel_on_board():
+    page = TestClient(api.app).get("/").text
+    # C13: generated-shot badges and the real-footage share (>= 70%) read from timeline.json
+    assert 'id="strip"' in page and "renderCut" in page and "REAL_TARGET = 0.7" in page
+    assert '"timeline.json"' in page
+
+
 def test_decision_files_served(runs):
     d = orchestrator.new_run_from_fixture()
     orchestrator.run_pipeline(d)
     client = TestClient(api.app)
-    for f in ("decisions.json", "script.json", "summary.json", "frames/c02_7.5s.jpg", "cards/drafts/s01_2.png"):
+    for f in ("decisions.json", "script.json", "summary.json", "timeline.json", "frames/c02_7.5s.jpg", "cards/drafts/s01_2.png"):
         assert client.get(f"/runs/{d.name}/files/{f}").status_code == 200, f
 
 
