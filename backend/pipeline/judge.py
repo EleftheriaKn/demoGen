@@ -2,7 +2,8 @@
 
 Two stages plus one function other tracks call:
 
-- ``run_frames``  stage ``judge_frames``: reads candidates.json + frames/, writes
+- ``run_frames``  stage ``judge_frames``: reads candidates.json + frames/ (+ summary.json for
+  the app's one-liner), writes
   frame_scores.json and one ``frame_pick`` decision per segment. Each judged frame gets the
   fixed question per criterion (generic one for an unplanned criterion), and
   total = 80% mean judge score + 20% sharpness. Cheap mode judges only the 2 sharpest frames
@@ -37,11 +38,13 @@ QUESTIONS = {
 }
 JUDGE_WEIGHT = 0.8  # the rest is sharpness
 CHEAP_FRAMES = 2
+WORKERS = 6  # parallel Gemini calls, one per segment
 
 
 def questions_for(criteria: list[str]) -> list[str]:
     """One fixed question per criterion, in brief order; unplanned criteria get a generic one."""
-    qs = [QUESTIONS.get(c.lower(), f"Does the frame show the app at its best for '{c}'?") for c in criteria]
+    names = [c.strip().lower() for c in criteria]
+    qs = [QUESTIONS.get(c, f"Does the frame show the app at its best for '{c}'?") for c in names]
     return list(dict.fromkeys(qs))
 
 
@@ -52,6 +55,7 @@ def combine(judge_scores: list[float], heuristic: float) -> float:
 
 def sharpness(paths: list[Path]) -> list[float]:
     """Edge variance per image, scaled so the sharpest of ``paths`` is 1.0."""
+    # ponytail: relative to this run, so scores don't compare across runs; use a fixed scale if they must.
     raw = []
     for p in paths:
         with Image.open(p) as img:
@@ -90,10 +94,11 @@ def judge_segment(run_dir: Path, frames: list[str], questions: list[str], app: s
         frames=", ".join(frames),
         questions="\n".join(f"{i}. {q}" for i, q in enumerate(questions, 1)),
     )
-    verdict = gemini.generate(text, _Verdict, images=[run_dir / f for f in frames])
-    if len(verdict.frames) != len(frames) or any(len(f.answers) != len(questions) for f in verdict.frames):
-        raise ValueError(f"judge_frames: Gemini answered the wrong number of frames/questions for {frames}")
-    return verdict.frames
+    for _ in range(gemini.RETRIES + 1):  # a schema-valid answer can still miscount frames/questions
+        verdict = gemini.generate(text, _Verdict, images=[run_dir / f for f in frames])
+        if len(verdict.frames) == len(frames) and all(len(f.answers) == len(questions) for f in verdict.frames):
+            return verdict.frames
+    raise ValueError(f"judge_frames: Gemini answered the wrong number of frames/questions for {frames}")
 
 
 class PickResult(TypedDict):
@@ -129,13 +134,14 @@ def run_frames(run_dir: Path, run: RunConfig) -> None:
     questions = questions_for(run.brief.criteria)
     all_frames = [f for s in cands.segments for f in s.frames]
     sharp = dict(zip(all_frames, sharpness([run_dir / f for f in all_frames])))
-    picked = [frames_to_judge(s.frames, sharp, run.mode) for s in cands.segments]
+    to_judge = [frames_to_judge(s.frames, sharp, run.mode) for s in cands.segments]
 
     app = f"{summary.name}: {summary.one_liner}"
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        verdicts = list(pool.map(lambda fs: judge_segment(run_dir, fs, questions, app), picked))
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        verdicts = list(pool.map(lambda fs: judge_segment(run_dir, fs, questions, app), to_judge))
 
     # Drop this stage's decisions from an earlier attempt so a re-run doesn't duplicate them.
+    # ponytail: second writer of decisions.json beside append_decision; move into decisions.py if it grows.
     log_path = run_dir / "decisions.json"
     if log_path.exists():
         log = Decisions.model_validate_json(log_path.read_text(encoding="utf-8"))
@@ -143,19 +149,25 @@ def run_frames(run_dir: Path, run: RunConfig) -> None:
         log_path.write_text(log.model_dump_json(indent=2), encoding="utf-8")
 
     scores: list[FrameScore] = []
-    for seg, frames, verdict in zip(cands.segments, picked, verdicts):
-        rows = []
-        for f, v in zip(frames, verdict):
-            answers = [JudgeAnswer(question=q, score=a.score, reason=a.reason) for q, a in zip(questions, v.answers)]
-            total = combine([a.score for a in answers], sharp[f])
-            rows.append((FrameScore(segment_id=seg.segment_id, frame=f, answers=answers,
-                                    heuristic_score=sharp[f], total=total), v.note))
-        scores += [r for r, _ in rows]
-        best, note = max(rows, key=lambda r: r[0].total)
+    for seg, frames, verdict in zip(cands.segments, to_judge, verdicts):
+        rows = [
+            FrameScore(
+                segment_id=seg.segment_id, frame=f, heuristic_score=sharp[f],
+                answers=[JudgeAnswer(question=q, score=a.score, reason=a.reason) for q, a in zip(questions, v.answers)],
+                total=combine([a.score for a in v.answers], sharp[f]),
+            )
+            for f, v in zip(frames, verdict)
+        ]
+        scores += rows
+        i = max(range(len(rows)), key=lambda k: rows[k].total)
+        best = rows[i]
+        skipped = len(seg.frames) - len(frames)
+        reason = f"Top of {len(frames)} judged frames ({best.total:.2f}"
+        reason += f", {skipped} blurrier skipped): " if skipped else "): "
         append_decision(
             run_dir, stage="judge_frames", kind="frame_pick", subject=seg.segment_id,
-            options=frames, chosen=best.frame, questions=questions, answers=[*best.answers],
-            judge_score=best.total, heuristic_score=best.heuristic_score, reason=note,
+            options=seg.frames, chosen=best.frame, questions=questions, answers=[*best.answers],
+            judge_score=best.total, heuristic_score=best.heuristic_score, reason=reason + verdict[i].note,
         )
 
     out = FrameScores(questions=questions, scores=scores)
