@@ -2,7 +2,7 @@
 
     uvicorn backend.app:app --reload            # http://127.0.0.1:8000/docs
 
-GET  /                         the board (web/index.html)
+GET  /                         the board (web/index.html); installable: /manifest.webmanifest, /sw.js, /web/*
 POST /runs                    start a run (multipart form; no recording = fixture take)
 GET  /runs                    list runs, newest first
 GET  /runs/{id}               run.json + status + finished stages
@@ -27,6 +27,7 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend import run as orchestrator
 from backend.contracts import Brief, RunConfig
@@ -97,6 +98,20 @@ def board() -> FileResponse:
     return FileResponse(ROOT / "web" / "index.html")
 
 
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def manifest() -> FileResponse:
+    return FileResponse(ROOT / "web" / "manifest.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker() -> FileResponse:
+    # Served from / so its scope covers the whole app (needed for "Install").
+    return FileResponse(ROOT / "web" / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
+
+app.mount("/web", StaticFiles(directory=ROOT / "web"), name="web")
+
+
 @app.post("/runs", status_code=201)
 async def create_run(
     repo_url: str = Form(...),
@@ -104,6 +119,7 @@ async def create_run(
     time_limit_s: int = Form(180),
     language: str = Form("en"),
     second_language: Optional[str] = Form(None),
+    brief_text: str = Form("", description="The judging brief as pasted; saved as brief.txt in the run."),
     mode: str = Form("cheap"),
     recording: Optional[UploadFile] = File(None, description="Screen recording; omit to use the fixture take."),
 ) -> dict:
@@ -133,6 +149,9 @@ async def create_run(
                 run_dir = orchestrator.create_run(cfg, src)
     except ValueError as e:  # pydantic validation
         raise HTTPException(422, str(e))
+    if brief_text.strip():
+        # Until A, B and C agree on an optional brief.text in run.json (runbook), it lives next to it.
+        (run_dir / "brief.txt").write_text(brief_text.strip() + "\n")
     start_pipeline(run_dir)
     return {"run_id": run_id, "events": f"/runs/{run_id}/events", "final": f"/runs/{run_id}/files/final.mp4"}
 

@@ -32,10 +32,12 @@ DEMOCUT_FAKE=all uvicorn backend.app:app  # then open http://127.0.0.1:8000
 
 All three start the same pipeline (`backend/run.py`) in its own process.
 
-**1. The board.** `uvicorn backend.app:app`, open http://127.0.0.1:8000, paste the repo URL,
-pick the recording, set the brief, press *Make the video*. You see each stage live, then the
-video, then how it decided: claims backed or rejected, ranked frames and hooks, the facts it
-found in the repo and the final check. `http://127.0.0.1:8000/#<run_id>` opens one run.
+**1. The board / phone app.** `uvicorn backend.app:app`, open http://127.0.0.1:8000. Three
+steps: paste the repo URL, pick the recording (up to 7 minutes and 1 GB, checked on the device
+before upload), paste the brief. You see each stage live, then the video with Download and Share,
+then how it decided: claims backed or rejected, ranked frames and hooks, the facts it found in the
+repo and the final check. `http://127.0.0.1:8000/#<run_id>` opens one run. On a phone, use the
+browser's *Add to Home Screen* / *Install* to get it as an app.
 
 **2. The command line.**
 
