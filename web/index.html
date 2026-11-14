@@ -75,6 +75,20 @@
   .nav button.back { background: transparent; color: var(--ink); border: 1px solid var(--line); }
   .err { color: var(--bad); font-size: 13px; margin-top: 6px; min-height: 0; }
   .fileinfo { font-size: 13px; margin-top: 6px; }
+  a.btn.gh-login { display: block; margin-bottom: 4px; background: #24292f; }
+  .gh-user { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .gh-user img { width: 28px; height: 28px; border-radius: 50%; }
+  .gh-user span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  button.link { width: auto; margin: 0; padding: 4px 6px; background: none; color: var(--accent); font-weight: 400; font-size: 14px; }
+  #gh-filter { margin-top: 10px; }
+  ul.repos { list-style: none; margin: 6px 0 0; padding: 0; max-height: 280px; overflow-y: auto;
+             border: 1px solid var(--line); border-radius: 6px; }
+  ul.repos li { padding: 10px; border-top: 1px solid var(--line); cursor: pointer; font-size: 14px; }
+  ul.repos li:first-child { border-top: 0; }
+  ul.repos li.on { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
+  ul.repos li .d { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  ul.repos li .lock { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+  .or { text-align: center; font-size: 12px; color: var(--muted); margin: 14px 0 -4px; }
   .upload { margin-top: 12px; } .upload .bar { margin: 0 0 4px; }
   details.more { margin-top: 10px; font-size: 13px; color: var(--muted); } details.more summary { cursor: pointer; }
   .share { display: flex; gap: 10px; margin-top: 10px; align-items: stretch; }
@@ -127,10 +141,22 @@
         <ol class="steps" id="steps"><li data-n="1">Repo</li><li data-n="2">Recording</li><li data-n="3">Brief</li></ol>
         <form id="form" novalidate>
           <fieldset data-step="1">
+            <div id="gh" hidden>
+              <a class="btn gh-login" id="gh-login" href="/auth/github/login">Log in with GitHub</a>
+              <div id="gh-user" class="gh-user" hidden>
+                <img id="gh-avatar" alt=""><span>Signed in as <b id="gh-name"></b></span>
+                <button type="button" class="link" id="gh-logout">Log out</button>
+              </div>
+              <div id="gh-pick" hidden>
+                <input id="gh-filter" type="search" placeholder="Search your repos" autocomplete="off">
+                <ul class="repos" id="gh-repos"></ul>
+              </div>
+              <div class="or">or paste a link</div>
+            </div>
             <label for="repo_url">GitHub repo URL</label>
             <input id="repo_url" name="repo_url" type="url" inputmode="url" autocomplete="url" autocapitalize="off"
                    placeholder="https://github.com/you/app">
-            <div class="hint">Paste the link to your app's repo. GitHub login comes later.</div>
+            <div class="hint">The link to your app's repo on GitHub.</div>
             <div class="err" id="err-1"></div>
             <div class="nav"><button type="button" class="next">Next</button></div>
           </fieldset>
@@ -541,6 +567,47 @@ $("form").onsubmit = async (e) => {
     $("go").disabled = false;
   }
 };
+
+// ---- GitHub login (C11): pick a repo instead of pasting it ------------------------------
+let myRepos = [];
+
+function renderRepos() {
+  const q = $("gh-filter").value.trim().toLowerCase();
+  const list = myRepos.filter(r => !q || r.full_name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q));
+  $("gh-repos").innerHTML = list.slice(0, 50).map(r =>
+    `<li data-url="${esc(r.url)}" class="${r.url === $("repo_url").value ? "on" : ""}">${esc(r.full_name)}`
+    + (r.private ? `<span class="lock">private</span>` : "")
+    + (r.description ? `<span class="d">${esc(r.description)}</span>` : "") + `</li>`
+  ).join("") || `<li class="empty">No repos match.</li>`;
+  $("gh-repos").querySelectorAll("li[data-url]").forEach(li => li.onclick = () => {
+    $("repo_url").value = li.dataset.url;
+    $("err-1").textContent = "";
+    if (checkStep(1)) showStep(2);
+  });
+}
+
+async function initGitHub() {
+  let me;
+  try { me = await (await fetch("/auth/me")).json(); } catch (_) { return; }
+  if (!me.enabled) return;                               // no OAuth keys: paste-a-link only
+  $("gh").hidden = false;
+  const err = new URLSearchParams(location.search).get("login_error");
+  if (err) { $("err-1").textContent = "GitHub login didn't work. Try again, or paste the link."; history.replaceState(null, "", "/" + location.hash); }
+  if (!me.logged_in) return;
+  $("gh-login").hidden = true;
+  $("gh-user").hidden = false;
+  $("gh-name").textContent = me.login;
+  if (me.avatar_url) $("gh-avatar").src = me.avatar_url;
+  const r = await fetch("/github/repos");
+  if (!r.ok) { $("err-1").textContent = "Couldn't load your repos. Paste the link instead."; return; }
+  myRepos = await r.json();
+  $("gh-pick").hidden = false;
+  renderRepos();
+}
+
+$("gh-filter").oninput = renderRepos;
+$("gh-logout").onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
+initGitHub();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 

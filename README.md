@@ -55,6 +55,14 @@ and *Share* falls back to copying the link; upload and playback work. If the ven
 devices apart, a tunnel such as `cloudflared tunnel --url http://localhost:8000` gives an `https`
 link instead (optional, not a project dependency).
 
+**GitHub login (optional).** With an OAuth app's keys in `.env`, step 1 shows *Log in with
+GitHub*, then your repos, most recently updated first: tap one instead of pasting a link.
+Create the app at https://github.com/settings/developers → *New OAuth App*, with callback URL
+`http://localhost:8000/auth/github/callback` (for a phone: `http://<laptop-ip>:8000/auth/github/callback`),
+and set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (see `.env.example`). Add `repo` to
+`GITHUB_OAUTH_SCOPES` for private repos. The token stays in the server's memory: it is never
+written to `run.json`, events or logs, and a run gets it only as `GITHUB_TOKEN` in its own process.
+
 **2. The command line.**
 
 ```bash
@@ -118,6 +126,7 @@ outputs from `fixtures/run/`, so every stage can be built and tested before the 
 | `PUT` | `/uploads/{id}?offset=N` | Add one part (raw bytes); a wrong offset answers 409 with what arrived |
 | `GET` | `/uploads/{id}` | How much arrived, to resume |
 | `POST` | `/runs` | Start a run (form: `repo_url`, `upload_id` or `recording`, `brief_text`, `criteria`, `time_limit_s`, `language`, `second_language`, `mode`); the take must be ≤ 7:00 and ≤ 1 GiB |
+| `GET` | `/auth/github/login` · `/auth/me` · `/github/repos` | GitHub login (C11), who's logged in, their repos |
 | `GET` | `/runs` | Runs, newest first |
 | `GET` | `/runs/{id}` | Status, config, finished stages |
 | `GET` | `/runs/{id}/events` | Live progress (Server-Sent Events) until the run ends |

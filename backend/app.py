@@ -33,11 +33,29 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFil
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from backend import github_auth
 from backend import run as orchestrator
 from backend.contracts import Brief, RunConfig
 
 ROOT = orchestrator.ROOT
+
+
+def load_dotenv(path: Path = ROOT / ".env") -> None:
+    """KEY=value lines from .env into the environment (real env vars win). No extra dependency."""
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            value = value.strip().strip('"').strip("'")
+            if value:
+                os.environ.setdefault(key.strip(), value)
+
+
+load_dotenv()
 app = FastAPI(title="DemoCut")
+app.include_router(github_auth.router)
 
 # run_id -> pipeline process started by this server
 _procs: dict[str, subprocess.Popen] = {}
@@ -128,14 +146,18 @@ def _upload_state(upload_id: str) -> dict:
     return m
 
 
-def start_pipeline(run_dir: Path) -> subprocess.Popen:
+def start_pipeline(run_dir: Path, github_token: Optional[str] = None) -> subprocess.Popen:
+    """Run the pipeline in its own process. A login token goes only into that process's env."""
+    env = os.environ.copy()
+    if github_token:
+        env["GITHUB_TOKEN"] = github_token
     log = open(run_dir / "pipeline.log", "ab")
     proc = subprocess.Popen(
         [sys.executable, "-m", "backend.run", str(run_dir)],
         cwd=ROOT,
         stdout=log,
         stderr=subprocess.STDOUT,
-        env=os.environ.copy(),
+        env=env,
     )
     _procs[run_dir.name] = proc
     return proc
@@ -204,6 +226,7 @@ async def upload_chunk(upload_id: str, request: Request, offset: int) -> dict:
 
 @app.post("/runs", status_code=201)
 async def create_run(
+    request: Request,
     repo_url: str = Form(...),
     criteria: str = Form("usefulness,craft,aura", description="Comma-separated judging criteria."),
     time_limit_s: int = Form(180),
@@ -261,7 +284,7 @@ async def create_run(
     if brief_text.strip():
         # Until A, B and C agree on an optional brief.text in run.json (runbook), it lives next to it.
         (run_dir / "brief.txt").write_text(brief_text.strip() + "\n")
-    start_pipeline(run_dir)
+    start_pipeline(run_dir, github_auth.token_for(request))
     return {"run_id": run_id, "events": f"/runs/{run_id}/events", "final": f"/runs/{run_id}/files/final.mp4"}
 
 
