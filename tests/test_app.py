@@ -63,6 +63,11 @@ def test_api_post_and_stream_fixture_run(runs):
     assert client.get("/runs").json()[0]["run_id"] == run_id
 
 
+def test_board_is_served():
+    r = TestClient(api.app).get("/")
+    assert r.status_code == 200 and "EventSource" in r.text
+
+
 def test_api_upload_recording_and_validation(runs):
     client = TestClient(api.app)
     rec = (orchestrator.FIXTURE_RUN / "recording.mp4").read_bytes()

@@ -2,6 +2,7 @@
 
     uvicorn backend.app:app --reload            # http://127.0.0.1:8000/docs
 
+GET  /                         the board (web/index.html)
 POST /runs                    start a run (multipart form; no recording = fixture take)
 GET  /runs                    list runs, newest first
 GET  /runs/{id}               run.json + status + finished stages
@@ -88,6 +89,11 @@ def start_pipeline(run_dir: Path) -> subprocess.Popen:
     )
     _procs[run_dir.name] = proc
     return proc
+
+
+@app.get("/", include_in_schema=False)
+def board() -> FileResponse:
+    return FileResponse(ROOT / "web" / "index.html")
 
 
 @app.post("/runs", status_code=201)

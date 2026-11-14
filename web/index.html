@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DemoCut</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e3e1dc;
+    --accent: #2f6fde; --ok: #2e8b57; --bad: #c0392b; --skip: #9a9893;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141413; --panel: #1e1e1c; --ink: #ecebe7; --muted: #9d9b95; --line: #33322f;
+            --accent: #6d9bf0; --ok: #5cc28a; --bad: #ec7063; --skip: #6f6d68; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+                  background: var(--bg); color: var(--ink); font: inherit; }
+  .row { display: flex; gap: 10px; } .row > div { flex: 1; }
+  button { margin-top: 14px; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: var(--accent);
+           color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 6px 0 14px; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  ol.stages { list-style: none; padding: 0; margin: 0 0 14px; display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+  ol.stages li { font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); }
+  ol.stages li.running { border-color: var(--accent); color: var(--ink); }
+  ol.stages li.done { border-color: var(--ok); color: var(--ink); }
+  ol.stages li.skipped { color: var(--skip); }
+  ol.stages li.failed { border-color: var(--bad); color: var(--bad); }
+  ol.stages li::before { content: "○ "; } ol.stages li.running::before { content: "◐ "; }
+  ol.stages li.done::before, ol.stages li.skipped::before { content: "● "; } ol.stages li.failed::before { content: "✕ "; }
+  .log { font: 12px/1.5 ui-monospace, Menlo, monospace; background: var(--bg); border: 1px solid var(--line);
+         border-radius: 6px; padding: 8px; height: 180px; overflow: auto; white-space: pre-wrap; }
+  video { width: 100%; border-radius: 8px; background: #000; margin-top: 14px; display: none; }
+  .links { font-size: 13px; margin-top: 8px; } .links a { color: var(--accent); margin-right: 12px; }
+  ul.runs { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  ul.runs li { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  ul.runs li:hover { color: var(--accent); }
+  .tag { font-size: 12px; } .tag.done { color: var(--ok); } .tag.failed { color: var(--bad); }
+  .empty { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>DemoCut</h1>
+  <p class="sub">Repo + one rough take + the brief → a demo video cut from real footage.</p>
+
+  <div class="grid">
+    <div>
+      <section>
+        <h2>New run</h2>
+        <form id="form">
+          <label for="repo_url">GitHub repo URL</label>
+          <input id="repo_url" name="repo_url" type="url" required placeholder="https://github.com/you/app">
+
+          <label for="recording">Screen recording</label>
+          <input id="recording" name="recording" type="file" accept="video/*">
+          <div class="hint">Leave empty to use the fixture take.</div>
+
+          <label for="criteria">Judging criteria</label>
+          <input id="criteria" name="criteria" value="usefulness,craft,aura">
+
+          <div class="row">
+            <div>
+              <label for="time_limit_s">Time limit (s)</label>
+              <input id="time_limit_s" name="time_limit_s" type="number" min="10" value="180">
+            </div>
+            <div>
+              <label for="mode">Mode</label>
+              <select id="mode" name="mode"><option value="cheap">cheap</option><option value="full">full</option></select>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="language">Language</label>
+              <input id="language" name="language" value="en">
+            </div>
+            <div>
+              <label for="second_language">2nd language</label>
+              <input id="second_language" name="second_language" placeholder="el">
+            </div>
+          </div>
+          <button id="go" type="submit">Make the video</button>
+        </form>
+      </section>
+
+      <section style="margin-top:20px">
+        <h2>Runs</h2>
+        <ul class="runs" id="runs"><li class="empty">No runs yet.</li></ul>
+      </section>
+    </div>
+
+    <section>
+      <h2 id="run-title">No run selected</h2>
+      <div class="status"><span id="status">Start a run or pick one from the list.</span><span id="pct"></span></div>
+      <div class="bar"><div id="bar"></div></div>
+      <ol class="stages" id="stages"></ol>
+      <div class="log" id="log"></div>
+      <video id="player" controls></video>
+      <div class="links" id="links"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const STAGES = ["ingest","transcribe","understand","candidates","judge_frames","script",
+                "assets","timeline","rubric","captions","render"];
+const $ = (id) => document.getElementById(id);
+let source = null;
+
+function resetView(runId) {
+  $("run-title").textContent = runId;
+  $("status").textContent = "Waiting for events…";
+  $("pct").textContent = "";
+  $("bar").style.width = "0";
+  $("log").textContent = "";
+  $("links").innerHTML = "";
+  const v = $("player"); v.style.display = "none"; v.removeAttribute("src"); v.load();
+  $("stages").innerHTML = STAGES.map(s => `<li id="st-${s}">${s}</li>`).join("");
+}
+
+function setStage(stage, cls) {
+  const li = $("st-" + stage);
+  if (li) li.className = cls;
+}
+
+function onEvent(ev) {
+  const time = new Date(ev.ts).toLocaleTimeString();
+  const log = $("log");
+  log.textContent += `${time}  [${ev.stage}] ${ev.msg}\n`;
+  log.scrollTop = log.scrollHeight;
+  $("bar").style.width = (ev.progress * 100) + "%";
+  $("pct").textContent = Math.round(ev.progress * 100) + "%";
+  $("status").textContent = ev.msg;
+  if (ev.stage !== "run") {
+    if (ev.msg.endsWith("skipped (already done)")) setStage(ev.stage, "skipped");
+    else if (ev.msg.includes(" started")) setStage(ev.stage, "running");
+    else if (ev.msg.endsWith(" done")) setStage(ev.stage, "done");
+  } else if (ev.msg.startsWith("Run failed")) {
+    document.querySelectorAll("ol.stages li.running").forEach(li => li.className = "failed");
+  }
+}
+
+function onEnd(runId, status) {
+  $("status").textContent = status === "done" ? "Done." : "Run failed. See the log, fix it, and run again: it resumes.";
+  const base = `/runs/${runId}/files/`;
+  if (status === "done") {
+    const v = $("player"); v.src = base + "final.mp4"; v.style.display = "block";
+  }
+  $("links").innerHTML = ["final.mp4", "captions.srt", "decisions.json", "script.json"]
+    .map(f => `<a href="${base}${f}" target="_blank">${f}</a>`).join("");
+  $("go").disabled = false;
+  loadRuns();
+}
+
+function watch(runId) {
+  if (source) source.close();
+  resetView(runId);
+  source = new EventSource(`/runs/${runId}/events`);
+  source.onmessage = (m) => onEvent(JSON.parse(m.data));
+  source.addEventListener("end", (m) => { source.close(); source = null; onEnd(runId, JSON.parse(m.data).status); });
+  source.onerror = () => { $("status").textContent = "Lost connection to the server."; };
+}
+
+async function loadRuns() {
+  try {
+    const runs = await (await fetch("/runs")).json();
+    $("runs").innerHTML = runs.length
+      ? runs.map(r => `<li data-id="${r.run_id}"><span>${r.run_id}</span><span class="tag ${r.status}">${r.status}</span></li>`).join("")
+      : `<li class="empty">No runs yet.</li>`;
+    $("runs").querySelectorAll("li[data-id]").forEach(li => li.onclick = () => watch(li.dataset.id));
+  } catch (e) { /* server not up yet */ }
+}
+
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  $("go").disabled = true;
+  const fd = new FormData(e.target);
+  if (!$("recording").files.length) fd.delete("recording");
+  const res = await fetch("/runs", { method: "POST", body: fd });
+  if (!res.ok) {
+    $("status").textContent = "Could not start: " + (await res.text());
+    $("go").disabled = false;
+    return;
+  }
+  const { run_id } = await res.json();
+  watch(run_id);
+  loadRuns();
+};
+
+loadRuns();
+</script>
+</body>
+</html>
