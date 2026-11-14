@@ -66,6 +66,16 @@ def test_api_post_and_stream_fixture_run(runs):
 def test_board_is_served():
     r = TestClient(api.app).get("/")
     assert r.status_code == 200 and "EventSource" in r.text
+    # C6: the decisions panel reads these run files; they must be served
+    assert "renderDecisions" in r.text and 'id="claims"' in r.text and 'id="rubric"' in r.text
+
+
+def test_decision_files_served(runs):
+    d = orchestrator.new_run_from_fixture()
+    orchestrator.run_pipeline(d)
+    client = TestClient(api.app)
+    for f in ("decisions.json", "script.json", "summary.json", "frames/c02_7.5s.jpg", "cards/drafts/s01_2.png"):
+        assert client.get(f"/runs/{d.name}/files/{f}").status_code == 200, f
 
 
 def test_api_upload_recording_and_validation(runs):
