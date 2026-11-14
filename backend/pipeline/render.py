@@ -16,18 +16,21 @@ from pathlib import Path
 
 from backend import events
 from backend.contracts import RunConfig, Timeline, TimelineShot
-from backend.pipeline.ff import AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, fit
+from backend.pipeline.ff import (AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, hdr_to_sdr, inner_size, place,
+                                 video_info)
 
 MAX_ZOOM = 3.0
 WORKERS = 4
 LOUDNESS = -16  # LUFS, the usual target for web video
 
 
-def zoom_filter(s: TimelineShot, w: int, h: int, fps: int) -> str:
-    """Ease from full frame into the focus box over ease_s, then hold. Uniform zoom keeps the aspect."""
+def zoom_filter(s: TimelineShot, iw: int, ih: int, fps: int) -> str:
+    """Ease from the full frame into the focus box over ease_s, then hold.
+    Runs on the source picture (iw x ih, its own shape) before it is placed in the output frame,
+    so the box means the same thing for portrait, 4:3 or 16:9 takes. Uniform zoom: no stretching."""
     z = s.visual.zoom
     if z is None:
-        return "null"
+        return ""
     bx, by, bw, bh = z.box
     target = min(1 / max(bw, bh), MAX_ZOOM)
     ease = max(1, round(z.ease_s * fps))
@@ -35,20 +38,27 @@ def zoom_filter(s: TimelineShot, w: int, h: int, fps: int) -> str:
     cx, cy = bx + bw / 2, by + bh / 2
     x = f"max(0\\,min(iw-iw/zoom\\,iw*{cx:.4f}-iw/zoom/2))"
     y = f"max(0\\,min(ih-ih/zoom\\,ih*{cy:.4f}-ih/zoom/2))"
-    return f"zoompan=z='{zexp}':x='{x}':y='{y}':d=1:s={w}x{h}:fps={fps},setsar=1"
+    return f",zoompan=z='{zexp}':x='{x}':y='{y}':d=1:s={iw}x{ih}:fps={fps}"
 
 
 def shot(d: Path, s: TimelineShot, tl: Timeline, out: Path) -> None:
+    """One timeline shot -> shots/<id>.mp4 (w x h, fps, yuv420p, 48 kHz stereo), whatever the source."""
     w, h, fps, v = tl.width, tl.height, tl.fps, s.visual
     dur = f"{s.duration_s:.4f}"
+    info = video_info(d / v.path)
+    iw, ih = inner_size(info.width, info.height, w, h)
     if v.kind == "card":
         inp = ["-loop", 1, "-framerate", fps, "-t", dur, "-i", v.path]
-        vf = fit(w, h, fps)
+        src = f"[0:v]scale={iw}:{ih},setsar=1,fps={fps}[src]"
+        tail = ""
     else:
         inp = ["-ss", f"{v.source_start:.3f}", "-to", f"{v.source_end:.3f}", "-i", v.path]
-        vf = (f"setpts=(PTS-STARTPTS)/{v.speed},{fit(w, h, fps)},{zoom_filter(s, w, h, fps)},"
-              f"tpad=stop_mode=clone:stop_duration={v.freeze_s + 1:.3f}")
-    graph = f"[0:v]{vf},trim=duration={dur}[v];[1:a]aresample={SAMPLE_RATE},apad[a]"
+        src = (f"[0:v]{hdr_to_sdr(info)}setpts=(PTS-STARTPTS)/{v.speed},fps={fps},"
+               f"scale={iw}:{ih},setsar=1{zoom_filter(s, iw, ih, fps)}[src]")
+        tail = f"tpad=stop_mode=clone:stop_duration={v.freeze_s + 1:.3f},"
+    graph = ";".join([src, place("src", "placed", iw, ih, w, h),
+                      f"[placed]{tail}trim=duration={dur}[v]",
+                      f"[1:a]aresample={SAMPLE_RATE},apad[a]"])
     ff(*inp, "-i", s.voice_path, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
        "-t", dur, "-r", fps, *VIDEO, *AUDIO, out.relative_to(d), cwd=d)
 
