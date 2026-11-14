@@ -75,6 +75,7 @@
   .nav button.back { background: transparent; color: var(--ink); border: 1px solid var(--line); }
   .err { color: var(--bad); font-size: 13px; margin-top: 6px; min-height: 0; }
   .fileinfo { font-size: 13px; margin-top: 6px; }
+  .upload { margin-top: 12px; } .upload .bar { margin: 0 0 4px; }
   details.more { margin-top: 10px; font-size: 13px; color: var(--muted); } details.more summary { cursor: pointer; }
   .share { display: flex; gap: 10px; margin-top: 10px; align-items: stretch; }
   .share .btn { margin-top: 0; }
@@ -176,6 +177,10 @@
                 </div>
               </div>
             </details>
+            <div class="upload" id="upload" hidden>
+              <div class="bar"><div id="upbar"></div></div>
+              <div class="hint" id="uptext"></div>
+            </div>
             <div class="err" id="err-3"></div>
             <div class="nav"><button type="button" class="back">Back</button><button id="go" type="submit">Make the video</button></div>
           </fieldset>
@@ -451,28 +456,90 @@ async function shareVideo(runId) {
   catch (e) { prompt("Copy the link:", url); }
 }
 
+// ---- big uploads (C12): 8 MB parts, resumes after a dropped connection or a reload ----
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const takeKey = (f) => `democut-upload:${f.name}:${f.size}:${f.lastModified}`;
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (_) {} },
+};
+
+async function apiError(res) {
+  let msg = await res.text();
+  try { msg = JSON.parse(msg).detail ?? msg; } catch (_) {}
+  return typeof msg === "string" ? msg : (msg.msg || JSON.stringify(msg));
+}
+
+function showUpload(sent, total, note) {
+  $("upload").hidden = false;
+  $("upbar").style.width = (100 * sent / total) + "%";
+  $("uptext").textContent = `Uploading ${Math.floor(100 * sent / total)}% · ${fmtSize(sent)} of ${fmtSize(total)}` + (note ? ` · ${note}` : "");
+}
+
+// Returns the upload_id of a finished upload. Throws Error(message) on a hard failure.
+async function uploadTake(file) {
+  const key = takeKey(file);
+  let id = store.get(key), size = 1 << 23, received = 0;
+  if (id) {                                              // same file as a cut-off upload: resume it
+    const r = await fetch(`/uploads/${id}`).catch(() => null);
+    if (r && r.ok) received = (await r.json()).received; else id = null;
+  }
+  if (!id) {
+    const r = await fetch("/uploads", { method: "POST", headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ filename: file.name, size: file.size }) });
+    if (!r.ok) throw new Error(await apiError(r));
+    ({ upload_id: id, chunk_size: size } = await r.json());
+    store.set(key, id);
+  }
+  let failures = 0;
+  while (received < file.size) {
+    showUpload(received, file.size, failures ? "connection lost, retrying…" : "");
+    try {
+      const r = await fetch(`/uploads/${id}?offset=${received}`, { method: "PUT", body: file.slice(received, received + size) });
+      if (r.status === 409) { received = (await r.json()).detail.received; continue; }   // server has a different amount
+      if (!r.ok) { store.del(key); throw new Error(await apiError(r)); }
+      received = (await r.json()).received;
+      failures = 0;
+    } catch (e) {
+      if (e instanceof TypeError) {                      // network down: wait, ask what arrived, carry on
+        if (++failures > 40) throw new Error("The connection keeps dropping. Try again when it's back: the upload will resume.");
+        await sleep(Math.min(15000, 1000 * 2 ** Math.min(failures, 4)));
+        const r = await fetch(`/uploads/${id}`).catch(() => null);
+        if (r && r.ok) received = (await r.json()).received;
+        continue;
+      }
+      throw e;
+    }
+  }
+  showUpload(file.size, file.size, "checking the video…");
+  return { id, key };
+}
+
 $("form").onsubmit = async (e) => {
   e.preventDefault();
   for (const n of [1, 2, 3]) if (!checkStep(n)) return showStep(n);
   $("go").disabled = true;
   $("err-3").textContent = "";
   const fd = new FormData(e.target);
-  if (!$("recording").files.length) fd.delete("recording");
-  let res;
-  try { res = await fetch("/runs", { method: "POST", body: fd }); }
-  catch (err) { $("err-3").textContent = "Can't reach the server. Check the connection and try again."; $("go").disabled = false; return; }
-  if (!res.ok) {
-    let msg = await res.text();
-    try { msg = JSON.parse(msg).detail ?? msg; } catch (_) {}
-    $("err-3").textContent = "Could not start: " + (typeof msg === "string" ? msg : JSON.stringify(msg));
+  fd.delete("recording");
+  const file = $("recording").files[0];
+  let up = null;
+  try {
+    if (file) { up = await uploadTake(file); fd.append("upload_id", up.id); }
+    const res = await fetch("/runs", { method: "POST", body: fd });
+    if (!res.ok) throw new Error("Could not start: " + await apiError(res));
+    if (up) store.del(up.key);
+    const { run_id } = await res.json();
+    $("upload").hidden = true;
+    watch(run_id);
+    loadRuns();
+    $("run-title").scrollIntoView({ behavior: "smooth", block: "start" });
+    showStep(1);
+  } catch (err) {
+    $("err-3").textContent = err instanceof TypeError ? "Can't reach the server. Check the Wi-Fi and press the button again." : err.message;
     $("go").disabled = false;
-    return;
   }
-  const { run_id } = await res.json();
-  watch(run_id);
-  loadRuns();
-  $("run-title").scrollIntoView({ behavior: "smooth", block: "start" });
-  showStep(1);
 };
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
