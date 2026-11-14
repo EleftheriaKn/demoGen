@@ -16,7 +16,8 @@ def test_questions_are_fixed_per_criterion_with_generic_fallback():
     qs = judge.questions_for(["usefulness", "Craft", "vibes"])
     assert qs[:2] == [judge.QUESTIONS["usefulness"], judge.QUESTIONS["craft"]]
     assert "vibes" in qs[2]
-    assert judge.questions_for(["usefulness", "usefulness"]) == [judge.QUESTIONS["usefulness"]]
+    assert judge.questions_for(["usefulness", " Usefulness "]) == [judge.QUESTIONS["usefulness"]]
+    assert len(judge.questions_for(["Vibes", "vibes"])) == 1
 
 
 def test_total_is_judge_80_sharpness_20():
@@ -61,8 +62,9 @@ def test_judge_frames_stage(tmp_path):
     assert len(scores.scores) == 2 * len(cands.segments)  # cheap mode
     picks = [d for d in log.decisions if d.kind == "frame_pick"]
     assert [d.subject for d in picks] == [s.segment_id for s in cands.segments]
+    assert [d.options for d in picks] == [s.frames for s in cands.segments]
     by_frame = {s.frame: s for s in scores.scores}
     for d in picks:
-        best = max(d.options, key=lambda f: by_frame[f].total)
+        best = max((f for f in d.options if f in by_frame), key=lambda f: by_frame[f].total)
         assert d.chosen == best and d.judge_score == by_frame[best].total
         assert d.answers == by_frame[best].answers
