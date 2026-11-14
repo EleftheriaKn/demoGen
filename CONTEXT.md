@@ -14,6 +14,13 @@ _Avoid_: footage file, input video
 **Brief**:
 The hackathon's judging rules for this run: criteria, time limit, languages.
 
+**Time limit**:
+The brief's hard maximum length for the final video. Never exceeded.
+
+**Target length**:
+The length the script aims for, normally well under the time limit (75 s, so the video fits inside a 3-minute pitch).
+_Avoid_: duration, limit
+
 **Criterion**:
 One word from the brief that judges score on, such as `usefulness`, `craft`, `aura`.
 _Avoid_: metric, category
@@ -38,7 +45,11 @@ One unit of the final video: one voice line over one visual, serving one beat.
 _Avoid_: scene, clip, segment
 
 **Beat**:
-The story role a shot plays: hook, problem, demo, how, impact, ask.
+The story role a shot plays: hook, problem, demo, how, impact, ask. Only hook and ask shots may use a generated visual; every other beat shows real footage.
+
+**Generated visual**:
+A shot visual made by a model rather than taken from the recording: a card or b-roll.
+_Avoid_: AI footage, fake footage
 
 **Hook**:
 A candidate opening line. Several are written; one is chosen.
