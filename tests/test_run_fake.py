@@ -30,7 +30,7 @@ def test_fake_all_end_to_end(run_dir, monkeypatch):
 
 
 def test_unfaked_stub_fails_loudly(run_dir, monkeypatch):
-    monkeypatch.setenv("DEMOCUT_FAKE", "")
+    monkeypatch.setenv("DEMOCUT_FAKE", "ingest")  # ingest is real now (B4) and would clone; the next stub must fail
     with pytest.raises(NotImplementedError, match="DEMOCUT_FAKE"):
         orchestrator.run_pipeline(run_dir)
 

@@ -46,7 +46,7 @@ Python does everything except the board, which is one plain HTML page. No React,
 | Brains | Gemini via `google-genai`, current Flash model | Watches video, reads images, returns JSON to a schema |
 | Media | fal via `fal-client` | Voice, music, title cards, transcription; fal track |
 | Video | ffmpeg 5+ with libass and freetype | Cut, fit, caption, mix, render |
-| Scene cuts | PySceneDetect (`scenedetect`) | Snaps Gemini's timestamps to real cuts |
+| Scene cuts | ffmpeg `scdet` (replaced PySceneDetect on Nov 15: same cuts, exact on variable-frame-rate phone takes, ~10x faster on HEVC/HDR) | Snaps Gemini's timestamps to real cuts |
 | API | FastAPI + uvicorn, events streamed with SSE | Starts runs, streams progress, serves files |
 | Board / mobile app | One `web/index.html`, plain JavaScript, mobile-first and installable (PWA: manifest + "Add to Home Screen") | Login, repo picker, record/upload, brief, progress, player; no build step, no app store |
 | Login | GitHub OAuth app (FastAPI routes) | Lists the user's repos; the token also lets ingest clone private repos |
@@ -238,8 +238,8 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B1 | Setup: ffmpeg 5+, font, fake media | `scripts/make_fake_media.sh` runs; `NotoSans-Bold.ttf` in `fonts/` | 23:00 | Done |
 | B2 | Render half on fixtures | timeline → captions → render gives `runs/dev/final.mp4` | 23:30 | Done |
 | B3 | Render on the real test take | Works on C's take in `samples/`, whatever its size and frame rate | 00:30 | Done on 7 test takes; recheck on C's take |
-| B4 | `ingest.py` | Clones a real repo; `repo_files.json`; `audio.wav` when the take has sound | 01:00 | To do |
-| B5 | `candidates.py` | Scene cuts and 3 frames per moment from A's `moments.json` | 02:00 | To do |
+| B4 | `ingest.py` | Clones a real repo; `repo_files.json`; `audio.wav` when the take has sound | 01:00 | Done (also private repos via `GITHUB_TOKEN`; silent `audio.wav` when the take has no sound) |
+| B5 | `candidates.py` | Scene cuts and 3 frames per moment from A's `moments.json` | 02:00 | Done (7-min 1080p take: ~28 s, max 40 scene clips) |
 | B6 | Checkpoint 1, with A | Test take + fixture script + real voices → captioned MP4 | 02:00 | To do |
 | B7 | First full run, with A, then speed | A full run takes under 15 minutes; add a 720p preview mode if not | 05:30 | To do |
 | B8 | Robustness | Handles no audio, very short or long moments, a failed fal call; resumes mid-run | 09:00 | To do |
