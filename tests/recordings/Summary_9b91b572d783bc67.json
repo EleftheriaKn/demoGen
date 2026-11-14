@@ -1,31 +1,34 @@
 {
   "name": "PantryPal",
-  "one_liner": "Snap a photo of your fridge and get three recipes you can cook right now.",
-  "problem": "Deciding what to cook with the ingredients currently available in your fridge can be difficult and time-consuming.",
-  "audience": "Home cooks looking to make meals from ingredients they already have on hand.",
+  "one_liner": "Snap a photo of your fridge, get 3 recipes.",
+  "problem": "Deciding what to cook based on whatever ingredients happen to be in the fridge can be difficult and time-consuming.",
+  "audience": "People looking for quick recipe ideas based on the ingredients currently in their fridge.",
   "features": [
     {
       "feature_id": "f1",
-      "name": "Ingredient detection",
-      "description": "Identifies ingredients visible in a single photo of your open fridge.",
+      "name": "Ingredient detection from a photo",
+      "description": "Takes a photo of an open fridge and automatically detects visible ingredients.",
       "evidence": [
         "README#Features",
-        "backend/vision.py"
+        "README#How it works",
+        "backend/vision.py",
+        "frontend/src/Camera.tsx"
       ]
     },
     {
       "feature_id": "f2",
       "name": "Ranked recipe suggestions",
-      "description": "Suggests three recipes ranked by how many of your available ingredients they use.",
+      "description": "Suggests three recipes ranked by how many of your detected ingredients they use.",
       "evidence": [
         "README#Features",
+        "README#How it works",
         "backend/recipes.py"
       ]
     },
     {
       "feature_id": "f3",
       "name": "Shopping list",
-      "description": "Creates a shopping list for the few missing ingredients needed to complete suggested recipes.",
+      "description": "Provides a shopping list for the missing ingredients needed to complete suggested recipes.",
       "evidence": [
         "README#Features",
         "frontend/src/ShoppingList.tsx"
