@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DemoCut</title>
+<meta name="theme-color" content="#2f6fde">
+<meta name="description" content="Turn a repo, one rough screen recording and the judging brief into a demo video.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/web/icon-192.png">
+<link rel="apple-touch-icon" href="/web/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DemoCut">
 <style>
   :root {
     --bg: #f7f6f3; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e3e1dc;
@@ -14,6 +21,7 @@
             --accent: #6d9bf0; --ok: #5cc28a; --bad: #ec7063; --skip: #6f6d68; }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -54,6 +62,31 @@
   .tag { font-size: 12px; } .tag.done { color: var(--ok); } .tag.failed { color: var(--bad); }
   .empty { color: var(--muted); font-size: 13px; }
 
+  /* steps (C10) */
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  ol.steps { list-style: none; display: flex; gap: 6px; padding: 0; margin: 0 0 6px; }
+  ol.steps li { flex: 1; font-size: 12px; color: var(--muted); border-top: 3px solid var(--line); padding-top: 4px; }
+  ol.steps li.on { color: var(--ink); border-color: var(--accent); }
+  ol.steps li.done { border-color: var(--ok); }
+  ol.steps li::before { content: attr(data-n) ". "; }
+  textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+             color: var(--ink); font: inherit; resize: vertical; }
+  .nav { display: flex; gap: 10px; justify-content: space-between; } .nav > * { flex: 1; }
+  .nav button.back { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .err { color: var(--bad); font-size: 13px; margin-top: 6px; min-height: 0; }
+  .fileinfo { font-size: 13px; margin-top: 6px; }
+  details.more { margin-top: 10px; font-size: 13px; color: var(--muted); } details.more summary { cursor: pointer; }
+  .share { display: flex; gap: 10px; margin-top: 10px; align-items: stretch; }
+  .share .btn { margin-top: 0; }
+  @media (max-width: 820px) { #run-panel.idle { display: none; } }
+  .btn { flex: 1; text-align: center; padding: 10px; border-radius: 6px; background: var(--accent); color: #fff; font: inherit;
+         font-weight: 600; text-decoration: none; border: 0; cursor: pointer; }
+  input, select, textarea, button { font-size: 16px; }  /* 16px stops iOS zooming into fields */
+  @media (max-width: 820px) {
+    main { padding: 16px 16px 40px; }
+    button, .btn { padding: 14px; }
+  }
+
   /* decisions (C6) */
   #decisions { margin-top: 20px; display: none; }
   #decisions h3 { font-size: 15px; margin: 18px 0 8px; } #decisions h3:first-of-type { margin-top: 0; }
@@ -89,39 +122,63 @@
   <div class="grid">
     <div>
       <section>
-        <h2>New run</h2>
-        <form id="form">
-          <label for="repo_url">GitHub repo URL</label>
-          <input id="repo_url" name="repo_url" type="url" required placeholder="https://github.com/you/app">
+        <h2>New video</h2>
+        <ol class="steps" id="steps"><li data-n="1">Repo</li><li data-n="2">Recording</li><li data-n="3">Brief</li></ol>
+        <form id="form" novalidate>
+          <fieldset data-step="1">
+            <label for="repo_url">GitHub repo URL</label>
+            <input id="repo_url" name="repo_url" type="url" inputmode="url" autocomplete="url" autocapitalize="off"
+                   placeholder="https://github.com/you/app">
+            <div class="hint">Paste the link to your app's repo. GitHub login comes later.</div>
+            <div class="err" id="err-1"></div>
+            <div class="nav"><button type="button" class="next">Next</button></div>
+          </fieldset>
 
-          <label for="recording">Screen recording</label>
-          <input id="recording" name="recording" type="file" accept="video/*">
-          <div class="hint">Leave empty to use the fixture take.</div>
+          <fieldset data-step="2" hidden>
+            <label for="recording">Screen recording</label>
+            <input id="recording" name="recording" type="file" accept="video/*,.mov,.mp4">
+            <div class="hint">Use your phone's screen recorder, then pick the video here. Up to 7 minutes and 1 GB.
+              Leave empty to try the sample take.</div>
+            <div class="fileinfo" id="fileinfo"></div>
+            <div class="err" id="err-2"></div>
+            <div class="nav"><button type="button" class="back">Back</button><button type="button" class="next">Next</button></div>
+          </fieldset>
 
-          <label for="criteria">Judging criteria</label>
-          <input id="criteria" name="criteria" value="usefulness,craft,aura">
-
-          <div class="row">
-            <div>
-              <label for="time_limit_s">Time limit (s)</label>
-              <input id="time_limit_s" name="time_limit_s" type="number" min="10" value="180">
+          <fieldset data-step="3" hidden>
+            <label for="brief_text">Judging brief</label>
+            <textarea id="brief_text" name="brief_text" rows="4" placeholder="Paste the hackathon's judging brief (optional)"></textarea>
+            <label for="criteria">Judging criteria</label>
+            <input id="criteria" name="criteria" value="usefulness,craft,aura">
+            <div class="hint">Comma-separated, word for word from the brief.</div>
+            <div class="row">
+              <div>
+                <label for="time_limit_s">Time limit</label>
+                <select id="time_limit_s" name="time_limit_s">
+                  <option value="60">1 min</option><option value="120">2 min</option>
+                  <option value="180" selected>3 min</option><option value="300">5 min</option>
+                </select>
+              </div>
+              <div>
+                <label for="language">Language</label>
+                <select id="language" name="language"><option value="en">English</option><option value="el">Greek</option></select>
+              </div>
             </div>
-            <div>
-              <label for="mode">Mode</label>
-              <select id="mode" name="mode"><option value="cheap">cheap</option><option value="full">full</option></select>
-            </div>
-          </div>
-          <div class="row">
-            <div>
-              <label for="language">Language</label>
-              <select id="language" name="language"><option value="en">English</option><option value="el">Greek</option></select>
-            </div>
-            <div>
-              <label for="second_language">2nd language</label>
-              <select id="second_language" name="second_language"><option value="">None</option><option value="el">Greek</option><option value="en">English</option></select>
-            </div>
-          </div>
-          <button id="go" type="submit">Make the video</button>
+            <details class="more">
+              <summary>More options</summary>
+              <div class="row">
+                <div>
+                  <label for="second_language">2nd language</label>
+                  <select id="second_language" name="second_language"><option value="">None</option><option value="el">Greek</option><option value="en">English</option></select>
+                </div>
+                <div>
+                  <label for="mode">Mode</label>
+                  <select id="mode" name="mode"><option value="cheap">Cheap (fast)</option><option value="full">Full (best)</option></select>
+                </div>
+              </div>
+            </details>
+            <div class="err" id="err-3"></div>
+            <div class="nav"><button type="button" class="back">Back</button><button id="go" type="submit">Make the video</button></div>
+          </fieldset>
         </form>
       </section>
 
@@ -131,13 +188,17 @@
       </section>
     </div>
 
-    <section>
+    <section id="run-panel" class="idle">
       <h2 id="run-title">No run selected</h2>
       <div class="status"><span id="status">Start a run or pick one from the list.</span><span id="pct"></span></div>
       <div class="bar"><div id="bar"></div></div>
       <ol class="stages" id="stages"></ol>
       <div class="log" id="log"></div>
-      <video id="player" controls></video>
+      <video id="player" controls playsinline></video>
+      <div class="share" id="share" hidden>
+        <a class="btn" id="download" download="demo.mp4">Download</a>
+        <button type="button" class="btn" id="share-btn">Share</button>
+      </div>
       <div class="links" id="links"></div>
 
       <div id="decisions">
@@ -171,6 +232,7 @@ let source = null;
 let currentRun = null;
 
 function resetView(runId) {
+  $("run-panel").classList.remove("idle");
   $("run-title").textContent = runId;
   $("status").textContent = "Waiting for events…";
   $("pct").textContent = "";
@@ -180,6 +242,7 @@ function resetView(runId) {
   const v = $("player"); v.style.display = "none"; v.removeAttribute("src"); v.load();
   $("stages").innerHTML = STAGES.map(s => `<li id="st-${s}">${s}</li>`).join("");
   $("decisions").style.display = "none";
+  $("share").hidden = true;
 }
 
 // ---- decisions (C6): everything here comes from the run's JSON files -----------------
@@ -282,6 +345,9 @@ function onEnd(runId, status) {
   const base = `/runs/${runId}/files/`;
   if (status === "done") {
     const v = $("player"); v.src = base + "final.mp4"; v.style.display = "block";
+    $("download").href = base + "final.mp4";
+    $("share").hidden = false;
+    $("share-btn").onclick = () => shareVideo(runId);
   }
   $("links").innerHTML = ["final.mp4", "captions.srt", "decisions.json", "script.json"]
     .map(f => `<a href="${base}${f}" target="_blank">${f}</a>`).join("");
@@ -311,21 +377,105 @@ async function loadRuns() {
   } catch (e) { /* server not up yet */ }
 }
 
+// ---- the three steps (C10) --------------------------------------------------------
+const MAX_S = 420, MAX_BYTES = 1024 ** 3;          // runbook: 7 min, 1 GiB
+const REPO_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/i;
+let step = 1;
+let takeOk = true;
+
+function showStep(n) {
+  step = n;
+  document.querySelectorAll("fieldset[data-step]").forEach(f => f.hidden = +f.dataset.step !== n);
+  document.querySelectorAll("#steps li").forEach(li => {
+    li.className = +li.dataset.n === n ? "on" : (+li.dataset.n < n ? "done" : "");
+  });
+  const first = document.querySelector(`fieldset[data-step="${n}"] input, fieldset[data-step="${n}"] textarea`);
+  if (first && window.matchMedia("(min-width: 821px)").matches) first.focus();
+}
+
+function checkStep(n) {
+  const err = (msg) => { $("err-" + n).textContent = msg; return !msg; };
+  if (n === 1) {
+    const v = $("repo_url").value.trim().replace(/\.git$/, "");
+    $("repo_url").value = v;
+    return err(REPO_RE.test(v) ? "" : "That doesn't look like a GitHub repo link, e.g. https://github.com/you/app");
+  }
+  if (n === 2) return err(takeOk ? "" : "Pick a recording of 7 minutes or less, under 1 GB.");
+  if (n === 3) {
+    const c = $("criteria").value.split(",").map(x => x.trim()).filter(Boolean);
+    return err(c.length ? "" : "Add at least one judging criterion.");
+  }
+  return true;
+}
+
+document.querySelectorAll("button.next").forEach(b => b.onclick = () => { if (checkStep(step)) showStep(step + 1); });
+document.querySelectorAll("button.back").forEach(b => b.onclick = () => showStep(step - 1));
+$("repo_url").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); if (checkStep(1)) showStep(2); } });
+
+const fmtSize = (b) => b >= 1e9 ? (b / 1e9).toFixed(2) + " GB" : b >= 1e6 ? Math.round(b / 1e6) + " MB" : Math.max(1, Math.round(b / 1e3)) + " KB";
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+
+// Read the length on the phone, before any upload.
+$("recording").onchange = () => {
+  const f = $("recording").files[0];
+  $("err-2").textContent = "";
+  if (!f) { $("fileinfo").textContent = ""; takeOk = true; return; }
+  takeOk = f.size <= MAX_BYTES;
+  $("fileinfo").textContent = `${f.name} · ${fmtSize(f.size)}`;
+  if (!takeOk) { $("err-2").textContent = `Too big (${fmtSize(f.size)}). The limit is 1 GB: record at 1080p or lower.`; return; }
+  const v = document.createElement("video");
+  v.preload = "metadata";
+  v.onloadedmetadata = () => {
+    URL.revokeObjectURL(v.src);
+    if (!isFinite(v.duration)) return;            // some .mov files hide it: the API checks again
+    $("fileinfo").textContent = `${f.name} · ${fmtTime(v.duration)} · ${fmtSize(f.size)}`;
+    if (v.duration > MAX_S + 0.5) {
+      takeOk = false;
+      $("err-2").textContent = `Too long (${fmtTime(v.duration)}). The limit is 7:00.`;
+    }
+  };
+  v.src = URL.createObjectURL(f);
+};
+
+async function shareVideo(runId) {
+  const url = new URL(`/runs/${runId}/files/final.mp4`, location.href).href;
+  try {
+    const blob = await (await fetch(url)).blob();
+    const file = new File([blob], "demo.mp4", { type: "video/mp4" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      return await navigator.share({ files: [file], title: "Our demo video" });
+    }
+    if (navigator.share) return await navigator.share({ url, title: "Our demo video" });
+  } catch (e) { if (e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(url); $("status").textContent = "Link copied."; }
+  catch (e) { prompt("Copy the link:", url); }
+}
+
 $("form").onsubmit = async (e) => {
   e.preventDefault();
+  for (const n of [1, 2, 3]) if (!checkStep(n)) return showStep(n);
   $("go").disabled = true;
+  $("err-3").textContent = "";
   const fd = new FormData(e.target);
   if (!$("recording").files.length) fd.delete("recording");
-  const res = await fetch("/runs", { method: "POST", body: fd });
+  let res;
+  try { res = await fetch("/runs", { method: "POST", body: fd }); }
+  catch (err) { $("err-3").textContent = "Can't reach the server. Check the connection and try again."; $("go").disabled = false; return; }
   if (!res.ok) {
-    $("status").textContent = "Could not start: " + (await res.text());
+    let msg = await res.text();
+    try { msg = JSON.parse(msg).detail ?? msg; } catch (_) {}
+    $("err-3").textContent = "Could not start: " + (typeof msg === "string" ? msg : JSON.stringify(msg));
     $("go").disabled = false;
     return;
   }
   const { run_id } = await res.json();
   watch(run_id);
   loadRuns();
+  $("run-title").scrollIntoView({ behavior: "smooth", block: "start" });
+  showStep(1);
 };
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
 loadRuns();
 if (location.hash.length > 1) watch(decodeURIComponent(location.hash.slice(1)));
