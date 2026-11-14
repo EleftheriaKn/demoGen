@@ -238,7 +238,7 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B1 | Setup: ffmpeg 5+, font, fake media | `scripts/make_fake_media.sh` runs; `NotoSans-Bold.ttf` in `fonts/` | 23:00 | Done |
 | B2 | Render half on fixtures | timeline → captions → render gives `runs/dev/final.mp4` | 23:30 | Done |
 | B3 | Render on the real test take | Works on C's take in `samples/`, whatever its size and frame rate | 00:30 | Done on 7 test takes; recheck on C's take |
-| B4 | `ingest.py` | Clones a real repo; `repo_files.json`; `audio.wav` when the take has sound | 01:00 | To do |
+| B4 | `ingest.py` | Clones a real repo; `repo_files.json`; `audio.wav` when the take has sound | 01:00 | Done (also private repos via `GITHUB_TOKEN`; silent `audio.wav` when the take has no sound) |
 | B5 | `candidates.py` | Scene cuts and 3 frames per moment from A's `moments.json` | 02:00 | To do |
 | B6 | Checkpoint 1, with A | Test take + fixture script + real voices → captioned MP4 | 02:00 | To do |
 | B7 | First full run, with A, then speed | A full run takes under 15 minutes; add a 720p preview mode if not | 05:30 | To do |
