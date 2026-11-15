@@ -1,0 +1,14 @@
+{
+  "checks": [
+    {
+      "passed": true,
+      "reason": "Shots s02 and s03 only contain claims that are backed or rewritten.",
+      "shot_id": ""
+    },
+    {
+      "passed": true,
+      "reason": "Shot s03 shows real footage of the app generating recipes.",
+      "shot_id": ""
+    }
+  ]
+}
