@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "A test pattern displaying colored bars on a dark background with a timestamp.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a video test pattern rather than an active application."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no actual application UI present."
+        },
+        {
+          "score": 0.0,
+          "reason": "A color bar test pattern is uninformative and unengaging."
+        }
+      ]
+    },
+    {
+      "note": "A color bar test pattern on a dark background with a timestamp overlay.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "No app functionality or recipe workflow is visible."
+        },
+        {
+          "score": 0.0,
+          "reason": "It shows placeholder test graphics instead of a functional UI."
+        },
+        {
+          "score": 0.0,
+          "reason": "It does not showcase any part of the project."
+        }
+      ]
+    }
+  ]
+}

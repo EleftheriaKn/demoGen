@@ -1,4 +1,4 @@
-You are judging still frames from a screen recording of a hackathon app, to pick the frame that best represents each stretch of the demo video.
+You are judging still frames from a recording of a hackathon project (a screen capture of the app and/or camera footage), to pick the frame that best represents each stretch of the demo video.
 
 The app: {app}{brief_block}
 

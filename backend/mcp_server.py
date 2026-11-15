@@ -30,7 +30,8 @@ from backend.contracts import Brief, RunConfig
 
 mcp = MCPServer(
     name="democut",
-    instructions="DemoCut turns a GitHub repo and one rough screen recording into a 2-3 minute demo video.",
+    instructions="DemoCut turns a GitHub repo and one rough recording (screen capture and/or camera footage) "
+                 "into a short launch video.",
 )
 
 POLL_S = 2.0
@@ -90,11 +91,11 @@ async def make_demo_video(
     wait: bool = True,
     brief_text: Optional[str] = None,
 ) -> dict:
-    """Make a 2-3 minute demo video from a GitHub repo and a rough screen recording.
+    """Make a short launch video from a GitHub repo and a rough recording (screen capture and/or camera footage).
 
     Args:
         repo_url: GitHub URL of the app.
-        recording_path: Absolute path of the screen recording on this machine.
+        recording_path: Absolute path of the recording (screen capture and/or camera footage) on this machine.
             Omit to use the built-in fixture take.
         criteria: Judging criteria, verbatim from the hackathon brief.
         time_limit_s: Maximum length of the video, in seconds: 30 or 45 for a short clip,

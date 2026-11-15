@@ -32,8 +32,9 @@ import urllib.request
 from collections import Counter
 from pathlib import Path, PurePosixPath
 
-from backend import events
+from backend import brief, events
 from backend.contracts import KeyFile, RepoFiles, RunConfig
+from backend.pipeline import autorecord
 from backend.pipeline.ff import AUDIO, SAMPLE_RATE, ff, hdr_to_sdr, inner_size, place, take_path, video_info
 
 CLONE_TIMEOUT_S = 180
@@ -489,6 +490,12 @@ def run(run_dir: Path, run: RunConfig) -> None:
 
     # more videos: one joined take (after the clone, so a bad repo URL fails fast); None: no take (B17)
     recording = join_takes(d, run) if run.extra_recordings else take_path(d, run.recording)
+    if recording is None:  # no take: record the live app if it has an address (B26)
+        rel = run.recording or "recording.mp4"
+        recording = autorecord.record_take(d / rel, owner, name, files.readme, brief.text(d), name)
+        if recording is not None and run.recording != rel:
+            run.recording = rel  # later stages get this same RunConfig; run.json for resumes and the board
+            (d / "run.json").write_text(run.model_dump_json(indent=2), encoding="utf-8")
     if recording is None:  # no take: transcribe still needs a file
         ff("-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono", "-t", "1", "-c:a", "pcm_s16le", d / "audio.wav")
         events.emit("ingest", "no recording: the video will be generated from the repo", data={"has_take": False})

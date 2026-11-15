@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README and backend/recipes.py show suggested recipes ranked by ingredient overlap.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

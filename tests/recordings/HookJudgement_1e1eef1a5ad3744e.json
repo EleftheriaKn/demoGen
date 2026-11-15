@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.8,
+          "reason": "It creates an immediate, relatable visual image that grabs attention quickly."
+        },
+        {
+          "score": 0.5,
+          "reason": "It highlights the fridge scenario, though it does not mention photo snapping or 3 recipes."
+        },
+        {
+          "score": 0.3,
+          "reason": "It highlights the user's problem rather than explaining what the app does for them."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It is a common, slightly generic question that does not spark strong curiosity."
+        },
+        {
+          "score": 0.3,
+          "reason": "It applies broadly to any leftover recipe app rather than PantryPal's specific photo feature."
+        },
+        {
+          "score": 0.3,
+          "reason": "It addresses user uncertainty rather than describing the app's functionality."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It evokes a relatable emotional frustration, but lacks mystery or immediate hook power."
+        },
+        {
+          "score": 0.3,
+          "reason": "It addresses general food waste rather than the specific fridge-photo recipe generation feature."
+        },
+        {
+          "score": 0.2,
+          "reason": "It focuses on the user's weekly waste problem instead of the app's direct service."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

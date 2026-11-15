@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "Black background with timestamp and a small test pattern video frame.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a synthetic test pattern rather than an active application."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no actual application UI present on the screen."
+        },
+        {
+          "score": 0.0,
+          "reason": "A color-bar test pattern provides no compelling product preview."
+        }
+      ]
+    },
+    {
+      "note": "Black background with timestamp and an animated test pattern graphic.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "Only a video test pattern is displayed with no real app functionality."
+        },
+        {
+          "score": 0.0,
+          "reason": "No legible app interface is visible."
+        },
+        {
+          "score": 0.0,
+          "reason": "A placeholder test card does not attract user interest."
+        }
+      ]
+    }
+  ]
+}

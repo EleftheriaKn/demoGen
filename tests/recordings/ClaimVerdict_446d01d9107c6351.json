@@ -1,0 +1,7 @@
+{
+  "score": 0.4,
+  "reason": "The evidence shows recipes are ranked by how many ingredients they use, not that they maximize everything you already have.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

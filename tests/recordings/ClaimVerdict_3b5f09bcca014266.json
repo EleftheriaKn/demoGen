@@ -1,0 +1,7 @@
+{
+  "score": 0.5,
+  "reason": "The vision model detects ingredients, but the evidence does not show vision algorithms suggesting dishes.",
+  "action": "rewrite",
+  "rewrite": "Vision algorithms detect your items",
+  "rewrite_supported": true
+}

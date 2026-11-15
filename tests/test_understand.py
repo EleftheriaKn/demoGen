@@ -142,8 +142,8 @@ def test_fix_moments_clamps_sorts_trims_and_renumbers():
     assert [(m.moment_id, m.start, m.end) for m in out] == [("m1", 0, 5), ("m2", 5, 12), ("m3", 20, 60)]
     assert [m.feature_id for m in out] == [None, "f1", None]
     assert out[0].confidence == 1.0
-    with pytest.raises(ValueError, match="clear steps"):
-        understand.fix_moments([_raw(80, 90)], 60.0, set())
+    # B24: nothing usable is not fatal (candidates keeps the scenes, script generates the flow)
+    assert understand.fix_moments([_raw(80, 90)], 60.0, set()).moments == []
 
 
 def test_fix_moments_ends_an_action_when_its_result_is_on_screen():

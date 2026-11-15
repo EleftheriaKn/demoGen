@@ -1,0 +1,7 @@
+{
+  "score": 0.0,
+  "reason": "The README lists ingredient detection and recipe ranking features but does not mention wasting groceries or pantry clutter.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

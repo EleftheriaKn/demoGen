@@ -63,9 +63,12 @@ def test_build_shots_order_visuals_spans_and_pending_claims():
     assert [(c.claim_id, c.text, [e.ref for e in c.evidence]) for c in unlisted] == [("cl1", "Dinner is hard.", ["c02"])]
 
 
-def test_build_shots_rejects_unknown_segment():
-    with pytest.raises(ValueError, match="c99"):
-        script.build_shots(_draft(impact=_footage("c99", 1.0, 2.0)), "x", SEGMENTS, REPO)
+def test_build_shots_illustrates_unknown_segment(tmp_path):
+    # B24: footage on a segment that doesn't exist becomes a generated shot instead of failing the run
+    events.bind(tmp_path, "t")  # it logs the swap
+    shots = script.build_shots(_draft(impact=_footage("c99", 1.0, 2.0)), "x", SEGMENTS, REPO)
+    impact = next(s for s in shots if s.beat == "impact")
+    assert impact.generated and impact.visual.kind == "card"
 
 
 def test_draft_needs_three_hooks_and_two_to_four_demos():

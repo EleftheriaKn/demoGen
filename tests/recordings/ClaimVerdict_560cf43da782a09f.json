@@ -1,0 +1,7 @@
+{
+  "score": 0.25,
+  "reason": "The footage displays synthetic test patterns rather than an app taking a photo of a fridge.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

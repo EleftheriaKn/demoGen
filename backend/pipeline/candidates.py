@@ -30,6 +30,8 @@ MAX_SCENE_S = 12.0       # longer scenes (no cut for a while) are split evenly
 MAX_SCENES = 40          # keeps the judge's frame count (3 per segment) bounded on 7-minute takes
 MIN_MOMENT_S = 0.3
 SAME_S = 0.25            # a scene this close to a moment at both ends is the same clip: keep the moment
+MIN_SEGMENTS = 3         # fewer clips than this after dropping "dead" stretches: keep the take's scenes anyway
+                         # (a take that never shows the app is still context footage: the team, the place)
 FRAME_AT = (0.25, 0.5, 0.75)
 RESULT_AT = (0.3, 0.65, 1.0)   # result moments: last frame near the end (see frame_times)
 RESULT_END_S = 0.2
@@ -112,10 +114,12 @@ def frame_times(start: float, end: float, result: bool = False) -> list[float]:
 def build_segments(cuts: list[float], dur: float, moments: list[Moment]) -> list[Segment]:
     edges = [0.0, *cuts, dur]
     dead = [(m.start, m.end) for m in moments if m.kind == "dead"]
-    scenes = [s for s in scenes_from_cuts(cuts, dur)
-              if sum(overlap(s, d) for d in dead) < 0.5 * (s[1] - s[0])]
+    all_scenes = scenes_from_cuts(cuts, dur)
+    scenes = [s for s in all_scenes if sum(overlap(s, d) for d in dead) < 0.5 * (s[1] - s[0])]
     moment_spans = [(*span, "moment", m.moment_id, m.kind == "result") for m in moments
                     if m.kind != "dead" and (span := moment_span(m, edges, dur))]
+    if len(scenes) + len(moment_spans) < MIN_SEGMENTS:  # nothing (or almost nothing) shows the app
+        scenes = all_scenes
     same = lambda s, m: abs(s[0] - m[0]) <= SAME_S and abs(s[1] - m[1]) <= SAME_S  # noqa: E731
     spans = [(s[0], s[1], "scene", None, False) for s in scenes if not any(same(s, m) for m in moment_spans)]
     spans += moment_spans

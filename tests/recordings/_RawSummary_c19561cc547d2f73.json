@@ -1,13 +1,13 @@
 {
   "name": "PantryPal",
-  "one_liner": "Snap a photo of your fridge, get 3 recipes.",
-  "problem": "It can be difficult to figure out what to cook using only the ingredients already available in your fridge.",
-  "audience": "Home cooks wanting quick meal ideas using ingredients on hand.",
+  "one_liner": "Snap a photo of your fridge to instantly get three recipes you can cook right away.",
+  "problem": "People often struggle to decide what to cook with the ingredients currently sitting in their fridge.",
+  "audience": "Home cooks and busy individuals looking to make meals from ingredients they already have.",
   "features": [
     {
       "feature_id": "f1",
-      "name": "Ingredient Detection",
-      "description": "Detects visible ingredients from a single photo of an open fridge.",
+      "name": "Fridge Photo Ingredient Detection",
+      "description": "Captures a photo of the fridge and detects available ingredients automatically.",
       "evidence": [
         "README#Features",
         "backend/vision.py",
@@ -17,7 +17,7 @@
     {
       "feature_id": "f2",
       "name": "Recipe Suggestions",
-      "description": "Suggests three recipes ranked by how many of your detected ingredients they use.",
+      "description": "Suggests three recipes ranked by how many detected ingredients they utilize.",
       "evidence": [
         "README#Features",
         "backend/recipes.py"
@@ -25,8 +25,8 @@
     },
     {
       "feature_id": "f3",
-      "name": "Shopping List",
-      "description": "Generates a shopping list for the few missing ingredients needed for recipes.",
+      "name": "Missing Ingredients Shopping List",
+      "description": "Generates a shopping list for any missing items needed for the suggested recipes.",
       "evidence": [
         "README#Features",
         "frontend/src/ShoppingList.tsx"
@@ -36,16 +36,16 @@
   "flow": [
     {
       "step_id": "s1",
-      "text": "The user opens the PantryPal home screen.",
+      "text": "The user opens PantryPal to the home screen.",
       "feature_id": null,
       "evidence": [
         "README#How it works",
-        "docs/home.png"
+        "frontend/src/App.tsx"
       ]
     },
     {
       "step_id": "s2",
-      "text": "The user taps the camera button to open the camera view.",
+      "text": "The user taps the camera button to access the camera view.",
       "feature_id": "f1",
       "evidence": [
         "README#How it works",
@@ -58,11 +58,20 @@
       "feature_id": "f1",
       "evidence": [
         "README#How it works",
-        "backend/vision.py"
+        "frontend/src/Camera.tsx"
       ]
     },
     {
       "step_id": "s4",
+      "text": "The app detects the visible ingredients from the captured image.",
+      "feature_id": "f1",
+      "evidence": [
+        "README#How it works",
+        "backend/vision.py"
+      ]
+    },
+    {
+      "step_id": "s5",
       "text": "The user views three suggested recipes ranked by ingredient overlap.",
       "feature_id": "f2",
       "evidence": [
@@ -71,8 +80,8 @@
       ]
     },
     {
-      "step_id": "s5",
-      "text": "The user checks the shopping list for any missing ingredients.",
+      "step_id": "s6",
+      "text": "The user checks the shopping list for the few missing ingredients.",
       "feature_id": "f3",
       "evidence": [
         "README#Features",

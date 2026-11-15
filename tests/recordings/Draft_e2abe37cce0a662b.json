@@ -1,0 +1,113 @@
+{
+  "hooks": [
+    "Staring into an open fridge wondering what to cook tonight?",
+    "Tired of throwing away good food you forgot to use?",
+    "Ever wish dinner would just decide itself from your leftovers?"
+  ],
+  "hook_card_prompt": "Clean modern kitchen background with soft warm lighting, minimalist aesthetic with pastel green accents, blurred shelves with fresh produce, high-resolution 3D render.",
+  "problem": {
+    "voice_line": "People waste food and time because they do not know what to cook with what they already have.",
+    "segment_id": "c01",
+    "source_start": 0.5,
+    "source_end": 3.8,
+    "claims": [
+      {
+        "text": "People waste food and time because they do not know what to cook with what they already have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ],
+        "callout": "Stop food waste"
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Snap a quick photo of your open fridge using the camera button.",
+      "segment_id": "c02",
+      "source_start": 5.2,
+      "source_end": 9.5,
+      "claims": [
+        {
+          "text": "Snap a quick photo of your open fridge using the camera button.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ],
+          "callout": "Scan your fridge"
+        }
+      ]
+    },
+    {
+      "voice_line": "Get three suggested recipes with your matched ingredients highlighted instantly.",
+      "segment_id": "c04",
+      "source_start": 12.5,
+      "source_end": 18.5,
+      "claims": [
+        {
+          "text": "Get three suggested recipes with your matched ingredients highlighted instantly.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ],
+          "callout": "Three recipe matches"
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "Vision algorithms detect ingredients directly from the photo.",
+    "segment_id": "c03",
+    "source_start": 10.0,
+    "source_end": 12.0,
+    "claims": [
+      {
+        "text": "Vision algorithms detect ingredients directly from the photo.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#How it works"
+          },
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          }
+        ],
+        "callout": "Automatic detection"
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Ranked recipes maximize everything you already have.",
+    "segment_id": "c05",
+    "source_start": 19.2,
+    "source_end": 21.8,
+    "claims": [
+      {
+        "text": "Ranked recipes maximize everything you already have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          },
+          {
+            "type": "file",
+            "ref": "backend/recipes.py"
+          }
+        ],
+        "callout": "Save your ingredients"
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and turn your leftovers into dinner.",
+    "card_prompt": "Stylized flat illustration of a fresh recipe bowl on a wooden tabletop with soft morning shadows, minimal pastel green palette.",
+    "claims": []
+  }
+}

@@ -4,8 +4,9 @@ Nov 14, 2026 · @thanos
 
 ## What we're building
 
-DemoCut turns a GitHub repo, one rough screen recording and the judging brief into a 2–3 minute
-demo video, cut from the real footage. Gemini decides what to show, fal makes the voice, music and
+DemoCut turns a GitHub repo, one rough recording (a screen capture of the app, camera footage of the
+team / people / device, or both) and the judging brief into a short **launch video**: a reel or pitch
+spot that stands on its own and sells the app, not a step-by-step walkthrough. It is cut from the real footage. Gemini decides what to show, fal makes the voice, music and
 title cards, and ffmpeg cuts it. We are an editor, not a generator: the real footage is the backbone
 (at least 70% of the runtime). Where footage is weak, fal adds title cards and infographics **built
 from the real frames**, and every fact on them is truth-checked.
@@ -13,7 +14,7 @@ from the real frames**, and every fact on them is truth-checked.
 **The demo is a mobile app.** The user gives it three things and gets the video back:
 
 1. **A GitHub repo**: log in with GitHub, the app lists your repos, tap one.
-2. **A screen recording**: up to 7 minutes, recorded on the phone (or picked from the gallery).
+2. **A recording**: up to 7 minutes, a screen recording of the app and/or camera footage, recorded on the phone (or picked from the gallery).
 3. **A judging brief**: a few lines typed (or pasted) from the hackathon page.
 
 **Why we win:** other tools take only one of these. A repo-only tool can't show the product
@@ -345,6 +346,31 @@ take** gives real footage for every step the take shows well and generated shots
 | A · understand, script | Moments come from the footage | No footage: every flow step is "missing", so generated: vector UI scenes in the app's style from README screenshots, animated by push-in or image→video |
 | Speed | ~6 min with a take | Without a take there is no video to watch: well under a minute |
 
+## Vision: guided walkthroughs (with more time; not built for the hackathon)
+
+Decided Nov 15: out of scope for the hackathon, kept as the pitch's closing vision. Today DemoCut cuts the
+moments that matter, in flow order (A12–A14), with one zoom per demo shot (A8). With a few more hours it
+becomes a **step-by-step walkthrough of the whole app**:
+
+- **Every flow step gets its shot** (a walkthrough mode in the script, not 2–4 highlights), with a step chip
+  ("Step 2 of 6 · Add a player") and a thin progress bar from `flow_step`.
+- **The camera follows the action**: Gemini returns 2–3 timed regions per shot (the element clicked, then
+  the result) instead of one box from one frame; render moves between them.
+- **Highlights, not just zoom**: a spotlight (everything outside the region dimmed, soft outline) and a click
+  pulse where the user taps.
+
+| Who | Work | Estimate |
+|---|---|---|
+| A | Walkthrough mode in the script (one shot per flow step); timed zoom regions per shot from Gemini | ~2–3 h |
+| B | Spotlight + outline, click pulse, step chip and progress bar, keyframed camera | ~2–3 h |
+| Contract | Optional `zoom_keyframes` and step label on shots (left out of the JSON when unset) | A + B + C agree |
+| C | Optional "Walkthrough" toggle in the app (the brief can already ask for it) | ~30 min |
+
+**Pitch close (suggested, for C):** "Today DemoCut cuts the moments that matter. Next, it walks a new user
+through your whole app: every step read from your code, the camera following each click, a spotlight on
+what to look at. Every hackathon, every launch, every open-source release needs this video. Nobody should
+spend their last hours making it. Thank you."
+
 ## Who owns which files
 
 No file has two owners, so three people can push to `main` all night without merge conflicts.
@@ -413,6 +439,9 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B21 | Rubric: long enough | Code check "at least 60% of the target length" (runs in cheap mode too); the 24 s cut would now fail | 14:00 | Done (Nov 15) |
 | B22 | Draft checklist | Short checklist at the end of `script_draft.md` (word limits, claims with evidence, no facts in hook/ask, demo order, answer the brief, nothing invented) | 14:00 | Done (Nov 15) |
 | B23 | More videos (optional) | `RunConfig.extra_recordings` (optional, left out of run.json when unset): ingest joins the main take and the extra videos into ONE take at `recording` (main take's shape, ≤ 2560 px, 30 fps, SDR, stereo; other shapes over a blurred fill; all together ≤ 40 min, ≤ 6 Mbit/s so it stays under Gemini's 2 GB per file). Originals kept in `takes/`, `takes/takes.json` says where each video starts. Unreadable / missing extras are skipped, never fatal. Gemini, fal, timeline and render need no change | 14:30 | Done (Nov 15, B side). Needs C18 for the upload |
+| B24 | Any take makes a video | No more "Nothing in the recording could be used as footage" (run-c0230e34: a 5-min camera video of the team talking, every moment "dead", 0 cuts). candidates keeps the take's scenes when fewer than 3 clips survive; understand returns no moments instead of failing; script **context mode** when no moment shows the app (or no clips): clips are described as context footage and back problem / impact lines with README / file claims, every demo step is generated from the flow, the 50% real-footage cap is off, footage on an unknown segment becomes generated; a generated demo step whose claim fails keeps its flow step's own words instead of being dropped; hero cards use README screenshots, never people footage, when the take shows no app. Normal runs: prompts byte-identical. That run now gives an 8-shot video (team footage for the problem, 5 generated steps) | 15:00 | Done (Nov 15; edits A's understand.py / script.py, tell A) |
+| B25 | Any recording, a launch spot | The recording is "a screen capture of the app, camera footage, or both" everywhere (prompts, contract, MCP, README, CONTEXT; README line 3 was read as a repo fact and told Gemini it was a screen recording). New moment kind `context` = real camera footage without the app's screen (team, people using it, device, place): used for problem / how / impact, never demos, never drawn over as the app, never in a screen mockup. `script_draft` writes a **launch spot** (reel / pitch video): demos build to the strongest payoff, generated demo shots only for steps that sell the app, no tutorial order | 16:00 | Done (Nov 15; A's prompts and C's README edited, both told; 4 Gemini tests re-recorded live). C: the phone label "Screen recording" in `web/index.html` still to rename |
+| B26 | The app records itself | With no recording (or as an extra take) and a live URL in the README or brief: Playwright opens it with video on; Gemini turns `summary.flow` into clicks / typing, one step at a time, checking a screenshot after each; the result (≤ 90 s) becomes the take. No repo code is run. Mobile apps, hardware, logins: not possible, falls back to A20 / B17 | 17:00 | Done (Nov 15): `backend/pipeline/autorecord.py`, called by ingest when a run has no take. Address: the repo's GitHub homepage field, else links next to live / demo / try (or on vercel / netlify / github.io...) in the brief, then the README; https on the public internet only. Headless Chromium (bundled, else system Chromium / Chrome, or `DEMOCUT_CHROMIUM`), drawn cursor + click ripple, Gemini picks each action from a screenshot + numbered elements (`autorecord_step.md`), max 12 actions, never leaves the site. Chrome screencast frames, Gemini's thinking time cut out: tastejs/todomvc from its landing page = 11 actions, 34 s take in ~1 min, then a 22 s cheap-mode reel. `DEMOCUT_AUTORECORD=0` turns it off (tests do). Frames are 1280x720 |
 
 ## Tickets · C · App, board, MCP and pitch
 

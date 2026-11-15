@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "Color bar test pattern display with a timestamp label.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a test pattern rather than any app functionality."
+        },
+        {
+          "score": 0.0,
+          "reason": "No actual app UI is present, only calibration graphics."
+        },
+        {
+          "score": 0.0,
+          "reason": "A static test pattern gives no incentive to keep watching."
+        }
+      ]
+    },
+    {
+      "note": "Color bar test pattern with animated graphic lines and timestamp.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "No app features or useful content are visible."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no app UI displayed, just a test pattern."
+        },
+        {
+          "score": 0.0,
+          "reason": "It does not show any project demo content to engage a judge."
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-You are shown one still frame from a screen recording of a hackathon app. The demo video will slowly zoom into one region of this frame while the voice-over says:
+You are shown one still frame from a recording of a hackathon project (a screen capture of the app, or camera footage). The demo video will slowly zoom into one region of this frame while the voice-over says:
 
 {lines}
 

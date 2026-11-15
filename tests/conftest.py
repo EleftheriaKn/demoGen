@@ -24,3 +24,9 @@ def pytest_addoption(parser):
 def gemini_replay(request, monkeypatch):
     monkeypatch.setattr(gemini, "RECORDINGS", RECORDINGS)
     monkeypatch.setattr(gemini, "LIVE", request.config.getoption("--live"))
+
+
+@pytest.fixture(autouse=True)
+def no_autorecord(monkeypatch):
+    """B26 visits live sites: never from tests (no-take runs stay offline and fast)."""
+    monkeypatch.setenv("DEMOCUT_AUTORECORD", "0")

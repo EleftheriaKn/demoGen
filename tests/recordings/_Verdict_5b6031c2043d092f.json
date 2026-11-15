@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "SMPTE color bar test pattern graphic with timestamp overlay.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "Only shows a test pattern with no app functionality."
+        },
+        {
+          "score": 0.0,
+          "reason": "No app UI is shown, only a placeholder test pattern."
+        },
+        {
+          "score": 0.0,
+          "reason": "A placeholder test screen provides no compelling reason to watch."
+        }
+      ]
+    },
+    {
+      "note": "SMPTE color bar test pattern graphic with moving line animation.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "Displays a media test pattern instead of the app."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no actual application UI present."
+        },
+        {
+          "score": 0.0,
+          "reason": "Test bars do not showcase the project or spark interest."
+        }
+      ]
+    }
+  ]
+}

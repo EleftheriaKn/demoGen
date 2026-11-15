@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "It quickly taps into a universal, relatable dilemma that grabs attention."
+        },
+        {
+          "score": 0.4,
+          "reason": "It describes a common cooking problem that any recipe or grocery app could address."
+        },
+        {
+          "score": 0.6,
+          "reason": "It targets the user's immediate problem that the app aims to solve."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It identifies a familiar frustration but lacks an intriguing narrative hook."
+        },
+        {
+          "score": 0.2,
+          "reason": "It could apply broadly to any food preservation, compost, or meal planning tool."
+        },
+        {
+          "score": 0.3,
+          "reason": "It addresses general food waste rather than what this specific recipe-generating app does."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.8,
+          "reason": "It frames fridge contents as a hidden discovery, quickly sparking imagination."
+        },
+        {
+          "score": 0.6,
+          "reason": "It directly aligns with finding meals inside your existing fridge supplies."
+        },
+        {
+          "score": 0.7,
+          "reason": "It hints at the app's core benefit of revealing ready recipes from current ingredients."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}
