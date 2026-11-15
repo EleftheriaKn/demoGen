@@ -225,3 +225,97 @@ def test_failed_music_falls_back_to_silence(fake, monkeypatch, no_sleep):
     _, out, _ = _load(run_dir)
     assert out.music is not None and out.music.duration_s > 0 and (run_dir / "music.wav").exists()
     assert any("of silence (fal failed" in e for e in _events(run_dir))
+
+
+# --- A16: illustrated panels from reference frames (Ideogram Vector, faked) ---
+
+SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 36" width="64" height="36"><rect width="64" height="36" fill="#3a7"/></svg>'
+
+
+@pytest.fixture
+def panel(fake, monkeypatch):
+    """s01 (the fixture's card) gets reference frames; fal's vector calls write a tiny SVG."""
+    run_dir, calls = fake
+    calls.update(redraw=[], scene=[])
+    (run_dir / "frames").mkdir()
+    for i in range(3):
+        shutil.copyfile(DRAFTS[i], run_dir / "frames" / f"f{i}.png")
+
+    def set_frames(frames):
+        script = Script.model_validate_json((run_dir / "script.json").read_text(encoding="utf-8"))
+        script.shots[0].visual.reference_frames = frames
+        (run_dir / "script.json").write_text(script.model_dump_json(indent=2), encoding="utf-8")
+
+    def fake_redraw(image, out_path):
+        calls["redraw"].append(Path(image).name)
+        Path(out_path).write_text(SVG, encoding="utf-8")
+
+    def fake_scene(prompt, refs, out_paths, seed):
+        calls["scene"].append((prompt, [Path(r).name for r in refs], len(out_paths), seed))
+        for o in out_paths:
+            Path(o).write_text(SVG, encoding="utf-8")
+
+    monkeypatch.setattr(fal, "vector_redraw", fake_redraw)
+    monkeypatch.setattr(fal, "vector_scene", fake_scene)
+    return run_dir, calls, set_frames
+
+
+FULL = {"mode": "full"}
+
+
+def test_one_frame_is_redrawn_as_one_panel(panel):
+    run_dir, calls, set_frames = panel
+    set_frames(["frames/f0.png"])
+    calls["verdict"] = _rows((0.9, 0.9, 0.9))  # one draft, judged like any card
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
+    _, out, picks = _load(run_dir)
+    card = out.cards[0]
+    assert calls["redraw"] == ["f0.png"] and calls["scene"] == [] and calls["card"] == []
+    assert card.drafts == ["cards/drafts/s01_0.png"] and card.chosen_index == 0
+    from PIL import Image
+    assert Image.open(run_dir / card.path).size == ff.size_for("full")  # render reads a full-size PNG
+    assert [d.subject for d in picks] == ["s01"]
+
+
+def test_several_frames_make_a_scene_best_of_4(panel):
+    run_dir, calls, set_frames = panel
+    set_frames(["frames/f0.png", "frames/f1.png", "frames/f2.png"])
+    cfg = load_run(run_dir).model_copy(update=FULL)
+    assets.run(run_dir, cfg)
+    _, out, picks = _load(run_dir)
+    (prompt, refs, n, seed), = calls["scene"]
+    assert refs == ["f0.png", "f1.png", "f2.png"] and n == 4 and seed == assets.PANEL_SEED
+    assert assets.FAL_STYLE in prompt and calls["redraw"] == [] and calls["card"] == []
+    assert len(out.cards[0].drafts) == 4 and out.cards[0].chosen_index == 2 and len(picks) == 1
+    assets.run(run_dir, cfg)  # second run: the panel comes from the cache
+    assert len(calls["scene"]) == 1
+
+
+def test_frames_missing_on_disk_keep_the_old_card_path(panel):
+    run_dir, calls, set_frames = panel
+    set_frames(["frames/nope.png"])
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
+    assert calls["redraw"] == calls["scene"] == [] and len(calls["card"]) == 4
+
+
+def test_failed_panel_falls_back_to_plain_card(panel, monkeypatch, no_sleep):
+    run_dir, calls, set_frames = panel
+    set_frames(["frames/f0.png", "frames/f1.png"])
+    _fail(monkeypatch, "vector_scene")
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
+    _, out, picks = _load(run_dir)
+    assert out.cards[0].drafts == ["cards/drafts/s01_plain.png"] and picks == [] and calls["card"] == []
+    assert sum("s01: every fal draft failed, plain card" in e for e in _events(run_dir)) == 1
+
+
+@pytest.mark.parametrize("why", ["cheap", "no FAL_KEY"])
+def test_panels_never_call_fal_in_cheap_mode_or_without_key(panel, monkeypatch, why):
+    run_dir, calls, set_frames = panel
+    set_frames(["frames/f0.png", "frames/f1.png"])
+    if why == "no FAL_KEY":
+        monkeypatch.delenv("FAL_KEY")
+    cfg = load_run(run_dir) if why == "cheap" else load_run(run_dir).model_copy(update=FULL)
+    assets.run(run_dir, cfg)
+    _, out, _ = _load(run_dir)
+    assert calls["redraw"] == calls["scene"] == [] and out.cards[0].drafts == ["cards/drafts/s01_0.png"]
+    assert any(f"plain card ({why})" in e for e in _events(run_dir))

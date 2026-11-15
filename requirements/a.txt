@@ -2,3 +2,4 @@
 google-genai>=3.3  # response_json_schema
 pillow>=10  # judge_frames sharpness
 fal-client>=0.5  # voice TTS (assets)
+resvg-py>=0.5  # SVG -> PNG for Ideogram Vector panels (assets)
