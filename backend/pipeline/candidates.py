@@ -21,7 +21,7 @@ from pathlib import Path
 
 from backend import events
 from backend.contracts import Candidates, Moment, Moments, RunConfig, Segment, frame_time
-from backend.pipeline.ff import ff, hdr_to_sdr, video_info
+from backend.pipeline.ff import ff, hdr_to_sdr, take_path, video_info
 
 SCENE_THRESHOLD = 10.0   # scdet score (0-100); page changes in a screen recording score far above this
 SNAP_S = 1.5             # moment edges snap to a cut this close (runbook)
@@ -142,7 +142,13 @@ def extract_frames(d: Path, recording: Path, segs: list[Segment]) -> None:
 
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir)
-    recording = d / run.recording
+    recording = take_path(d, run.recording)
+    if recording is None:  # no take (B17): nothing to cut; every shot will be generated
+        shutil.rmtree(d / "frames", ignore_errors=True)
+        (d / "frames").mkdir()
+        (d / "candidates.json").write_text(Candidates(segments=[]).model_dump_json(indent=2), encoding="utf-8")
+        events.emit("candidates", "no recording: no clips to pick from")
+        return
     dur = video_info(recording).duration
     mpath = d / "moments.json"
     moments = Moments.model_validate_json(mpath.read_text(encoding="utf-8")).moments if mpath.exists() else []

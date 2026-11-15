@@ -28,7 +28,7 @@ from pathlib import Path, PurePosixPath
 
 from backend import events
 from backend.contracts import KeyFile, RepoFiles, RunConfig
-from backend.pipeline.ff import ff, video_info
+from backend.pipeline.ff import ff, take_path, video_info
 
 CLONE_TIMEOUT_S = 180
 MAX_TREE = 5000              # paths listed in repo_files.json (vendored/build dirs are skipped first)
@@ -389,9 +389,7 @@ def collect(repo: Path, repo_url: str, owner: str, name: str, run_dir: Path) -> 
 
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir)
-    recording = d / run.recording
-    if not recording.exists():
-        raise RuntimeError(f"ingest: recording {run.recording} is missing from the run folder")
+    recording = take_path(d, run.recording)  # None: repo + brief only (B17)
     url, owner, name = normalize_repo_url(run.repo_url)
 
     with tempfile.TemporaryDirectory(prefix="democut-repo-") as tmp:
@@ -404,6 +402,10 @@ def run(run_dir: Path, run: RunConfig) -> None:
                           f"{len(files.screenshots)} screenshots",
                 data={"sha": sha, "key_files": [k.path for k in files.key_files]})
 
+    if recording is None:  # no take: transcribe still needs a file
+        ff("-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono", "-t", "1", "-c:a", "pcm_s16le", d / "audio.wav")
+        events.emit("ingest", "no recording: the video will be generated from the repo", data={"has_take": False})
+        return
     has_sound = extract_audio(recording, d / "audio.wav")
     events.emit("ingest", "audio.wav extracted" if has_sound else "the take has no sound: audio.wav is silence",
                 data={"has_audio": has_sound})

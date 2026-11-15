@@ -132,3 +132,11 @@ def place(src: str, out: str, iw: int, ih: int, w: int, h: int) -> str:
             f"[{out}_bg]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},"
             f"gblur=sigma=10,eq=brightness=-0.25:saturation=0.7,scale={w}:{h},setsar=1[{out}_b];"
             f"[{out}_b][{out}_fg]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p[{out}]")
+
+
+def take_path(run_dir: Path, recording: str | None) -> Path | None:
+    """The run's screen recording, or None when there is no take (repo + brief only, B17)."""
+    if not recording:
+        return None
+    p = Path(run_dir) / recording
+    return p if p.is_file() else None

@@ -3,7 +3,7 @@ You are writing the voice-over script for a hackathon demo video of the app belo
 The video tells one story in this order of beats: {beats}. It aims for {target_s} seconds, about {words} spoken words in total. Use the time: fill each beat close to its word budget (a short script leaves dead air), but never go over it. Fill it with detail the segments, summary and repo actually show (what the user types, clicks and sees on screen, word for word), never with invented features or numbers. Word budgets:
 {budget}
 
-Judges score on these criteria: {criteria}.
+Judges score on these criteria: {criteria}.{brief_block}
 
 Return:
 - hooks: exactly three different opening lines (one sentence each, within the hook budget). Make them specific to this app, for example the viewer's problem as a question. A hook makes no factual claim about the app: no feature, number or speed.
@@ -31,3 +31,11 @@ Segments of the recording (id, span in seconds, what happens, best frame score 0
 README headings: {headings}
 
 Repo files you can cite (the checker reads their content): {tree}
+
+Before you answer, check:
+- Every voice line fits its segment's word limit, with the sentence that matters first.
+- Every factual sentence is a claim with its evidence listed, and says only what that evidence shows: a footage claim names what a frame shows at the end (the list, the counter, the highlighted filter); a README or file claim stays close to that text.
+- The hook and the ask state no facts.
+- Demo lines: one feature each, in the order a user meets them, each on its own segment, addressed to the viewer.
+- If a judging brief is given above, the story answers it: lead with what it rewards.
+- Nothing is invented: no feature, number or speed that the summary, segments or repo don't show.

@@ -1,0 +1,7 @@
+{
+  "score": 0.75,
+  "reason": "backend/vision.py defines detect_ingredients from image bytes, but fridge is not mentioned.",
+  "action": "rewrite",
+  "rewrite": "The vision backend detects ingredients from the image.",
+  "rewrite_supported": true
+}

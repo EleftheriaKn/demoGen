@@ -1,0 +1,7 @@
+{
+  "score": 0.5,
+  "reason": "The vision model detects ingredients, but nothing in the evidence mentions ranking recipes by matched items.",
+  "action": "rewrite",
+  "rewrite": "Vision models detect your ingredients",
+  "rewrite_supported": true
+}
