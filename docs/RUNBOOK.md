@@ -345,6 +345,31 @@ take** gives real footage for every step the take shows well and generated shots
 | A · understand, script | Moments come from the footage | No footage: every flow step is "missing", so generated: vector UI scenes in the app's style from README screenshots, animated by push-in or image→video |
 | Speed | ~6 min with a take | Without a take there is no video to watch: well under a minute |
 
+## Vision: guided walkthroughs (with more time; not built for the hackathon)
+
+Decided Nov 15: out of scope for the hackathon, kept as the pitch's closing vision. Today DemoCut cuts the
+moments that matter, in flow order (A12–A14), with one zoom per demo shot (A8). With a few more hours it
+becomes a **step-by-step walkthrough of the whole app**:
+
+- **Every flow step gets its shot** (a walkthrough mode in the script, not 2–4 highlights), with a step chip
+  ("Step 2 of 6 · Add a player") and a thin progress bar from `flow_step`.
+- **The camera follows the action**: Gemini returns 2–3 timed regions per shot (the element clicked, then
+  the result) instead of one box from one frame; render moves between them.
+- **Highlights, not just zoom**: a spotlight (everything outside the region dimmed, soft outline) and a click
+  pulse where the user taps.
+
+| Who | Work | Estimate |
+|---|---|---|
+| A | Walkthrough mode in the script (one shot per flow step); timed zoom regions per shot from Gemini | ~2–3 h |
+| B | Spotlight + outline, click pulse, step chip and progress bar, keyframed camera | ~2–3 h |
+| Contract | Optional `zoom_keyframes` and step label on shots (left out of the JSON when unset) | A + B + C agree |
+| C | Optional "Walkthrough" toggle in the app (the brief can already ask for it) | ~30 min |
+
+**Pitch close (suggested, for C):** "Today DemoCut cuts the moments that matter. Next, it walks a new user
+through your whole app: every step read from your code, the camera following each click, a spotlight on
+what to look at. Every hackathon, every launch, every open-source release needs this video. Nobody should
+spend their last hours making it. Thank you."
+
 ## Who owns which files
 
 No file has two owners, so three people can push to `main` all night without merge conflicts.
