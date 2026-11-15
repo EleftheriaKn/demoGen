@@ -169,6 +169,16 @@ class Feature(Contract):
     )
 
 
+class FlowStep(Contract):
+    step_id: str = Field(description="Stable id, e.g. 's1'. Referenced by moments.")
+    text: str = Field(description="What the user does or sees at this step, in one short sentence.")
+    feature_id: Optional[str] = Field(None, description="Feature this step uses (Summary.features), or null.")
+    evidence: list[str] = Field(
+        default_factory=list,
+        description="Where the repo shows it: 'README#<heading>' or a repo path from RepoFiles.tree.",
+    )
+
+
 class Summary(Contract):
     """summary.json: what the app is, from README + code + transcript."""
 
@@ -177,6 +187,11 @@ class Summary(Contract):
     problem: str = Field(description="The problem the app solves, in one or two sentences.")
     audience: str = Field(description="Who it is for.")
     features: list[Feature] = Field(description="Features, most important first.")
+    flow: list[FlowStep] = Field(
+        default_factory=list,
+        exclude_if=lambda v: not v,  # an old summary dumps as before (script's prompt recordings keep matching)
+        description="The steps a user goes through, in the order they meet them.",
+    )
 
     @model_validator(mode="after")
     def _ids(self) -> "Summary":
@@ -200,6 +215,10 @@ class Moment(Contract):
         "dead = nothing useful (never cut in)."
     )
     confidence: Score = Field(description="Model confidence 0-1.")
+    quality: Optional[Literal["wow", "ok", "weak"]] = Field(
+        None, description="wow = payoff clear on screen and settled; ok; weak = too fast, messy or cut off. Null on old runs."
+    )
+    flow_step: Optional[str] = Field(None, description="Flow step shown (Summary.flow step_id), or null.")
 
     @model_validator(mode="after")
     def _span(self) -> "Moment":
