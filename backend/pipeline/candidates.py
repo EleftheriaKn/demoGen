@@ -31,6 +31,8 @@ MAX_SCENES = 40          # keeps the judge's frame count (3 per segment) bounded
 MIN_MOMENT_S = 0.3
 SAME_S = 0.25            # a scene this close to a moment at both ends is the same clip: keep the moment
 FRAME_AT = (0.25, 0.5, 0.75)
+RESULT_AT = (0.3, 0.65, 1.0)   # result moments: last frame near the end (see frame_times)
+RESULT_END_S = 0.2
 FRAME_WIDTH = 640
 WORKERS = 4
 
@@ -41,7 +43,7 @@ def scene_cuts(recording: Path) -> list[float]:
     vf = (f"{hdr_to_sdr(info)}scale=320:-2,scdet=threshold={SCENE_THRESHOLD}:sc_pass=1,"
           "metadata=print:key=lavfi.scd.time")
     p = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(recording), "-an", "-vf", vf, "-f", "null", "-"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     if p.returncode != 0:
         raise RuntimeError(f"scene detection failed: {p.stderr.strip()[-800:]}")
     return sorted({round(float(t), 3) for t in re.findall(r"lavfi\.scd\.time=([\d.]+)", p.stderr)})
@@ -97,8 +99,14 @@ def frame_name(seg_id: str, t: float) -> str:
     return f"frames/{seg_id}_{f'{t:.2f}'.rstrip('0').rstrip('.')}s.jpg"
 
 
-def frame_times(start: float, end: float) -> list[float]:
-    return [min(max(round(start + f * (end - start), 2), start), end) for f in FRAME_AT]
+def frame_times(start: float, end: float, result: bool = False) -> list[float]:
+    """Three sample times. Result moments: the payoff often lands right at the end (TodoMVC: 4 of 9),
+    so the last frame is taken RESULT_END_S before the end instead of at 75%."""
+    fracs = RESULT_AT if result else FRAME_AT
+    times = [start + f * (end - start) for f in fracs]
+    if result:
+        times[-1] = max(times[-2], end - min(RESULT_END_S, 0.1 * (end - start)))
+    return [min(max(round(t, 2), start), end) for t in times]
 
 
 def build_segments(cuts: list[float], dur: float, moments: list[Moment]) -> list[Segment]:
@@ -106,17 +114,17 @@ def build_segments(cuts: list[float], dur: float, moments: list[Moment]) -> list
     dead = [(m.start, m.end) for m in moments if m.kind == "dead"]
     scenes = [s for s in scenes_from_cuts(cuts, dur)
               if sum(overlap(s, d) for d in dead) < 0.5 * (s[1] - s[0])]
-    moment_spans = [(*span, "moment", m.moment_id) for m in moments
+    moment_spans = [(*span, "moment", m.moment_id, m.kind == "result") for m in moments
                     if m.kind != "dead" and (span := moment_span(m, edges, dur))]
     same = lambda s, m: abs(s[0] - m[0]) <= SAME_S and abs(s[1] - m[1]) <= SAME_S  # noqa: E731
-    spans = [(s[0], s[1], "scene", None) for s in scenes if not any(same(s, m) for m in moment_spans)]
+    spans = [(s[0], s[1], "scene", None, False) for s in scenes if not any(same(s, m) for m in moment_spans)]
     spans += moment_spans
     spans.sort(key=lambda s: (s[0], s[2] == "moment", s[1]))
     segs = []
-    for i, (a, b, source, mid) in enumerate(spans, 1):
+    for i, (a, b, source, mid, result) in enumerate(spans, 1):
         sid = f"c{i:02d}"
         segs.append(Segment(segment_id=sid, start=a, end=b, source=source, moment_id=mid,
-                            frames=[frame_name(sid, t) for t in frame_times(a, b)]))
+                            frames=[frame_name(sid, t) for t in frame_times(a, b, result)]))
     return segs
 
 
@@ -137,7 +145,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
     recording = d / run.recording
     dur = video_info(recording).duration
     mpath = d / "moments.json"
-    moments = Moments.model_validate_json(mpath.read_text()).moments if mpath.exists() else []
+    moments = Moments.model_validate_json(mpath.read_text(encoding="utf-8")).moments if mpath.exists() else []
     if not moments:
         events.emit("candidates", "no moments.json yet: scene cuts only")
 
@@ -146,7 +154,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
     shutil.rmtree(d / "frames", ignore_errors=True)
     (d / "frames").mkdir()
     extract_frames(d, recording, segs)
-    (d / "candidates.json").write_text(Candidates(segments=segs).model_dump_json(indent=2))
+    (d / "candidates.json").write_text(Candidates(segments=segs).model_dump_json(indent=2), encoding="utf-8")
     n_moment = sum(s.source == "moment" for s in segs)
     events.emit("candidates", f"{len(cuts)} cuts -> {len(segs) - n_moment} scene + {n_moment} moment clips, "
                               f"{3 * len(segs)} frames", data={"cuts": cuts})

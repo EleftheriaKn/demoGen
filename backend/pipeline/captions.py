@@ -85,7 +85,9 @@ def ass_text(text: str) -> str:
 
 
 def ass(tl: Timeline, cs: list[tuple[float, float, str, str]]) -> str:
-    size, outline, margin = round(tl.height * 0.055), max(2, round(tl.height / 240)), round(tl.height * 0.07)
+    # Opaque-box style (BorderStyle 3): white text on a 35%-transparent black box, so captions read on
+    # light screen recordings too. With BorderStyle 3, libass draws the box in OutlineColour; Outline = padding.
+    size, pad, margin = round(tl.height * 0.05), max(4, round(tl.height / 90)), round(tl.height * 0.07)
     head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {tl.width}
@@ -95,7 +97,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{FONT_NAME},{size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,{outline},1,2,{margin},{margin},{margin},1
+Style: Default,{FONT_NAME},{size},&H00FFFFFF,&H000000FF,&H59000000,&H59000000,1,0,0,0,100,100,0,0,3,{pad},0,2,{margin},{margin},{margin},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -106,8 +108,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir)
-    tl = Timeline.model_validate_json((d / "timeline.json").read_text())
-    assets = Assets.model_validate_json((d / "assets.json").read_text())
+    tl = Timeline.model_validate_json((d / "timeline.json").read_text(encoding="utf-8"))
+    assets = Assets.model_validate_json((d / "assets.json").read_text(encoding="utf-8"))
     cs = cues(tl, {v.path: v.duration_s for v in assets.voice})
     srt = "\n".join(f"{i}\n{srt_time(a)} --> {srt_time(b)}\n{t}\n" for i, (a, b, _, t) in enumerate(cs, 1))
     (d / "captions.srt").write_text(srt, encoding="utf-8")

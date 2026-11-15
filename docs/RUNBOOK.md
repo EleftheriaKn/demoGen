@@ -146,6 +146,34 @@ or logs**. Ingest gets it from the environment (`GITHUB_TOKEN`) to clone private
 repos need no token. Scopes: `read:user` and `repo` (for private repos), or no `repo` scope if we only
 demo public repos.
 
+### Starting the server (today, until B12–B14)
+
+The board, the API and the phone app are one FastAPI process (`backend/app.py`, run by uvicorn).
+Each run it starts is a separate `python -m backend.run runs/<id>` process, logging to
+`runs/<id>/pipeline.log`.
+
+```bash
+cd demoGen
+DEMOCUT_FAKE=transcribe,understand,judge_frames,script,assets,rubric \
+  .venv/bin/uvicorn backend.app:app --host 0.0.0.0 --port 8000
+```
+
+- `.env` (keys, GitHub login) is loaded by the app at start (C11); real environment variables win.
+- `--host 0.0.0.0` lets the phone reach it; `127.0.0.1` keeps it laptop-only.
+- `DEMOCUT_FAKE` lists the stages not built yet; take each one off as it becomes real. The list above
+  runs B's stages for real on the uploaded take (tested Nov 15 with C's TodoMVC take: 12 s).
+- Linux with ufw: open the port to the Wi-Fi once, e.g. `sudo ufw allow from 172.20.0.0/20 to any port 8000 proto tcp`
+  (use your own network). macOS asks the first time.
+- The laptop's address: `ip -4 -br addr` (Linux) or `ipconfig getifaddr en0` (macOS). Phone:
+  `http://<address>:8000`. Stopgap QR: `qrencode -t ansiutf8 http://<address>:8000`.
+- Venue Wi-Fi that keeps devices apart: join the laptop to the phone's hotspot, or
+  `cloudflared tunnel --url http://localhost:8000` (anyone with the link can start runs: close it after).
+- Every request is in the uvicorn log with the device's address (`172.20.x.x - "POST /runs"`), but
+  nothing says *which* device that is or that it is new: that is B13.
+- GitHub login (C11) sends the phone back to `http://<the address you opened>:8000/auth/github/callback`,
+  and GitHub only accepts the callback registered in the OAuth app. A new Wi-Fi address or a new tunnel
+  link means updating the OAuth app's callback URL (B12 prints the one to use).
+
 ## Generated shots: infographics from the real footage
 
 Gemini and fal can do more than title cards. A shot can be an **infographic** made from the
@@ -206,7 +234,7 @@ No file has two owners, so three people can push to `main` all night without mer
 | Person | Owns (only they edit) | Writes in each run | Reads from others |
 |---|---|---|---|
 | A · Brains | `backend/clients/gemini.py`, `backend/clients/fal.py`, `backend/pipeline/understand.py`, `judge.py`, `script.py`, `assets.py` | `summary.json`, `moments.json`, `transcript.json`, `rankings.json`, `script.json`, `claims.json`, `assets.json`, `decisions.json` | `repo_files.json`, `candidates.json` (B) |
-| B · Render | `backend/pipeline/ff.py`, `ingest.py`, `candidates.py`, `timeline.py`, `captions.py`, `render.py`, `fonts/` | `repo_files.json`, `candidates.json`, `timeline.json`, `captions.srt`, `final.mp4` | `moments.json`, `script.json`, `assets.json` (A) |
+| B · Render | `backend/pipeline/ff.py`, `ingest.py`, `candidates.py`, `timeline.py`, `captions.py`, `render.py`, `fonts/`, `backend/serve.py`, `backend/devices.py` | `repo_files.json`, `candidates.json`, `timeline.json`, `captions.srt`, `final.mp4` | `moments.json`, `script.json`, `assets.json` (A) |
 | C · App and pitch | `backend/run.py`, `events.py`, `cache.py`, `app.py`, `mcp_server.py`, `web/`, `samples/`, `README.md`, slides | `run.json`, `events.jsonl` | Everything, read only |
 | Shared | `fixtures/`: change only after telling the other two | | |
 
@@ -240,12 +268,15 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B3 | Render on the real test take | Works on C's take in `samples/`, whatever its size and frame rate | 00:30 | Done on 7 test takes; recheck on C's take |
 | B4 | `ingest.py` | Clones a real repo; `repo_files.json`; `audio.wav` when the take has sound | 01:00 | Done (also private repos via `GITHUB_TOKEN`; silent `audio.wav` when the take has no sound) |
 | B5 | `candidates.py` | Scene cuts and 3 frames per moment from A's `moments.json` | 02:00 | Done (7-min 1080p take: ~28 s, max 40 scene clips) |
-| B6 | Checkpoint 1, with A | Test take + fixture script + real voices → captioned MP4 | 02:00 | To do |
-| B7 | First full run, with A, then speed | A full run takes under 15 minutes; add a 720p preview mode if not | 05:30 | To do |
+| B6 | Checkpoint 1, with A | Test take + fixture script + real voices → captioned MP4 | 02:00 | Done (Nov 15: TodoMVC 3-min take, fal voices, 22 s; captions on a dark box for light screens) |
+| B7 | First full run, with A, then speed | A full run takes under 15 minutes; add a 720p preview mode if not | 05:30 | Done (Nov 15: 3-min TodoMVC take, all real but transcribe + rubric: 5.0 min full/1080p, 5.4 min cheap/720p; script is 50–60% of it) |
 | B8 | Robustness | Handles no audio, very short or long moments, a failed fal call; resumes mid-run | 09:00 | To do |
 | B9 | Final video | Version 1 checked frame by frame, bugs fixed, version 2 uploaded | 15:30 | To do |
 | B10 | Phone footage (mobile app) | A portrait, HEVC, variable-frame-rate `.mov` take of 7 minutes renders correctly: rotation applied, portrait over a blurred fill, no A/V drift. Ingest clones private repos with `GITHUB_TOKEN` | 05:30 | Proposed |
 | B11 | Overlays, mockups, picture-in-picture | Render draws `overlay` text (title / bullets / steps / stat, Greek and English) over cards; `inset_frame` inside a device mockup or picture-in-picture with a slow zoom; stills get gentle motion; works with plain backgrounds in cheap mode | 11:00 | Proposed |
+| B12 | One command starts the server | `python -m backend.serve` (new file, B; Linux and macOS) runs C's app unchanged on `0.0.0.0:8000` and prints `DemoCut ready` with every phone address on the Wi-Fi, which stages run real or fake (from `DEMOCUT_FAKE`), a warning for real stages missing a key (never printing keys), and the GitHub callback URL to register for this address; `--tunnel` starts cloudflared when installed and prints its `https` link; Ctrl-C stops it and any tunnel cleanly. README's phone section points to it | 09:00 | Proposed |
+| B13 | Log new devices | `backend/devices.py` (new file, B), attached to C's app by `serve.py` (no change to `app.py`): the first request from a device prints one line, e.g. `new device: iPhone · Safari · 172.20.1.42`, and appends it to `runs/devices.jsonl` (time, address, device, browser: nothing else). A device id cookie (address + browser as fallback) keeps reloads and later requests quiet. Starting a run logs which device started it | 09:00 | Proposed |
+| B14 | QR code to open the app | At start the terminal shows a QR code of the phone address (or the tunnel link); `serve.py` adds `GET /qr.svg` (made in Python, e.g. `segno`, so no system tool is needed). On the board C adds one `<img src="/qr.svg">` for laptop screens (C's file: ask C). Done when scanning the laptop screen opens the board on the phone, on Linux and macOS | 09:00 | Proposed |
 
 ## Tickets · C · App, board, MCP and pitch
 
@@ -262,9 +293,9 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 | C7 | DemoCut's own take | Rough 4-minute recording of DemoCut in use | 10:00 | To do |
 | C8 | 20-second test | 5–10 people: our cut vs a video another team made by hand | 13:00 | To do |
 | C9 | Pitch, slides, README | 3-minute script, 3 slides, cached live demo; manual OBS video by 15:00 if checkpoint 3 fails | 14:00 | To do |
-| C10 | Mobile app flow | `web/index.html` works on a phone: repo → recording → brief → progress → player; installable (manifest); repo-URL field works without login | 05:30 | Proposed |
-| C11 | GitHub login | OAuth login; repo list from `GET /user/repos`; tap a repo fills `repo_url`; token kept server-side only | 09:00 | Proposed |
-| C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Proposed |
+| C10 | Mobile app flow | `web/index.html` works on a phone: repo → recording → brief → progress → player; installable (manifest); repo-URL field works without login | 05:30 | Done |
+| C11 | GitHub login | OAuth login; repo list from `GET /user/repos`; tap a repo fills `repo_url`; token kept server-side only | 09:00 | Done |
+| C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Done |
 | C13 | Generated badges | Board marks generated shots (`Shot.generated`) and shows the real-footage share from the rubric | 11:00 | Proposed |
 
 ## Make runs fast
@@ -304,7 +335,8 @@ Three checkpoints decide what gets cut. Each person sleeps once, staggered, so t
 cards), then fal infographic backgrounds (keep render's text overlays on plain backgrounds), then music, then the MCP tool, then GitHub login (keep the paste-a-repo-URL field). Never cut
 the truth check: it is the pitch. Never cut the three inputs on the phone: they are the pitch too.
 
-> The "Proposed" tickets come from two decisions on Nov 15: the mobile app (A10, B10, C10–C12) and
+> The "Proposed" tickets come from decisions on Nov 15: the mobile app (A10, B10, C10–C12), starting the
+> server, device log and QR code (B12–B14) and
 > infographics from the real footage (A11, B11, C13). Owners
 > confirm them and set the times; they don't change who owns which files.
 

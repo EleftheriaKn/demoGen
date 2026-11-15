@@ -16,8 +16,8 @@ from pathlib import Path
 
 from backend import events
 from backend.contracts import RunConfig, Timeline, TimelineShot
-from backend.pipeline.ff import (AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, hdr_to_sdr, inner_size, place,
-                                 video_info)
+from backend.pipeline.ff import (AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, filter_path, hdr_to_sdr, inner_size,
+                                 place, video_info)
 
 MAX_ZOOM = 3.0
 WORKERS = 4
@@ -71,7 +71,7 @@ def final(d: Path, tl: Timeline) -> None:
     for s in tl.shots:
         args += ["-i", s.voice_path]
     total = f"{tl.duration_s:.4f}"
-    subs = f",ass=captions.ass:fontsdir={FONTS}" if (d / "captions.ass").exists() else ""
+    subs = f",ass=captions.ass:fontsdir={filter_path(FONTS)}" if (d / "captions.ass").exists() else ""
     parts = [f"{''.join(f'[{i}:v]' for i in range(n))}concat=n={n}:v=1:a=0{subs}[vid]"]
     parts += [f"[{n + i}:a]aresample={SAMPLE_RATE},aformat=channel_layouts=stereo,"
               f"adelay={round(s.start * 1000)}:all=1[v{i}]" for i, s in enumerate(tl.shots)]
@@ -94,7 +94,7 @@ def final(d: Path, tl: Timeline) -> None:
 
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir).resolve()
-    tl = Timeline.model_validate_json((d / "timeline.json").read_text())
+    tl = Timeline.model_validate_json((d / "timeline.json").read_text(encoding="utf-8"))
     (d / "shots").mkdir(exist_ok=True)
     outs = [d / "shots" / f"{s.shot_id}.mp4" for s in tl.shots]
     with ThreadPoolExecutor(WORKERS) as ex:

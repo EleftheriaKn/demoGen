@@ -45,6 +45,7 @@ SKIP_DIRS = {
     ".git", "node_modules", "dist", "build", "out", "vendor", "venv", ".venv", "env", "__pycache__", ".next",
     ".nuxt", "target", "coverage", ".idea", ".vscode", "Pods", ".gradle", "bin", "obj", "site-packages",
     "third_party", "third-party", "external", ".dart_tool", ".expo", ".svelte-kit", ".turbo", ".cache",
+    "bower_components", "jspm_packages", "web_modules", "Carthage", "DerivedData", "_site",
 }
 LOCKFILES = {
     "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "cargo.lock", "gemfile.lock",
@@ -66,6 +67,7 @@ ENTRY_STEMS = {
     "__main__", "manage", "page", "layout", "worker", "bot", "agent", "pipeline", "core", "service",
 }
 CODE_DIRS = {"src", "app", "backend", "api", "server", "lib", "core", "frontend", "web", "mobile", "cmd"}
+HOUSEKEEPING_DOCS = r"(changelog|history|license|contributing|code[-_ ]?of[-_ ]?conduct|codestyle|security|support|funding|authors)"
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 BADGE = re.compile(r"shields\.io|badgen|badge|travis-ci|codecov|circleci|coveralls|/workflows/|"
                    r"buymeacoffee|ko-fi|star-history|contrib\.rocks", re.I)
@@ -167,8 +169,8 @@ def score(path: str) -> float:
         s = 8.0
     elif ext in SOURCE_EXT:
         s = 3.0 + (3.0 if stem in ENTRY_STEMS else 0.0)
-    elif ext in {".md", ".mdx"} and not name.startswith(("changelog", "license", "contributing", "code_of")):
-        s = 1.5
+    elif ext in {".md", ".mdx"} and not re.match(HOUSEKEEPING_DOCS, name):
+        s = 7.0 if len(p.parts) == 1 else 2.0  # top-level docs (app-spec.md, ARCHITECTURE.md) explain the app
     else:
         return 0
     depth = len(p.parts) - 1
@@ -176,7 +178,7 @@ def score(path: str) -> float:
     if any(part.lower() in CODE_DIRS for part in p.parts[:-1]):
         s += 1.0
     if re.search(r"(^|/)(tests?|__tests__|spec|e2e|fixtures?|mocks?|examples?|samples?|migrations)(/|$)", low) \
-            or re.search(r"[._-](test|spec)\.", name) or name.startswith("test_") \
+            or (ext in SOURCE_EXT and (re.search(r"[._-](test|spec)\.", name) or name.startswith("test_"))) \
             or re.search(r"e2e|playwright|cypress|storybook|benchmark", low):
         s -= 4.0
     if re.search(r"(eslint|prettier|vitest|jest|babel|karma|stylelint|tsconfig|webpack|rollup)", name) \
@@ -397,7 +399,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
         clone(url, repo)
         sha = git(repo, "rev-parse", "--short", "HEAD").decode().strip()
         files = collect(repo, run.repo_url, owner, name, d)
-    (d / "repo_files.json").write_text(files.model_dump_json(indent=2))
+    (d / "repo_files.json").write_text(files.model_dump_json(indent=2), encoding="utf-8")
     events.emit("ingest", f"{owner}/{name}@{sha}: {len(files.tree)} files, {len(files.key_files)} key files, "
                           f"{len(files.screenshots)} screenshots",
                 data={"sha": sha, "key_files": [k.path for k in files.key_files]})

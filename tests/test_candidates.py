@@ -38,6 +38,16 @@ def test_moment_snaps_to_cuts_within_1_5_s():
     assert c.moment_span(m("m4", 25.0, 30.0), edges, 20.0) is None          # past the end
 
 
+def test_result_moments_get_a_frame_near_the_end():
+    t = c.frame_times(10.0, 14.0, result=True)
+    assert t[-1] == pytest.approx(13.8) and t[0] < t[1] < t[2] <= 14.0
+    assert c.frame_times(10.0, 14.0)[-1] == pytest.approx(13.0)  # other clips: 25/50/75%
+    segs = c.build_segments([], 20.0, [m("m1", 2.0, 6.0, "result"), m("m2", 8.0, 12.0, "action")])
+    by_moment = {s.moment_id: s for s in segs if s.source == "moment"}
+    assert frame_time(by_moment["m1"].frames[-1]) == pytest.approx(5.8)
+    assert frame_time(by_moment["m2"].frames[-1]) == pytest.approx(11.0)
+
+
 def test_frame_names_round_trip():
     assert c.frame_name("c02", 6.25) == "frames/c02_6.25s.jpg" and c.frame_name("c01", 1.0) == "frames/c01_1s.jpg"
     for t in c.frame_times(5.0, 10.0):

@@ -75,6 +75,20 @@
   .nav button.back { background: transparent; color: var(--ink); border: 1px solid var(--line); }
   .err { color: var(--bad); font-size: 13px; margin-top: 6px; min-height: 0; }
   .fileinfo { font-size: 13px; margin-top: 6px; }
+  a.btn.gh-login { display: block; margin-bottom: 4px; background: #24292f; }
+  .gh-user { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .gh-user img { width: 28px; height: 28px; border-radius: 50%; }
+  .gh-user span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  button.link { width: auto; margin: 0; padding: 4px 6px; background: none; color: var(--accent); font-weight: 400; font-size: 14px; }
+  #gh-filter { margin-top: 10px; }
+  ul.repos { list-style: none; margin: 6px 0 0; padding: 0; max-height: 280px; overflow-y: auto;
+             border: 1px solid var(--line); border-radius: 6px; }
+  ul.repos li { padding: 10px; border-top: 1px solid var(--line); cursor: pointer; font-size: 14px; }
+  ul.repos li:first-child { border-top: 0; }
+  ul.repos li.on { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
+  ul.repos li .d { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  ul.repos li .lock { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+  .or { text-align: center; font-size: 12px; color: var(--muted); margin: 14px 0 -4px; }
   .upload { margin-top: 12px; } .upload .bar { margin: 0 0 4px; }
   details.more { margin-top: 10px; font-size: 13px; color: var(--muted); } details.more summary { cursor: pointer; }
   .share { display: flex; gap: 10px; margin-top: 10px; align-items: stretch; }
@@ -87,6 +101,19 @@
     main { padding: 16px 16px 40px; }
     button, .btn { padding: 14px; }
   }
+
+  /* the cut (C13) */
+  .strip { display: flex; height: 28px; border-radius: 6px; overflow: hidden; margin: 4px 0 8px; gap: 2px; }
+  .strip .seg { min-width: 0; font-size: 11px; line-height: 28px; text-align: center; color: #fff; overflow: hidden; white-space: nowrap; }
+  .strip .seg.real { background: var(--ok); }
+  .strip .seg.gen { background: #c98a00; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.18) 0 6px, transparent 6px 12px); }
+  ul.shots { list-style: none; margin: 0; padding: 0; }
+  ul.shots li { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  ul.shots .head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  ul.shots .when { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  ul.shots .line { display: block; color: var(--muted); margin-top: 4px; }
+  .b-real { color: var(--ok); } .b-gen { color: #c98a00; }
+  #real-sum .ok { color: var(--ok); } #real-sum .bad { color: var(--bad); }
 
   /* decisions (C6) */
   #decisions { margin-top: 20px; display: none; }
@@ -127,10 +154,22 @@
         <ol class="steps" id="steps"><li data-n="1">Repo</li><li data-n="2">Recording</li><li data-n="3">Brief</li></ol>
         <form id="form" novalidate>
           <fieldset data-step="1">
+            <div id="gh" hidden>
+              <a class="btn gh-login" id="gh-login" href="/auth/github/login">Log in with GitHub</a>
+              <div id="gh-user" class="gh-user" hidden>
+                <img id="gh-avatar" alt=""><span>Signed in as <b id="gh-name"></b></span>
+                <button type="button" class="link" id="gh-logout">Log out</button>
+              </div>
+              <div id="gh-pick" hidden>
+                <input id="gh-filter" type="search" placeholder="Search your repos" autocomplete="off">
+                <ul class="repos" id="gh-repos"></ul>
+              </div>
+              <div class="or">or paste a link</div>
+            </div>
             <label for="repo_url">GitHub repo URL</label>
             <input id="repo_url" name="repo_url" type="url" inputmode="url" autocomplete="url" autocapitalize="off"
                    placeholder="https://github.com/you/app">
-            <div class="hint">Paste the link to your app's repo. GitHub login comes later.</div>
+            <div class="hint">The link to your app's repo on GitHub.</div>
             <div class="err" id="err-1"></div>
             <div class="nav"><button type="button" class="next">Next</button></div>
           </fieldset>
@@ -207,6 +246,11 @@
       <div class="links" id="links"></div>
 
       <div id="decisions">
+        <h3>The cut</h3>
+        <div class="summary-line" id="real-sum"></div>
+        <div class="strip" id="strip"></div>
+        <ul class="shots" id="shots"></ul>
+
         <h3>Truth check</h3>
         <div class="summary-line" id="claims-sum"></div>
         <ul class="claims" id="claims"></ul>
@@ -232,7 +276,7 @@
 const STAGES = ["ingest","transcribe","understand","candidates","judge_frames","script",
                 "assets","timeline","rubric","captions","render"];
 const $ = (id) => document.getElementById(id);
-const DECISION_STAGES = new Set(["understand", "judge_frames", "script", "assets", "rubric"]);
+const DECISION_STAGES = new Set(["understand", "judge_frames", "script", "assets", "timeline", "rubric"]);
 let source = null;
 let currentRun = null;
 
@@ -263,14 +307,59 @@ async function getJson(runId, file) {
   } catch (e) { return null; }
 }
 
+// The cut (C13): which shots are real footage and which are generated, and the real-footage share.
+const REAL_TARGET = 0.7;                                   // runbook: at least 70% of the runtime
+const fmtT = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+
+function renderCut(script, timeline, dec) {
+  const shots = script?.shots ?? [];
+  const byId = Object.fromEntries((timeline?.shots ?? []).map(t => [t.shot_id, t]));
+  const total = timeline?.duration_s;
+  const isGen = (s) => s.generated || (byId[s.shot_id] && byId[s.shot_id].visual.kind !== "footage");
+  const kindOf = (s) => byId[s.shot_id]?.visual.kind ?? s.visual.kind;
+  const label = (k) => ({ card: "card", broll: "b-roll" }[k] || k);
+
+  // Share of the runtime that is real footage, measured on timeline.json like the rubric does.
+  if (timeline && total) {
+    const real = timeline.shots.filter(t => t.visual.kind === "footage").reduce((a, t) => a + t.duration_s, 0);
+    const share = real / total;
+    const ok = share >= REAL_TARGET - 1e-9;
+    const rub = (dec?.rubric ?? []).find(r => /real[ -]footage|generated/i.test(r.question));
+    $("real-sum").innerHTML = `<b class="${ok ? "ok" : "bad"}">${pct(share)}% real footage</b> · ${real.toFixed(1)} of ${total.toFixed(1)} s · `
+      + (ok ? `meets the ${pct(REAL_TARGET)}% target` : `under the ${pct(REAL_TARGET)}% target`)
+      + (rub ? ` · rubric: ${rub.passed ? "passed" : "failed"} (${esc(rub.reason)})` : "");
+    $("strip").innerHTML = timeline.shots.map(t => {
+      const s = shots.find(x => x.shot_id === t.shot_id);
+      const gen = s ? isGen(s) : t.visual.kind !== "footage";
+      return `<div class="seg ${gen ? "gen" : "real"}" style="flex:${t.duration_s}" title="${esc(t.shot_id)} · ${gen ? "generated" : "real footage"} · ${t.duration_s.toFixed(1)} s">${esc(t.shot_id)}</div>`;
+    }).join("");
+  } else {
+    $("real-sum").textContent = shots.length ? "Real-footage share appears once the timeline is built." : "No shots yet.";
+    $("strip").innerHTML = "";
+  }
+
+  $("shots").innerHTML = shots.map(s => {
+    const t = byId[s.shot_id];
+    const gen = isGen(s);
+    const when = t ? `${fmtT(t.start)}–${fmtT(t.start + t.duration_s)}` : "";
+    return `<li class="${gen ? "gen" : "real"}"><div class="head"><span class="badge ${gen ? "b-gen" : "b-real"}">`
+      + (gen ? `Generated · ${esc(label(kindOf(s)))}` : "Real footage") + `</span>`
+      + `<span class="chip">${esc(s.shot_id)}</span><span class="chip">${esc(s.beat)}</span>`
+      + (when ? `<span class="when">${when}</span>` : "") + `</div>`
+      + `<span class="line">“${esc(s.voice_line)}”</span></li>`;
+  }).join("");
+}
+
 async function renderDecisions(runId) {
-  const [dec, script, summary] = await Promise.all(
-    ["decisions.json", "script.json", "summary.json"].map(f => getJson(runId, f)));
+  const [dec, script, summary, timeline] = await Promise.all(
+    ["decisions.json", "script.json", "summary.json", "timeline.json"].map(f => getJson(runId, f)));
   if (!dec && !script && !summary) return;
   $("decisions").style.display = "block";
   const decisions = dec?.decisions ?? [];
   const bySubject = (kind, id) => decisions.find(d => d.kind === kind && d.subject === id);
   const base = `/runs/${runId}/files/`;
+
+  renderCut(script, timeline, dec);
 
   // Truth check: every claim in the script, with what the judge did to it.
   const claims = (script?.shots ?? []).flatMap(s => s.claims.map(c => ({ ...c, shot: s.shot_id })));
@@ -542,10 +631,55 @@ $("form").onsubmit = async (e) => {
   }
 };
 
+// ---- GitHub login (C11): pick a repo instead of pasting it ------------------------------
+let myRepos = [];
+
+function renderRepos() {
+  const q = $("gh-filter").value.trim().toLowerCase();
+  const list = myRepos.filter(r => !q || r.full_name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q));
+  $("gh-repos").innerHTML = list.slice(0, 50).map(r =>
+    `<li data-url="${esc(r.url)}" class="${r.url === $("repo_url").value ? "on" : ""}">${esc(r.full_name)}`
+    + (r.private ? `<span class="lock">private</span>` : "")
+    + (r.description ? `<span class="d">${esc(r.description)}</span>` : "") + `</li>`
+  ).join("") || `<li class="empty">No repos match.</li>`;
+  $("gh-repos").querySelectorAll("li[data-url]").forEach(li => li.onclick = () => {
+    $("repo_url").value = li.dataset.url;
+    $("err-1").textContent = "";
+    if (checkStep(1)) showStep(2);
+  });
+}
+
+async function initGitHub() {
+  let me;
+  try { me = await (await fetch("/auth/me")).json(); } catch (_) { return; }
+  if (!me.enabled) return;                               // no OAuth keys: paste-a-link only
+  $("gh").hidden = false;
+  const err = new URLSearchParams(location.search).get("login_error");
+  if (err) { $("err-1").textContent = "GitHub login didn't work. Try again, or paste the link."; history.replaceState(null, "", "/" + location.hash); }
+  if (!me.logged_in) return;
+  $("gh-login").hidden = true;
+  $("gh-user").hidden = false;
+  $("gh-name").textContent = me.login;
+  if (me.avatar_url) $("gh-avatar").src = me.avatar_url;
+  const r = await fetch("/github/repos");
+  if (!r.ok) { $("err-1").textContent = "Couldn't load your repos. Paste the link instead."; return; }
+  myRepos = await r.json();
+  $("gh-pick").hidden = false;
+  renderRepos();
+}
+
+$("gh-filter").oninput = renderRepos;
+$("gh-logout").onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
+initGitHub();
+
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
 loadRuns();
 if (location.hash.length > 1) watch(decodeURIComponent(location.hash.slice(1)));
+window.addEventListener("hashchange", () => {               // a run link opened in the same tab
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (id && id !== currentRun) watch(id);
+});
 </script>
 </body>
 </html>

@@ -63,3 +63,29 @@ def test_render_half_on_fixtures(run_dir, monkeypatch):
     assert int(v["nb_read_frames"]) == round(tl.duration_s * tl.fps)
     assert any(s["codec_type"] == "audio" for s in info["streams"])
     assert abs(float(info["format"]["duration"]) - tl.duration_s) < 0.05
+
+
+def test_long_voice_plays_more_footage_not_a_long_freeze():
+    # 2 s clip, 12 s voice, inside a 10 s segment of a 60 s take: segment first, then around it
+    start, end, speed, freeze = timeline.fit_footage(20.0, 22.0, 12.0, (18.0, 28.0), 60.0)
+    assert speed == 1.0 and freeze <= timeline.MAX_FREEZE_S
+    assert start <= 18.0 and end >= 28.0 and end - start + freeze == pytest.approx(12.0, abs=0.01)
+    # far too long for its segment: only MAX_BEYOND_S from outside, the rest is a held frame
+    start, end, _, freeze = timeline.fit_footage(20.0, 22.0, 15.0, (19.0, 23.0), 60.0)
+    assert end - start <= 4.0 + timeline.MAX_BEYOND_S + 1e-6 and freeze > timeline.MAX_FREEZE_S
+    # a short take can't give more: freeze is what's left
+    assert timeline.fit_footage(1.0, 2.0, 6.0, None, 3.0)[3] == pytest.approx(3.0, abs=0.01)
+
+
+def test_growing_never_replays_a_neighbour():
+    spans = [None, (46.3, 49.2), (54.3, 56.3), None]
+    rooms = timeline.rooms(spans)
+    assert rooms[1] == (0.0, 54.3) and rooms[2] == (49.2, float("inf"))
+    s3 = timeline.fit_footage(46.3, 49.2, 12.0, (44.0, 50.0), 180.0, rooms[1])
+    assert s3[1] <= 54.3
+
+
+def test_missing_card_becomes_a_plain_card(tmp_path):
+    rel = timeline.plain_card(tmp_path, "s08", "TodoMVC", (640, 360))
+    assert rel == "cards/plain/s08.png" and (tmp_path / rel).stat().st_size > 0
+    assert not list((tmp_path / "cards" / "plain").glob("*.txt"))
