@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
-
-from PIL import Image, ImageDraw, ImageFilter
+from pathlib import Path
 
 from backend import events
 from backend.contracts import Candidates, Decisions, FrameScores
@@ -26,15 +25,9 @@ def test_total_is_judge_80_sharpness_20():
     assert judge.combine([0.75, 0.85, 0.65], 0.7) == 0.74
 
 
-def test_sharpness_ranks_blurred_frame_lower(tmp_path):
-    img = Image.new("L", (640, 360), 255)
-    d = ImageDraw.Draw(img)
-    for x in range(0, 640, 20):
-        d.line([(x, 0), (x, 360)], fill=0, width=2)
-    sharp, blurry = tmp_path / "sharp.jpg", tmp_path / "blurry.jpg"
-    img.save(sharp)
-    img.filter(ImageFilter.GaussianBlur(6)).save(blurry)
-    s = judge.sharpness([sharp, blurry])
+def test_sharpness_ranks_blurred_frame_lower():
+    data = Path(__file__).resolve().parent / "data"  # stripes, and the same blurred
+    s = judge.sharpness([data / "sharp.png", data / "blurry.png"])
     assert s[0] == 1.0 and s[1] < 0.5
 
 

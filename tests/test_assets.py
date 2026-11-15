@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 
 import pytest
-from PIL import Image
 
 from backend import events
 from backend.clients import fal, gemini
@@ -13,7 +13,8 @@ from backend.contracts import Assets, Decisions, Script
 from backend.pipeline import assets, ff, judge
 from backend.run import FIXTURE_RUN, load_run
 
-COLOURS = [(200, 40, 40), (40, 200, 40), (40, 40, 200), (200, 200, 40)]
+DATA = Path(__file__).resolve().parent / "data"
+DRAFTS = [DATA / f"s01_{i}.png" for i in range(4)]  # committed, so recording keys match on every machine
 
 
 def _verdict(n_drafts, n_questions, best):
@@ -32,7 +33,7 @@ def fake(tmp_path, monkeypatch):
 
     def fake_card(prompt, out_path):
         calls["card"].append(prompt)
-        Image.new("RGB", (64, 36), COLOURS[len(calls["card"]) % 4]).save(out_path, format="PNG")
+        shutil.copyfile(DRAFTS[len(calls["card"]) % 4], out_path)
 
     def fake_music(prompt, seconds, out_path):
         calls["music"].append(seconds)
@@ -98,20 +99,9 @@ def test_cheap_mode_plain_cards_silent_music(fake):
     assert calls["card"] == [] and calls["music"] == [] and calls["gemini"] == 0
 
 
-def test_pick_best_judges_image_drafts(tmp_path):
-    """Replays tests/recordings/ (record with `pytest --live`). Drafts are drawn, so the key is stable."""
-    from PIL import ImageDraw
-
-    drafts = []
-    for i, colour in enumerate([(230, 230, 230), (20, 30, 60), (180, 60, 40), (90, 90, 90)]):
-        img = Image.new("RGB", (640, 360), colour)
-        if i == 0:  # the one with text in it should lose
-            ImageDraw.Draw(img).text((40, 150), "LOREM IPSUM TITLE 123", fill=(0, 0, 0))
-        if i == 1:  # soft gradient-ish band: a clean background
-            ImageDraw.Draw(img).ellipse((380, 60, 760, 440), fill=(40, 70, 130))
-        p = tmp_path / f"s01_{i}.png"
-        img.save(p)
-        drafts.append(p)
+def test_pick_best_judges_image_drafts():
+    """Replays tests/recordings/ (record with `pytest --live`). Draft 0 has text in it and should lose."""
+    drafts = DRAFTS
     r = judge.pick_best(drafts, assets.CARD_QUESTIONS, "a title card for a todo-list app demo")
     assert 0 <= r["index"] < 4 and len(r["scores"]) == 4
     assert r["judge_score"] == r["scores"][r["index"]] == max(r["scores"])
