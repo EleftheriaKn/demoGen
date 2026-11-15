@@ -15,6 +15,7 @@ RAW = {
     fal.CARD_EDIT_ENDPOINT: {"images": [{"url": "u-edit"}], "description": ""},
     fal.VECTOR_REDRAW_ENDPOINT: {"images": [{"url": "u-redraw", "content_type": "image/svg+xml"}], "seed": None},
     fal.VECTOR_SCENE_ENDPOINT: {"images": [{"url": f"u-scene{i}", "content_type": "image/svg+xml"} for i in range(2)], "seed": 7},
+    fal.VIDEO_ENDPOINT: {"video": {"url": "u-video", "content_type": "video/mp4"}, "seed": 3, "prompt": "p"},
     fal.MUSIC_ENDPOINT: {"audio": {"url": "u-music", "content_type": "audio/mpeg"}},
     fal.SCRIBE_ENDPOINT: {
         "text": "Add a todo.",
@@ -44,8 +45,9 @@ def test_fal_field_mapping(monkeypatch, tmp_path):
     fal.vector_redraw(tmp_path / "f.jpg", tmp_path / "r.svg")
     scene = fal.vector_scene("ui", [tmp_path / f"f{i}.jpg" for i in range(7)], [tmp_path / "s0.svg", tmp_path / "s1.svg"], seed=7)
     transcript = fal.transcribe(tmp_path / "a.wav")
+    fal.animate("push in", tmp_path / "p.png", tmp_path / "c.mp4", seconds=4.0, seed=3)
 
-    assert downloads == ["u-tts", "u-card", "u-edit", "u-music", "u-redraw", "u-scene0", "u-scene1"]
+    assert downloads == ["u-tts", "u-card", "u-edit", "u-music", "u-redraw", "u-scene0", "u-scene1", "u-video"]
     assert scene == [tmp_path / "s0.svg", tmp_path / "s1.svg"]
     args = dict(calls)
     assert args[fal.TTS_ENDPOINT]["language_code"] == "en"
@@ -54,6 +56,8 @@ def test_fal_field_mapping(monkeypatch, tmp_path):
     assert args[fal.VECTOR_REDRAW_ENDPOINT] == {"image_url": f"up:{tmp_path / 'f.jpg'}", "mode": "simple"}
     sc = args[fal.VECTOR_SCENE_ENDPOINT]
     assert (len(sc["image_urls"]), sc["aspect_ratio"], sc["num_images"], sc["seed"]) == (5, "16:9", 2, 7)  # fal takes at most 5 refs
+    assert args[fal.VIDEO_ENDPOINT] == {"image_url": f"up:{tmp_path / 'p.png'}", "prompt": "push in", "num_frames": 97,
+                                        "frames_per_second": 24, "resolution": "720p", "aspect_ratio": "16:9", "seed": 3}
     assert args[fal.SCRIBE_ENDPOINT]["audio_url"] == f"up:{tmp_path / 'a.wav'}"
     assert transcript == {
         "language": "en",

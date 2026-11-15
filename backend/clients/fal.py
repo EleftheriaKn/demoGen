@@ -24,6 +24,8 @@ MUSIC_ENDPOINT = "fal-ai/elevenlabs/music"
 SCRIBE_ENDPOINT = "fal-ai/elevenlabs/speech-to-text/scribe-v2"
 VECTOR_REDRAW_ENDPOINT = "ideogram/vector/image-to-vector"  # Ideogram Vector 1.0; ids have no "fal-ai/" prefix
 VECTOR_SCENE_ENDPOINT = "ideogram/vector/text-to-vector"
+# Wan 2.2 5B: $0.15 a clip flat, silent, 720p; LTX-2.3 Fast's shortest clip is 6 s ($0.36)
+VIDEO_ENDPOINT = "fal-ai/wan/v2.2-5b/image-to-video"
 DOWNLOAD_TIMEOUT_S = 60
 
 
@@ -97,6 +99,18 @@ def vector_scene(prompt: str, reference_images: list[Path], out_paths: list[Path
     for img, out in zip(result["images"], out_paths):
         _download(img["url"], out)
     return [Path(o) for o in out_paths[: len(result["images"])]]
+
+
+def animate(prompt: str, image: Path, out_path: Path, seconds: float = 4.0, seed: int = 0) -> Path:
+    """Wan 2.2 5B image-to-video: a silent 16:9 720p clip starting on ``image``.
+    Length is ``num_frames`` (17..161) at 24 fps. Output: {"video": {"url", ...}, "seed", "prompt"}."""
+    _key()
+    url = fal_client.upload_file(str(image))
+    args = {"image_url": url, "prompt": prompt, "num_frames": int(seconds * 24) + 1, "frames_per_second": 24,
+            "resolution": "720p", "aspect_ratio": "16:9", "seed": seed}
+    result = fal_client.subscribe(VIDEO_ENDPOINT, arguments=args)
+    _download(result["video"]["url"], out_path)
+    return Path(out_path)
 
 
 def music(prompt: str, seconds: float, out_path: Path) -> Path:
