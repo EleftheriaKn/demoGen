@@ -526,3 +526,20 @@ def test_draft_without_callouts_gives_todays_script():
     shots = script.build_shots(_draft(), "h", SEGMENTS, REPO, ties=ties)
     assert ties == {} and script.add_callouts(shots, ties) == shots == script.build_shots(_draft(), "h", SEGMENTS, REPO)
     assert all("callout" not in s.model_dump() for s in shots)
+
+
+def test_kept_claims_callout_is_made_only_of_its_words(monkeypatch):
+    # Coach Platform: "Unified application specification" was shown on a kept claim that never says "unified".
+    said = []
+    monkeypatch.setattr(events, "emit", lambda stage, msg, **k: said.append(msg))
+    shot = _shot("Read the application specification.", "Read the application specification").model_copy(
+        update={"shot_id": "s03"})
+    kept = [shot.model_copy(update={"claims": [c.model_copy(update={"status": "backed"}) for c in shot.claims]})]
+    assert script.add_callouts(kept, {"s03": ("cl1", "Application specification")})[0].callout == \
+        "Application specification"
+    assert script.add_callouts(kept, {"s03": ("cl1", "Your app specification")})[0].callout is None
+    assert script.add_callouts(kept, {"s03": ("cl1", "Unified application specification")})[0].callout is None
+    assert said[-1].startswith('Callout s03 dropped: "Unified application specification", unified not in its claim cl1')
+    # stop words need not be in the claim
+    assert script.add_callouts(kept, {"s03": ("cl1", "The specification of your application")})[0].callout == \
+        "The specification of your application"
