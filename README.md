@@ -71,6 +71,7 @@ written to `run.json`, events or logs, and a run gets it only as `GITHUB_TOKEN` 
 python -m backend.run                           # new run from the fixture take
 python -m backend.run runs/<run_id>             # run, or resume, a run
 python -m backend.run runs/<run_id> --only script   # redo one stage
+python -m backend.stats runs/<run_id>               # pitch numbers: time, claims rejected, real footage
 ```
 
 **3. Claude Code (MCP).** Add the tool once, from the repo root:

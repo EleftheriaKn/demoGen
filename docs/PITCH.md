@@ -27,6 +27,9 @@ Slides: [DemoCut Pitch deck](https://claude.ai/artifact/8EDbTfrsKYdWJpFxU33WV7) 
 
 ## Numbers to measure (runbook)
 
+All but fal cost, human minutes and the 20-second test come from one command on a real run:
+`python -m backend.stats runs/<run_id>` (it refuses to pass off a fake or resumed run as real).
+
 | Number | Where it comes from | Value |
 |---|---|---|
 | Repo URL → MP4, wall clock | First and last line of the run's `events.jsonl` | [__ min] |
