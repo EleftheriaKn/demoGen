@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -68,3 +69,93 @@ def test_judge_frames_stage(tmp_path):
         best = max((f for f in d.options if f in by_frame), key=lambda f: by_frame[f].total)
         assert d.chosen == best and d.judge_score == by_frame[best].total
         assert d.answers == by_frame[best].answers
+
+
+# --------------------------------------------------------------------------- #
+# Rubric (ticket A7 rubric / runbook item 7)
+# --------------------------------------------------------------------------- #
+
+from backend import run as orchestrator  # noqa: E402
+from backend.contracts import Script, Timeline  # noqa: E402
+
+
+def _fixture_cut(durations: list[float]) -> tuple[Timeline, Script]:
+    """Fixture timeline (s01 hook, s02 problem, s03 demo) with these shot lengths."""
+    tl = Timeline.model_validate_json((FIXTURE_RUN / "timeline.json").read_text())
+    t, shots = 0.0, []
+    for s, d in zip(tl.shots, durations):
+        shots.append(s.model_copy(update={"start": t, "duration_s": d}))
+        t += d
+    tl = Timeline.model_validate({**tl.model_dump(), "shots": [s.model_dump() for s in shots], "duration_s": t})
+    return tl, Script.model_validate_json((FIXTURE_RUN / "script.json").read_text())
+
+
+def test_time_limit_check():
+    tl, _ = _fixture_cut([4, 5, 6])
+    item, shot = judge.check_time_limit(tl, 15)
+    assert item.passed and item.question == "Under the 15 s time limit?" and shot is None
+    item, shot = judge.check_time_limit(tl, 14)
+    assert not item.passed and shot is None  # too long is the whole video's fault: never a recut
+
+
+def test_problem_by_20_check():
+    item, shot = judge.check_problem_by_20(*_fixture_cut([4, 5, 6]))
+    assert item.passed and shot is None and "0:04" in item.reason
+    item, shot = judge.check_problem_by_20(*_fixture_cut([20, 5, 6]))
+    assert item.passed  # starting exactly at 0:20 is in time
+    item, shot = judge.check_problem_by_20(*_fixture_cut([25, 5, 6]))
+    assert not item.passed and shot == "s01"  # only the hook is before it: recut the hook
+    tl, script = _fixture_cut([4, 5, 6])
+    script.shots[1].beat = "demo"
+    item, shot = judge.check_problem_by_20(tl, script)
+    assert not item.passed and shot is None
+
+
+def _rubric_dir(tmp_path, mode: str):
+    for name in ("script.json", "timeline.json", "decisions.json"):
+        shutil.copy2(FIXTURE_RUN / name, tmp_path / name)
+    cfg = load_run(FIXTURE_RUN).model_copy(update={"mode": mode})
+    (tmp_path / "run.json").write_text(cfg.model_dump_json())
+    events.bind(tmp_path, cfg.run_id)
+    return cfg
+
+
+def test_rubric_cheap_mode_skips_gemini_checks(tmp_path):
+    cfg = _rubric_dir(tmp_path, "cheap")
+    judge.run_rubric(tmp_path, cfg)
+    log = Decisions.model_validate_json((tmp_path / "decisions.json").read_text())
+    assert [r.question for r in log.rubric] == [
+        judge.Q_PROBLEM, "Under the 180 s time limit?", judge.Q_CLAIMS, judge.Q_RESULT]
+    assert [r.reason for r in log.rubric[2:]] == [judge.SKIPPED] * 2 and log.recut is None
+
+
+def test_rubric_full_mode_gemini_checks(tmp_path):
+    """Replays tests/recordings/ (`pytest --live` to refresh). Re-running replaces the rubric decision."""
+    cfg = _rubric_dir(tmp_path, "full")
+    before = Decisions.model_validate_json((tmp_path / "decisions.json").read_text())
+    judge.run_rubric(tmp_path, cfg)
+    judge.run_rubric(tmp_path, cfg)
+    log = Decisions.model_validate_json((tmp_path / "decisions.json").read_text())
+    assert len(log.rubric) == 4 and all(r.reason != judge.SKIPPED for r in log.rubric)
+    rubric = [d for d in log.decisions if d.stage == "rubric"]
+    assert len(rubric) == 1 and [a.question for a in rubric[0].answers] == [r.question for r in log.rubric]
+    assert len(log.decisions) == len([d for d in before.decisions if d.stage != "rubric"]) + 1
+    assert all(r.passed for r in log.rubric) and log.recut is None  # the fixture cut is fine
+
+
+def test_one_shot_failure_reruns_timeline_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(orchestrator, "RUNS", tmp_path)
+    run_dir = orchestrator.new_run_from_fixture()  # cheap mode: the code checks only
+    monkeypatch.setenv("DEMOCUT_FAKE", ",".join(s for s in orchestrator.STAGES if s != "rubric"))
+    copy = orchestrator.copy_fixture_outputs
+
+    def late_problem(stage, run_dir):  # every timeline (first and recut) has a 25 s hook
+        copy(stage, run_dir)
+        if stage == "timeline":
+            (run_dir / "timeline.json").write_text(_fixture_cut([25, 5, 6])[0].model_dump_json())
+
+    monkeypatch.setattr(orchestrator, "copy_fixture_outputs", late_problem)
+    orchestrator.run_pipeline(run_dir)
+    msgs = [json.loads(l)["msg"] for l in (run_dir / "events.jsonl").read_text().splitlines()]
+    assert msgs.count("timeline started (fake)") == 2
+    assert any(m.startswith("Recut s01:") for m in msgs) and msgs[-1] == "Run done"

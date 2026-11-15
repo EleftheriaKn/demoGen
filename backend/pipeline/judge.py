@@ -9,7 +9,9 @@ Two stages plus one function other tracks call:
   total = 80% mean judge score + 20% sharpness. Cheap mode judges only the 2 sharpest frames
   of each segment. Re-running replaces this stage's earlier decisions.
 - ``run_rubric``  stage ``rubric``: reads timeline.json, script.json, brief; writes the
-  rubric (and an optional ``recut``) into decisions.json.
+  rubric (and an optional ``recut``) into decisions.json. Four fixed checks: time limit and
+  "problem by 0:20" in code, claims backed and core result shown by Gemini (skipped in cheap
+  mode). A recut is asked only when a failure is pinned on one shot that is in the timeline.
 - ``pick_best``   called by the assets stage to choose among N generated drafts (images judged; audio/video stubbed).
 
 Run alone: python -m backend.pipeline.judge {frames|rubric} runs/<run_id>
@@ -27,7 +29,9 @@ from pydantic import BaseModel, Field
 
 from backend import events
 from backend.clients import gemini
-from backend.contracts import Candidates, FrameScore, FrameScores, JudgeAnswer, RunConfig, Summary
+from backend.contracts import (
+    Candidates, Decisions, FrameScore, FrameScores, JudgeAnswer, Recut, RubricItem, RunConfig, Script, Summary, Timeline,
+)
 from backend.decisions import append_decision, drop_stage
 
 # Judge questions: fixed per criterion, asked every run (CONTEXT.md "Judge question").
@@ -203,8 +207,113 @@ def run_frames(run_dir: Path, run: RunConfig) -> None:
     events.emit("judge_frames", f"Judged {len(scores)} frames in {len(cands.segments)} segments ({run.mode})")
 
 
+PROBLEM_BY_S = 20.0
+Q_PROBLEM = "Problem stated by 0:20?"
+Q_CLAIMS = "Is every remaining claim backed by footage or the repo?"
+Q_RESULT = "Is the app's core result shown on screen?"
+GEMINI_QUESTIONS = [Q_CLAIMS, Q_RESULT]
+SKIPPED = "Skipped in cheap mode (not judged)."
+
+Check = tuple[RubricItem, Optional[str]]  # item, shot to recut if the failure is that one shot's
+
+
+def _mmss(t: float) -> str:
+    return f"{int(t // 60)}:{int(t % 60):02d}"
+
+
+def check_time_limit(timeline: Timeline, limit_s: int) -> Check:
+    """Too long is the whole video's fault, so it never names a shot."""
+    ok = timeline.duration_s <= limit_s
+    item = RubricItem(question=f"Under the {limit_s} s time limit?", passed=ok,
+                      reason=f"Final cut is {timeline.duration_s:.0f} s" + ("." if ok else f", over by {timeline.duration_s - limit_s:.0f} s."))
+    return item, None
+
+
+def check_problem_by_20(timeline: Timeline, script: Script) -> Check:
+    """The first problem shot starts by 0:20. Late with one shot before it: that shot is to blame."""
+    beats = {s.shot_id: s.beat for s in script.shots}
+    first = next((s for s in timeline.shots if beats.get(s.shot_id) == "problem"), None)
+    if first is None:
+        return RubricItem(question=Q_PROBLEM, passed=False, reason="No problem shot in the cut."), None
+    if first.start <= PROBLEM_BY_S:
+        return RubricItem(question=Q_PROBLEM, passed=True, reason=f"Problem beat ({first.shot_id}) starts at {_mmss(first.start)}."), None
+    before = [s for s in timeline.shots if s.start < first.start]
+    # ponytail: several shots before it = an ordering problem, no single shot to redo.
+    shot = before[0].shot_id if len(before) == 1 else None
+    reason = f"Problem beat ({first.shot_id}) starts at {_mmss(first.start)}"
+    reason += f", after {shot} ({before[0].duration_s:.0f} s)." if shot else "."
+    return RubricItem(question=Q_PROBLEM, passed=False, reason=reason), shot
+
+
+class _Check(BaseModel):
+    passed: bool = Field(description="Whether the cut passes this question.")
+    reason: str = Field(description="One short line naming the shots that decide it.")
+    shot_id: str = Field(description="If it fails because of exactly one timeline shot, that shot's id; else ''.")
+
+
+class _Rubric(BaseModel):
+    checks: list[_Check] = Field(description="One per question, same order.")
+
+
+def gemini_checks(script: Script, timeline: Timeline, run: RunConfig) -> list[Check]:
+    text = gemini.prompt(
+        "rubric",
+        criteria=", ".join(run.brief.criteria),
+        time_limit=str(run.brief.time_limit_s),
+        questions="\n".join(f"{i}. {q}" for i, q in enumerate(GEMINI_QUESTIONS, 1)),
+        script=script.model_dump_json(indent=1),
+        timeline=timeline.model_dump_json(indent=1),
+    )
+    for _ in range(gemini.RETRIES + 1):  # a schema-valid answer can still miscount questions
+        verdict = gemini.generate(text, _Rubric)
+        if len(verdict.checks) == len(GEMINI_QUESTIONS):
+            break
+    else:
+        raise ValueError("rubric: Gemini answered the wrong number of questions")
+    in_cut = {s.shot_id for s in timeline.shots}
+    return [
+        (RubricItem(question=q, passed=c.passed, reason=c.reason),
+         c.shot_id if not c.passed and c.shot_id in in_cut else None)
+        for q, c in zip(GEMINI_QUESTIONS, verdict.checks)
+    ]
+
+
 def run_rubric(run_dir: Path, run: RunConfig) -> None:
-    raise NotImplementedError("stage rubric is not built yet; add it to DEMOCUT_FAKE")
+    script = Script.model_validate_json((run_dir / "script.json").read_text(encoding="utf-8"))
+    timeline = Timeline.model_validate_json((run_dir / "timeline.json").read_text(encoding="utf-8"))
+    checks = [check_problem_by_20(timeline, script), check_time_limit(timeline, run.brief.time_limit_s)]
+    if run.mode == "cheap":
+        # The contract has no "skipped" flag: a skipped check passes (it can't block or recut) and says so.
+        checks += [(RubricItem(question=q, passed=True, reason=SKIPPED), None) for q in GEMINI_QUESTIONS]
+    else:
+        checks += gemini_checks(script, timeline, run)
+
+    items = [i for i, _ in checks]
+    blame = next(((i, shot) for i, shot in checks if shot is not None), None)
+    recut = Recut(shot_id=blame[1], reason=f"{blame[0].question} {blame[0].reason}") if blame else None
+    judged = [i for i in items if i.reason != SKIPPED]
+    n_pass = sum(i.passed for i in judged)
+    reason = f"{n_pass}/{len(judged)} rubric checks pass"
+    reason += f" ({len(items) - len(judged)} skipped)" if len(judged) < len(items) else ""
+    if recut:
+        reason += f"; recut {recut.shot_id}."
+    elif n_pass < len(judged):
+        reason += "; failures are not one shot's, no recut."
+    else:
+        reason += "; no recut needed."
+
+    drop_stage(run_dir, "rubric")
+    append_decision(
+        run_dir, stage="rubric", kind="rubric_check", subject="final", options=["pass", "recut"],
+        chosen="recut" if recut else "pass", questions=[i.question for i in items],
+        answers=[JudgeAnswer(question=i.question, score=0.5 if i.reason == SKIPPED else float(i.passed), reason=i.reason) for i in items],
+        judge_score=round(n_pass / len(judged), 3), reason=reason,
+    )
+    path = run_dir / "decisions.json"
+    log = Decisions.model_validate_json(path.read_text(encoding="utf-8"))
+    log = Decisions.model_validate({**log.model_dump(), "rubric": [i.model_dump() for i in items], "recut": recut and recut.model_dump()})
+    path.write_text(log.model_dump_json(indent=2), encoding="utf-8")
+    events.emit("rubric", reason)
 
 
 if __name__ == "__main__":
