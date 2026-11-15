@@ -39,8 +39,13 @@ def run(run_dir: Path, run: RunConfig) -> None:
         events.emit("transcribe", "Recording has no sound: empty transcript, no fal call")
     else:
         audio = run_dir / "audio.wav"
-        raw = cache.json_call("transcribe", {"endpoint": fal.SCRIBE_ENDPOINT, "audio": audio},
-                              lambda: cache.retry(lambda: fal.transcribe(audio)))
+        try:
+            raw = cache.json_call("transcribe", {"endpoint": fal.SCRIBE_ENDPOINT, "audio": audio},
+                                  lambda: cache.retry(lambda: fal.transcribe(audio)))
+        except fal.MissingKey:
+            raise
+        except Exception as e:
+            raise fal.failed(e) from e
         words = clamp_words(raw["words"], ff.duration(recording))
         # fal.transcribe already maps eng->en, ell->el; Scribe may return no language on wordless audio.
         transcript = Transcript(language=raw["language"] or run.brief.language, text=raw["text"], words=words)

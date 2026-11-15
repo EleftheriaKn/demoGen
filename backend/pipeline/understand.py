@@ -62,7 +62,8 @@ def check_evidence(summary: Summary, repo: RepoFiles) -> Summary:
         if evidence:
             features.append(f.model_copy(update={"evidence": evidence}))
     if not features:
-        raise ValueError("understand: no feature has evidence in the README or repo files")
+        raise ValueError("Couldn't match what the app does to its repo. Check the repo URL is the app in the "
+                         "recording, and that its README describes the features.")
     return summary.model_copy(update={"features": features})
 
 
@@ -146,7 +147,8 @@ def fix_moments(raw: list[_RawMoment], duration: float, feature_ids: set[str]) -
         ))
         prev_end = end
     if not out:
-        raise ValueError("understand: Gemini returned no usable moments")
+        raise ValueError("The recording doesn't show clear steps in the app. Record a 1–4 minute take of the "
+                         "app in use, pausing about a second after each result.")
     return Moments(moments=out)
 
 

@@ -37,8 +37,59 @@ VIDEO_MIME = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/we
 IMAGE_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
 
+INCOMPLETE = "The AI's answer was incomplete. Run again."
+UPLOAD_FAILED = ("Uploading the recording to Gemini failed. Check the internet connection and try again; "
+                 "the run resumes where it stopped.")
+
+
 class MissingRecording(RuntimeError):
     pass
+
+
+class MissingKey(KeyError):
+    """A setting the board must provide; ``str()`` is the plain message, not KeyError's quoted repr."""
+
+    def __str__(self) -> str:
+        return str(self.args[0])
+
+
+class UploadFailed(RuntimeError):
+    pass
+
+
+def require(name: str, *alternatives: str) -> str:
+    """The value of env var ``name`` (or the first set alternative); unset raises MissingKey."""
+    for n in (name, *alternatives):
+        if os.environ.get(n):
+            return os.environ[n]
+    raise MissingKey(f"{name} isn't set. Add it in the board's Settings, then run again.")
+
+
+def explain(service: str, e: BaseException, key: str) -> RuntimeError:
+    """A plain RuntimeError for ``e``, raised by ``service`` after its retries; ``e`` is kept in brackets."""
+    import httpx
+    from pydantic import ValidationError
+
+    code = getattr(e, "code", None) or getattr(e, "status_code", None)
+    text = str(e).lower()
+    kept = "finished stages are kept."
+    if isinstance(e, ValidationError):
+        msg = INCOMPLETE
+    elif code == 402 or "balance" in text:
+        msg = f"The {service} account is out of credit. Top it up, then run again; {kept}"
+    elif code == 429 and "perday" in text.replace(" ", "").replace("_", ""):
+        msg = f"{service}'s daily quota is used up. Wait until it resets or raise it, then run again; {kept}"
+    elif code == 429:
+        msg = f"{service} is rate-limiting us. Wait a minute and run again; {kept}"
+    elif code in (401, 403):
+        msg = f"{service} rejected the API key. Check {key} in the board's Settings, then run again."
+    elif isinstance(code, int) and code >= 500:
+        msg = f"{service} is having trouble right now. Wait a few minutes and run again; {kept}"
+    elif isinstance(e, (OSError, httpx.TransportError)):
+        msg = f"Couldn't reach {service}. Check the internet connection and run again; {kept}"
+    else:
+        msg = f"{service} failed after several tries. Run again; {kept}"
+    return RuntimeError(f"{msg} [{type(e).__name__}: {e}]")
 
 
 def prompt(name: str, **values: str) -> str:
@@ -50,6 +101,8 @@ def mime_type(path: Path, table: dict[str, str]) -> str:
     """``path``'s MIME type from ``table`` by suffix; an unknown suffix raises."""
     suffix = Path(path).suffix.lower()
     if suffix not in table:
+        if table is VIDEO_MIME:
+            raise ValueError("This video format isn't supported. Use .mp4, .mov or .webm.")
         raise ValueError(f"Gemini: can't send {Path(path).name}; supported types are {', '.join(table)}")
     return table[suffix]
 
@@ -83,15 +136,22 @@ def generate(text: str, schema: type[T], images: Sequence[Path] = (), video: Opt
             raise MissingRecording(f"no Gemini recording {path}; run `pytest --live` to record it")
         return schema.model_validate_json(path.read_text(encoding="utf-8"))
 
-    model = os.environ["GEMINI_MODEL"]  # config errors raise once, not after retries
+    # config errors raise once, not after retries
+    require("GEMINI_API_KEY", "GOOGLE_API_KEY")  # genai.Client reads either
+    model = require("GEMINI_MODEL")
+    if video is not None:
+        mime_type(video, VIDEO_MIME)
     for attempt in range(RETRIES + 1):
         try:
             raw = _call(model, text, schema, images, video, thinking)
             result = schema.model_validate_json(raw)
             break
-        except Exception:
+        except UploadFailed:
             if attempt == RETRIES:
                 raise
+        except Exception as e:
+            if attempt == RETRIES:
+                raise explain("Gemini", e, "GEMINI_API_KEY") from e
     if path is not None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
@@ -114,15 +174,18 @@ def upload(video: Path) -> tuple[str, str]:
                 return m["uri"], m["mime_type"]
         except Exception:
             pass  # expired or deleted: upload again
-    f = client.files.upload(file=video, config={"mime_type": mime})
-    deadline = time.monotonic() + 600
-    while f.state == "PROCESSING":
-        if time.monotonic() > deadline:
-            raise TimeoutError(f"Gemini still processing {video.name} after 10 min")
-        time.sleep(3)
-        f = client.files.get(name=f.name)
+    try:
+        f = client.files.upload(file=video, config={"mime_type": mime})
+        deadline = time.monotonic() + 600
+        while f.state == "PROCESSING":
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"Gemini still processing {video.name} after 10 min")
+            time.sleep(3)
+            f = client.files.get(name=f.name)
+    except Exception as e:
+        raise UploadFailed(f"{UPLOAD_FAILED} [{type(e).__name__}: {e}]") from e
     if f.state != "ACTIVE":
-        raise RuntimeError(f"Gemini upload of {video.name} ended {f.state}: {f.error}")
+        raise UploadFailed(f"{UPLOAD_FAILED} [upload of {video.name} ended {f.state}: {f.error}]")
     memo.write_text(json.dumps({"sha256": sha, "name": f.name, "uri": f.uri, "mime_type": f.mime_type}), encoding="utf-8")
     return f.uri, f.mime_type
 

@@ -29,6 +29,7 @@ RAW = {
 
 
 def test_fal_field_mapping(monkeypatch, tmp_path):
+    monkeypatch.setenv("FAL_KEY", "test")
     calls, downloads = [], []
     monkeypatch.setattr(fal.fal_client, "subscribe", lambda ep, arguments: calls.append((ep, arguments)) or RAW[ep])
     monkeypatch.setattr(fal.fal_client, "upload_file", lambda p: f"up:{p}")
@@ -68,6 +69,7 @@ class _Body:
 
 
 def test_stalled_download_raises_and_retry_recovers(monkeypatch, tmp_path):
+    monkeypatch.setenv("FAL_KEY", "test")
     attempts = []
 
     def urlopen(url, timeout):

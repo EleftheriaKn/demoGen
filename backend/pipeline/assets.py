@@ -53,6 +53,8 @@ def _voice(run_dir: Path, shot_id: str, text: str, lang: str) -> Optional[VoiceA
     request = {"text": text, "lang": lang, "endpoint": fal.TTS_ENDPOINT}
     try:
         cache.file_call("voice", request, run_dir / rel, lambda tmp: cache.retry(lambda: fal.tts(text, lang, tmp)))
+    except fal.MissingKey:
+        raise
     except Exception as e:
         events.emit("assets", f"Voice {shot_id}: fal failed, shot has no voice ({e})", data={"shot_id": shot_id})
         return None
@@ -67,6 +69,8 @@ def _draft(run_dir: Path, rel: str, prompt: str, n: int) -> bool:
     try:
         cache.file_call("card", request, run_dir / rel, lambda tmp: cache.retry(lambda: fal.card_image(prompt, tmp)))
         return True
+    except fal.MissingKey:
+        raise
     except Exception as e:
         events.emit("assets", f"Card draft {rel}: fal failed ({e})", data={"path": rel})
         return False
@@ -149,6 +153,8 @@ def _music(run_dir: Path, seconds: float) -> MusicAsset:
     request = {"prompt": MUSIC_PROMPT, "seconds": seconds, "endpoint": fal.MUSIC_ENDPOINT}
     try:
         cache.file_call("music", request, run_dir / "music.wav", make)
+    except fal.MissingKey:
+        raise
     except Exception as e:
         return _silent_music(run_dir, seconds, f"fal failed ({e})")
     m = MusicAsset(path="music.wav", duration_s=ff.duration(run_dir / "music.wav"))

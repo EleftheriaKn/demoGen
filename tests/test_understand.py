@@ -42,7 +42,7 @@ def test_check_evidence_drops_unknown_refs_and_unbacked_features():
     out = understand.check_evidence(s, REPO)
     assert [f.feature_id for f in out.features] == ["a", "c"]
     assert out.features[0].evidence == ["README#How it works", "backend/vision.py"]
-    with pytest.raises(ValueError, match="no feature"):
+    with pytest.raises(ValueError, match="match what the app does"):
         understand.check_evidence(_summary(s.features[1]), REPO)
 
 
@@ -58,7 +58,7 @@ def test_fix_moments_clamps_sorts_trims_and_renumbers():
     assert [(m.moment_id, m.start, m.end) for m in out] == [("m1", 0, 5), ("m2", 5, 12), ("m3", 20, 60)]
     assert [m.feature_id for m in out] == [None, "f1", None]
     assert out[0].confidence == 1.0
-    with pytest.raises(ValueError, match="no usable"):
+    with pytest.raises(ValueError, match="clear steps"):
         understand.fix_moments([_raw(80, 90)], 60.0, set())
 
 
