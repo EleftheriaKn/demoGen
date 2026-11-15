@@ -102,6 +102,14 @@ class Brief(Contract):
     second_language: Optional[str] = Field(
         None, description="Optional BCP-47 code for a second caption/voice language (e.g. 'el'), or null."
     )
+    text: Optional[str] = Field(
+        None, description="The brief as the user pasted it, verbatim, or null. Optional (v2, C14): understand, script "
+        "and rubric read it (A12, A14, A18). Old runs have it in brief.txt instead."
+    )
+
+    @model_serializer(mode="wrap")
+    def _no_empty_text(self, handler):
+        return _drop_none(handler(self), "text")
 
 
 class RunConfig(Contract):

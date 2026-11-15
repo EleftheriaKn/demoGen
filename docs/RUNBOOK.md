@@ -432,9 +432,9 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 | C11 | GitHub login | OAuth login; repo list from `GET /user/repos`; tap a repo fills `repo_url`; token kept server-side only | 09:00 | Done |
 | C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Done |
 | C13 | Generated badges | Board marks generated shots (`Shot.generated`) and shows the real-footage share from the rubric | 11:00 | Done |
-| C14 | Brief text in the run | `brief.text` (optional) in `run.json` from the pasted brief (contract change agreed: A, B, C), so A12/A14/A18 can read it; `brief.txt` kept for old runs | 12:30 | To do |
+| C14 | Brief text in the run | `brief.text` (optional) in `run.json` from the pasted brief (contract change agreed: A, B, C), so A12/A14/A18 can read it; `brief.txt` kept for old runs | 12:30 | Done |
 | C15 | Board shows the flow | The decisions view lists the flow steps with what covered each: real footage (wow / ok), generated panel or animation, or missing | 13:30 | To do |
-| C16 | Pitch for v2 | Pitch and slides: "real footage first; weak or missing steps are filled with labelled illustrations built from your repo, and every claim is still checked" | 13:30 | To do |
+| C16 | Pitch for v2 | Pitch and slides: "real footage first; weak or missing steps are filled with labelled illustrations built from your repo, and every claim is still checked" | 13:30 | Done (lines gated on A14/A16/B15, see PITCH.md) |
 | C17 | Take optional in the app | Contract: `RunConfig.recording` optional (A, B, C agree); the API and the phone flow accept repo + brief alone, with the take as the upgrade. **Only after the Android fixes are done** | 14:00 | To do |
 
 ## Make runs fast

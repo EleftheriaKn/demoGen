@@ -88,6 +88,7 @@ async def make_demo_video(
     second_language: Optional[str] = None,
     mode: str = "cheap",
     wait: bool = True,
+    brief_text: Optional[str] = None,
 ) -> dict:
     """Make a 2-3 minute demo video from a GitHub repo and a rough screen recording.
 
@@ -101,12 +102,14 @@ async def make_demo_video(
         language: Voice and caption language: "en" or "el".
         second_language: Optional second caption language: "en", "el" or null.
         mode: "cheap" (fast, for testing) or "full" (best quality).
+        brief_text: The hackathon brief as written (optional); guides the story and the final check.
         wait: True = return when the video is ready (up to ~15 min).
             False = start it and return the run_id; check with demo_video_status.
     """
     if language not in api.LANGUAGES or second_language not in (None, *api.LANGUAGES) or second_language == language:
         raise ValueError(f"languages must be one of {api.LANGUAGES} (second one different or null)")
-    brief = Brief(criteria=criteria, time_limit_s=time_limit_s, language=language, second_language=second_language)
+    brief = Brief(criteria=criteria, time_limit_s=time_limit_s, language=language, second_language=second_language,
+                  text=(brief_text or "").strip() or None)
 
     if recording_path:
         recording = Path(recording_path).expanduser()
