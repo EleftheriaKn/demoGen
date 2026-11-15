@@ -2,6 +2,7 @@
 
     uvicorn backend.app:app --reload            # http://127.0.0.1:8000/docs
 
+GET/POST /settings             keys from the board (laptop only; secrets write-only)
 GET  /                         the board (web/index.html); installable: /manifest.webmanifest, /sw.js, /web/*
 POST /runs                    start a run (multipart form; no recording = fixture take)
 POST /uploads                 start a resumable upload {filename, size} -> {upload_id, chunk_size}
@@ -33,7 +34,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFil
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend import github_auth
+from backend import github_auth, settings
 from backend import run as orchestrator
 from backend.contracts import Brief, RunConfig
 
@@ -56,6 +57,7 @@ def load_dotenv(path: Path = ROOT / ".env") -> None:
 load_dotenv()
 app = FastAPI(title="DemoCut")
 app.include_router(github_auth.router)
+app.include_router(settings.router)  # keys from the board, laptop only
 
 # run_id -> pipeline process started by this server
 _procs: dict[str, subprocess.Popen] = {}

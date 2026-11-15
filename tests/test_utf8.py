@@ -9,7 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 C_FILES = ["backend/run.py", "backend/app.py", "backend/cache.py", "backend/events.py", "backend/stats.py",
-           "backend/mcp_server.py", "backend/github_auth.py"]
+           "backend/mcp_server.py", "backend/github_auth.py", "backend/settings.py"]
 
 
 @pytest.mark.parametrize("name", C_FILES)

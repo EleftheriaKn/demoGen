@@ -57,7 +57,11 @@ and *Share* falls back to copying the link; upload and playback work. If the ven
 devices apart, a tunnel such as `cloudflared tunnel --url http://localhost:8000` gives an `https`
 link instead (optional, not a project dependency).
 
-**GitHub login (optional).** With an OAuth app's keys in `.env`, step 1 shows *Log in with
+**Keys from the board.** On the laptop (`http://localhost:8000`), *⚙ Settings* sets the Gemini, fal
+and GitHub keys: saved to `.env`, used from the next run, no restart. Saved keys are never shown
+again. Phones, other devices on the Wi-Fi and tunnels can't open it.
+
+**GitHub login (optional).** With an OAuth app's keys (in Settings or `.env`), step 1 shows *Log in with
 GitHub*, then your repos, most recently updated first: tap one instead of pasting a link.
 Create the app at https://github.com/settings/developers → *New OAuth App*, with callback URL
 `http://localhost:8000/auth/github/callback` (for a phone: `http://<laptop-ip>:8000/auth/github/callback`),
