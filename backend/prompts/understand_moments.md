@@ -1,4 +1,4 @@
-You are watching a screen recording of a hackathon app ({app}) so the team can cut its demo video.
+You are watching a screen recording of a hackathon app ({app}) so the team can cut its demo video.{brief_block}
 
 The recording is {duration} seconds long. Split it into moments that cover it from start to end, in time order, without overlaps. Every second of the recording should belong to exactly one moment.
 

@@ -229,6 +229,21 @@ def check_time_limit(timeline: Timeline, limit_s: int) -> Check:
     return item, None
 
 
+MIN_SHARE = 0.6  # B21: a cut shorter than this share of the script's target lost too much (v3: 24 s of 75)
+
+
+def check_long_enough(timeline: Timeline, limit_s: int) -> Check:
+    """Too short is the whole video's fault too: shots were dropped (failed claims), not one bad shot."""
+    from backend.pipeline.script import target  # here, not at the top: script imports this module
+
+    want = target(limit_s)[0]
+    ok = timeline.duration_s >= MIN_SHARE * want
+    item = RubricItem(question=f"At least {MIN_SHARE:.0%} of the {want} s target?", passed=ok,
+                      reason=f"Final cut is {timeline.duration_s:.0f} s" + (
+                          "." if ok else f", under {MIN_SHARE * want:.0f} s: too many shots were dropped."))
+    return item, None
+
+
 def check_problem_by_20(timeline: Timeline, script: Script) -> Check:
     """The first problem shot starts by 0:20. Late with one shot before it: that shot is to blame."""
     beats = {s.shot_id: s.beat for s in script.shots}
@@ -287,6 +302,7 @@ def run_rubric(run_dir: Path, run: RunConfig) -> None:
         checks += [(RubricItem(question=q, passed=True, reason=SKIPPED), None) for q in GEMINI_QUESTIONS]
     else:
         checks += gemini_checks(script, timeline, run)
+    checks.append(check_long_enough(timeline, run.brief.time_limit_s))  # B21, code only: runs in cheap mode too
 
     items = [i for i, _ in checks]
     blame = next(((i, shot) for i, shot in checks if shot is not None), None)

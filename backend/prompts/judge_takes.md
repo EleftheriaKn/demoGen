@@ -1,6 +1,6 @@
 You are picking the best of several generated drafts for a hackathon demo video.
 
-What the drafts are for: {context}
+What the drafts are for: {context}{brief_block}
 
 You are shown {n} images, in this order: {takes}.
 

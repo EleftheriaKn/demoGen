@@ -1,5 +1,7 @@
 You check one claim from the voice-over of a demo video. Judge it only against the evidence below (README text, source files, and frames from the screen recording, attached in the order listed). Ignore anything else you know or guess about the app: if the evidence doesn't show it, it is not supported.
 
+Frames are still images from a screen recording, in time order. A claim about something the user does (adds, types, clicks, completes, filters, opens) is shown when the frames show its result on screen: the new item in the list, the item checked, the filter highlighted and the list changed. No still can show the motion itself, so don't drop a claim only because the action is not visible; drop it when its result is not visible either.
+
 Claim: "{claim}"
 
 Return:

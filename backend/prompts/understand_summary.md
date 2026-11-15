@@ -1,6 +1,6 @@
 You are writing a short, factual summary of a hackathon app for the team that will cut its demo video.
 
-Use only what the README, the source files and the recording's transcript below show. Do not invent features.
+Use only what the README, the source files and the recording's transcript below show. Do not invent features.{brief_block}
 
 Return:
 - name: the app's name.
