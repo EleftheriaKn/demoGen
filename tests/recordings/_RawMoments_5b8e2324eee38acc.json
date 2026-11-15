@@ -1,0 +1,130 @@
+{
+  "moments": [
+    {
+      "start": 0.0,
+      "end": 3.8,
+      "description": "A blank black screen is visible before the browser loads.",
+      "feature_id": null,
+      "kind": "dead",
+      "settled_at": null,
+      "confidence": 0.95
+    },
+    {
+      "start": 3.8,
+      "end": 12.2,
+      "description": "The \"todos\" application is displayed with an empty text input reading \"What needs to be done?\".",
+      "feature_id": null,
+      "kind": "dead",
+      "settled_at": null,
+      "confidence": 0.95
+    },
+    {
+      "start": 12.2,
+      "end": 14.5,
+      "description": "The todo list displays \"Buy milk\" with \"1 item left\" and the \"All\" filter selected.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 14.2,
+      "confidence": 0.95
+    },
+    {
+      "start": 14.5,
+      "end": 22.3,
+      "description": "The list shows \"Finish the hackathon demo video\" and \"Buy milk\", with \"2 items left\" and the \"All\" filter selected.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 22.1,
+      "confidence": 0.95
+    },
+    {
+      "start": 22.3,
+      "end": 24.5,
+      "description": "The list displays \"Call mom\", \"Finish the hackathon demo video\", and \"Buy milk\", with \"3 items left\" and the \"All\" filter selected.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 24.2,
+      "confidence": 0.95
+    },
+    {
+      "start": 24.5,
+      "end": 31.4,
+      "description": "The list displays \"Fix login bug\", \"Call mom\", \"Finish the hackathon demo video\", and \"Buy milk\", with \"4 items left\" and the \"All\" filter selected.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 31.1,
+      "confidence": 0.95
+    },
+    {
+      "start": 31.4,
+      "end": 42.5,
+      "description": "The list shows \"Fix login bug\", \"Call mom\", \"Finish the hackathon demo video\", and \"Buy milk\", with \"4 items left\" and the \"All\" filter selected.",
+      "feature_id": null,
+      "kind": "dead",
+      "settled_at": null,
+      "confidence": 0.95
+    },
+    {
+      "start": 42.5,
+      "end": 44.5,
+      "description": "\"Fix login bug\" is checked, \"Call mom\", \"Finish the hackathon demo video\", and \"Buy milk\" are unchecked, with \"3 items left\" and a \"Clear completed\" button visible.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 44.2,
+      "confidence": 0.95
+    },
+    {
+      "start": 44.5,
+      "end": 46.5,
+      "description": "\"Fix login bug\" and \"Finish the hackathon demo video\" are checked, with \"2 items left\" and a \"Clear completed\" button visible.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 46.2,
+      "confidence": 0.95
+    },
+    {
+      "start": 46.5,
+      "end": 49.2,
+      "description": "\"Fix login bug\" and \"Finish the hackathon demo video\" remain checked, with \"2 items left\" and the \"All\" filter selected.",
+      "feature_id": null,
+      "kind": "dead",
+      "settled_at": null,
+      "confidence": 0.95
+    },
+    {
+      "start": 49.2,
+      "end": 51.5,
+      "description": "The \"Active\" filter is selected, displaying \"Call mom\" and \"Buy milk\", with \"2 items left\" and a \"Clear completed\" button visible.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 50.5,
+      "confidence": 0.95
+    },
+    {
+      "start": 51.5,
+      "end": 54.5,
+      "description": "The \"Completed\" filter is selected, displaying checked items \"Fix login bug\" and \"Finish the hackathon demo video\", with \"2 items left\" and a \"Clear completed\" button visible.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 53.8,
+      "confidence": 0.95
+    },
+    {
+      "start": 54.5,
+      "end": 57.5,
+      "description": "The \"All\" filter is selected, showing \"Fix login bug\", \"Call mom\", \"Finish the hackathon demo video\", and \"Buy milk\", with \"2 items left\".",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 56.8,
+      "confidence": 0.95
+    },
+    {
+      "start": 57.5,
+      "end": 60.0,
+      "description": "The \"Completed\" filter is selected, displaying checked items \"Fix login bug\" and \"Finish the hackathon demo video\", with \"2 items left\".",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": 59.3,
+      "confidence": 0.95
+    }
+  ]
+}

@@ -11,7 +11,8 @@ dropped (logged as an event) and a summary with no features left raises.
 moments.json is real: Gemini watches the recording (uploaded once per run, see
 ``gemini.upload``), then code clamps times to the recording length, sorts the moments, trims
 overlaps, merges each action with the result right after it (so the moment ends once the result is on
-screen), drops slivers, nulls unknown feature ids and numbers them m1, m2, ...
+screen), ends each result moment SETTLE_S after Gemini's settled_at, drops slivers, nulls unknown
+feature ids and numbers them m1, m2, ...
 
 Run alone: python -m backend.pipeline.understand runs/<run_id>
 """
@@ -31,6 +32,7 @@ from backend.pipeline import ff
 
 MIN_MOMENT_S = 0.5  # shorter after clamping/trimming = dropped
 MERGE_GAP_S = 0.5  # an action and a result this close are one moment
+SETTLE_S = 0.7  # a result moment ends this long after its result appears (candidates' last frame: end - 0.2 s)
 
 HEADING = re.compile(r"^#+\s+(.+?)(?:\s+#+)?\s*$")
 
@@ -86,9 +88,11 @@ class _RawMoment(BaseModel):
 
     start: float = Field(description="Start, seconds from the start of the recording.")
     end: float = Field(description="End, seconds from the start of the recording.")
-    description: str = Field(description="What happens on screen; on-screen text copied word for word.")
+    description: str = Field(description="What is on screen at the end time; on-screen text copied word for word.")
     feature_id: Optional[str] = Field(description="Feature shown, or null.")
     kind: Literal["result", "action", "setup", "dead"]
+    settled_at: Optional[float] = Field(
+        description="result only: seconds when the outcome is fully on screen and settled; null otherwise.")
     confidence: float = Field(description="0-1.")
 
 
@@ -108,6 +112,7 @@ def merge_results(raw: list[_RawMoment]) -> list[_RawMoment]:
         if (prev and prev.kind == "action" and r.kind == "result" and r.start - prev.end <= MERGE_GAP_S
                 and r.feature_id in (prev.feature_id, None)):
             out[-1] = prev.model_copy(update={"end": max(prev.end, r.end), "kind": "result",
+                                              "settled_at": r.settled_at if r.settled_at is not None else r.start,
                                               "description": f"{prev.description} {r.description}",
                                               "confidence": min(prev.confidence, r.confidence)})
         else:
@@ -115,13 +120,23 @@ def merge_results(raw: list[_RawMoment]) -> list[_RawMoment]:
     return out
 
 
+def result_end(r: _RawMoment) -> float:
+    """A result moment ends SETTLE_S after its result appears (settled_at), so its last frame shows the
+    settled screen its description names. Gemini's own end is often a beat early (TodoMVC: text still
+    being typed, the previous filter still highlighted)."""
+    if r.kind == "result" and r.settled_at is not None and r.settled_at > r.start:
+        return r.settled_at + SETTLE_S
+    return r.end
+
+
 def fix_moments(raw: list[_RawMoment], duration: float, feature_ids: set[str]) -> Moments:
-    """Merge action+result, clamp to [0, duration], sort, trim each start to the previous end, drop slivers, renumber."""
+    """Merge action+result, end results once settled, clamp to [0, duration], sort, trim each start to
+    the previous end, drop slivers, renumber."""
     out: list[Moment] = []
     prev_end = 0.0
     for r in merge_results(raw):
         start = round(max(r.start, prev_end, 0.0), 2)
-        end = round(min(r.end, duration), 2)
+        end = round(min(result_end(r), duration), 2)
         if end - start < MIN_MOMENT_S:
             continue
         out.append(Moment(

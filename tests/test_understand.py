@@ -46,9 +46,9 @@ def test_check_evidence_drops_unknown_refs_and_unbacked_features():
         understand.check_evidence(_summary(s.features[1]), REPO)
 
 
-def _raw(start, end, kind="action", feature_id=None):
+def _raw(start, end, kind="action", feature_id=None, settled_at=None):
     return understand._RawMoment(start=start, end=end, description="d", feature_id=feature_id,
-                                 kind=kind, confidence=1.2)
+                                 kind=kind, settled_at=settled_at, confidence=1.2)
 
 
 def test_fix_moments_clamps_sorts_trims_and_renumbers():
@@ -66,7 +66,15 @@ def test_fix_moments_ends_an_action_when_its_result_is_on_screen():
     raw = [_raw(12, 14, "action", "f1"), _raw(14.2, 15, "result", "f1"), _raw(15, 20, "action", "f1"),
            _raw(22, 23, "result", "f1")]  # last result is 2 s after its action: not merged
     out = understand.fix_moments(raw, 60.0, {"f1"}).moments
-    assert [(m.start, m.end, m.kind) for m in out] == [(12, 15, "result"), (15, 20, "action"), (22, 23, "result")]
+    assert [(m.start, m.end, m.kind) for m in out] == [(12, 14.9, "result"), (15, 20, "action"), (22, 23, "result")]
+
+
+def test_fix_moments_ends_a_result_just_after_it_settles():
+    raw = [_raw(12, 14.5, "result", "f1", settled_at=14.8),  # Gemini's end is early: pushed out
+           _raw(14.5, 22, "result", "f1", settled_at=20),    # late end: pulled in
+           _raw(22, 24, "result", "f1"), _raw(24, 26, "action", settled_at=25)]  # no settled_at / not a result
+    out = understand.fix_moments(raw, 60.0, {"f1"}).moments
+    assert [(m.start, m.end) for m in out] == [(12, 15.5), (15.5, 20.7), (22, 24), (24, 26)]
 
 
 # --------------------------------------------------------------------------- #
