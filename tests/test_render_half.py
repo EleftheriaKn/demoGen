@@ -66,15 +66,11 @@ def test_render_half_on_fixtures(run_dir, monkeypatch):
 
 
 def test_long_voice_plays_more_footage_not_a_long_freeze():
-    # 2 s clip, 12 s voice, inside a 10 s segment of a 60 s take: segment first, then around it
+    # 2 s clip, 12 s voice, inside a 10 s segment of a 60 s take: the whole segment plays, never past it
     start, end, speed, freeze = timeline.fit_footage(20.0, 22.0, 12.0, (18.0, 28.0), 60.0)
-    assert speed == 1.0 and freeze <= timeline.MAX_FREEZE_S
-    assert start <= 18.0 and end >= 28.0 and end - start + freeze == pytest.approx(12.0, abs=0.01)
-    # far too long for its segment: only MAX_BEYOND_S from outside, the rest is a held frame
-    start, end, _, freeze = timeline.fit_footage(20.0, 22.0, 15.0, (19.0, 23.0), 60.0)
-    assert end - start <= 4.0 + timeline.MAX_BEYOND_S + 1e-6 and freeze > timeline.MAX_FREEZE_S
+    assert speed == 1.0 and (start, end) == (18.0, 28.0) and freeze == pytest.approx(2.0, abs=0.01)
     # a short take can't give more: freeze is what's left
-    assert timeline.fit_footage(1.0, 2.0, 6.0, None, 3.0)[3] == pytest.approx(3.0, abs=0.01)
+    assert timeline.fit_footage(1.0, 2.0, 6.0, None, 3.0)[3] == pytest.approx(5.0, abs=0.01)  # no segment: no growth
 
 
 def test_growing_never_replays_a_neighbour():

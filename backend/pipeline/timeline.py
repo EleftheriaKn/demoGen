@@ -26,6 +26,8 @@ MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment ca
                      # (B9: "Active filter" line over the Completed view). Render moves held frames instead.
 ZOOM_EASE_S = 0.8
 MUSIC_GAIN_DB = -18.0
+READ_WPS = 2.6       # a shot whose voice take failed stays up as long as its caption takes to read
+MIN_SILENT_S = 2.0
 
 
 def frames(t: float) -> float:
@@ -88,6 +90,15 @@ def rooms(spans: list[tuple[float, float] | None]) -> list[tuple[float, float]]:
     return out
 
 
+def silent_voice(d: Path, shot_id: str, line: str) -> tuple[str, float]:
+    """Stand-in for a voice take that failed: silence as long as the line takes to read."""
+    seconds = round(max(MIN_SILENT_S, len(line.split()) / READ_WPS), 2)
+    rel = f"voice/silent/{shot_id}.wav"
+    (d / rel).parent.mkdir(parents=True, exist_ok=True)
+    ff("-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", f"{seconds:.2f}", d / rel)
+    return rel, seconds
+
+
 def app_name(d: Path) -> str:
     """The app's name for a plain card, from summary.json; empty when understand hasn't run."""
     try:
@@ -139,8 +150,10 @@ def run(run_dir: Path, run: RunConfig) -> None:
              for s in script.shots]
     shots, t, last_end = [], 0.0, None
     for s, room in zip(script.shots, rooms(spans)):
-        if s.shot_id not in voices:
-            raise RuntimeError(f"timeline: no voice take for shot {s.shot_id} in assets.json")
+        if s.shot_id not in voices:  # fal failed for this take (assets leaves it out): silent, captions only
+            voices[s.shot_id] = silent_voice(d, s.shot_id, s.voice_line)
+            events.emit("timeline", f"{s.shot_id}: no voice take, playing it silent with captions "
+                                    f"({voices[s.shot_id][1]:.1f} s)")
         voice_path, voice_s = voices[s.shot_id]
         dur = frames(voice_s + BREATH_S)
         vis = s.visual

@@ -116,11 +116,16 @@ def test_long_url_in_a_caption_is_cut():
     assert "".join(parts).replace(" ", "") == ("Tryitathttps://example.com/" + "a" * 80 + "today")
 
 
-def test_assets_with_missing_voice_entry_fails_clearly(run_dir):
-    """A failed voice take stops the run (team decision); timeline names the shot."""
+def test_failed_voice_take_plays_silent_with_captions(run_dir):
+    """A failed voice take is left out of assets.voice (A's fallback): the shot plays silent, captioned."""
     cfg = run_until(run_dir, "timeline")
     a = Assets.model_validate_json((run_dir / "assets.json").read_text(encoding="utf-8"))
     a.voice = [v for v in a.voice if v.shot_id != "s03"]
     (run_dir / "assets.json").write_text(a.model_dump_json(), encoding="utf-8")
-    with pytest.raises(RuntimeError, match="no voice take for shot s03"):
-        timeline.run(run_dir, cfg)
+    for s in ("timeline", "captions", "render"):
+        orchestrator.run_stage(s, run_dir, cfg, False, 1.0)
+    tl = Timeline.model_validate_json((run_dir / "timeline.json").read_text(encoding="utf-8"))
+    s03 = next(s for s in tl.shots if s.shot_id == "s03")
+    assert s03.voice_path == "voice/silent/s03.wav" and s03.duration_s >= timeline.MIN_SILENT_S
+    assert "It finds your ingredients" in (run_dir / "captions.srt").read_text(encoding="utf-8")
+    assert frames(run_dir / "final.mp4") == round(tl.duration_s * tl.fps)
