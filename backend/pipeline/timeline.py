@@ -15,14 +15,15 @@ import re
 from pathlib import Path
 
 from backend import events
-from backend.contracts import (Assets, Candidates, RunConfig, Script, Summary, Timeline, TimelineMusic,
+from backend.contracts import (Assets, Candidates, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
-from backend.pipeline.cards import best_frames, grab_frame, hero_card
-from backend.pipeline.ff import duration, ff, size_for
+from backend.pipeline.cards import best_frames, grab_frame, hero_card, panel_card, rasterize
+from backend.pipeline.ff import duration, ff, size_for, take_path
 
 FPS = 30
 BREATH_S = 0.25      # footage keeps running this long after the voice ends
 MAX_SPEED = 1.5      # contract limit
+HERO_BEATS = {"hook", "ask"}  # these cards get the hero look; other generated shots are illustration panels
 MAX_FREEZE_S = 1.5   # longer gaps play more real footage instead of a held frame...
 MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment can contradict the voice line
                      # (B9: "Active filter" line over the Completed view). Render moves held frames instead.
@@ -118,6 +119,15 @@ def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int], backgro
     return rel
 
 
+def repo_screenshots(d: Path) -> list[Path]:
+    """README screenshots ingest downloaded: the real screen when there is no take."""
+    rp = d / "repo_files.json"
+    if not rp.exists():
+        return []
+    shots = RepoFiles.model_validate_json(rp.read_text(encoding="utf-8")).screenshots
+    return [d / p for p in shots if (d / p).exists()][:2]
+
+
 def card_frames(d: Path, recording: Path, n: int) -> list[Path]:
     """Full-resolution copies of the n best-scored frames, for the card mockups ([] if none or it fails)."""
     try:
@@ -132,7 +142,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir)
     script = Script.model_validate_json((d / "script.json").read_text(encoding="utf-8"))
     assets = Assets.model_validate_json((d / "assets.json").read_text(encoding="utf-8"))
-    rec_len = duration(d / run.recording) if (d / run.recording).exists() else None
+    take = take_path(d, run.recording)  # None: no take (B17), every shot is generated
+    rec_len = duration(take) if take else None
 
     voices: dict[str, tuple[str, float]] = {}
     for v in assets.voice:  # prefer the script's language; take any take as a fallback
@@ -146,9 +157,13 @@ def run(run_dir: Path, run: RunConfig) -> None:
 
     name = app_name(d) or run.repo_url.rstrip("/").rsplit("/", 1)[-1]
     repo_label = re.sub(r"^https?://(www\.)?", "", run.repo_url).rstrip("/")
-    n_card_shots = sum(1 for s in script.shots if s.visual.kind != "footage")
-    hero = card_frames(d, d / run.recording, min(n_card_shots, 2)) if n_card_shots and \
-        (d / run.recording).exists() else []
+    n_card_shots = sum(1 for s in script.shots if s.visual.kind != "footage" or take is None)
+    if not n_card_shots:
+        hero = []
+    elif take:  # the judge's best frames of the take
+        hero = card_frames(d, take, min(n_card_shots, 2))
+    else:  # no take: the repo's own screenshots stand in for the real screen
+        hero = repo_screenshots(d)
     n_cards = 0
     spans = [(s.visual.source_start, s.visual.source_end) if s.visual.kind == "footage" else None
              for s in script.shots]
@@ -161,7 +176,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
         voice_path, voice_s = voices[s.shot_id]
         dur = frames(voice_s + BREATH_S)
         vis = s.visual
-        if vis.kind == "footage":
+        if vis.kind == "footage" and take:
             if last_end is not None and room[0] < last_end <= vis.source_start:
                 room = (last_end, room[1])  # the shot before grew: don't replay what it showed
             start, end, speed, freeze = fit_footage(vis.source_start, vis.source_end, dur,
@@ -175,17 +190,24 @@ def run(run_dir: Path, run: RunConfig) -> None:
             start, end, speed, freeze = fit_source(0.0, b.duration_s, dur, b.duration_s)
             visual = TimelineVisual(kind="broll", path=b.path, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze)
-        else:  # a card: A's background (or plain when fal had none), our title, a real screen in a mockup
+        else:  # a card (or footage with no take)
             bg = cards[s.shot_id] if s.shot_id in cards and (d / cards[s.shot_id]).exists() else None
-            if bg is None:
+            if bg is None and vis.kind != "footage":
                 events.emit("timeline", f"{s.shot_id}: no {vis.kind} file in assets.json, using a plain card")
-            frame = hero[n_cards % len(hero)] if hero else None
-            subtitle = repo_label if s.beat == "ask" else ""
-            visual = TimelineVisual(kind="card", path=plain_card(d, s.shot_id, name, size_for(run.mode), bg,
-                                                                  frame, subtitle))
-            n_cards += 1
+            size = size_for(run.mode)
+            if bg and Path(bg).suffix.lower() == ".svg":  # Ideogram Vector art (A16): rasterize for ffmpeg
+                bg = str(rasterize(d / bg, d / "cards" / "raster" / f"{s.shot_id}.png", size).relative_to(d))
+            if s.beat in HERO_BEATS or not bg:  # hook / ask, or nothing generated: our hero card
+                frame = hero[n_cards % len(hero)] if hero else None
+                subtitle = repo_label if s.beat == "ask" else ""
+                path = plain_card(d, s.shot_id, name, size, bg, frame, subtitle)
+                n_cards += 1
+            else:  # a generated panel for a weak / missing step (v2): the illustration look
+                path = str(panel_card(d / "cards" / "panel" / f"{s.shot_id}.png", size, d / bg).relative_to(d))
+            visual = TimelineVisual(kind="card", path=path)
         shots.append(TimelineShot(shot_id=s.shot_id, start=round(t, 3), duration_s=dur,
-                                  voice_path=voice_path, visual=visual, caption=s.voice_line))
+                                  voice_path=voice_path, visual=visual, caption=s.voice_line,
+                                  callout=(s.callout or "").strip() or None))
         t = round(t + dur, 6)
 
     music = TimelineMusic(path=assets.music.path, gain_db=MUSIC_GAIN_DB, duck=True) if assets.music else None
