@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -89,3 +90,28 @@ def test_retry(monkeypatch):
     assert cache.retry(flaky) == "ok" and len(n) == 3
     with pytest.raises(TimeoutError):
         cache.retry(lambda: (_ for _ in ()).throw(TimeoutError()), tries=2)
+
+
+def test_windows_replace_race(monkeypatch):
+    """Windows can't os.replace over a file another thread has open: the first answer stands."""
+    real = cache.os.replace
+
+    def windows_replace(src, dst):
+        if Path(dst).exists():
+            raise PermissionError(13, "The process cannot access the file because it is being used")
+        real(src, dst)
+
+    monkeypatch.setattr(cache.os, "replace", windows_replace)
+    monkeypatch.setattr(cache.time, "sleep", lambda s: None)
+    with ThreadPoolExecutor(8) as pool:
+        results = list(pool.map(lambda i: cache.json_call("fal", {"k": 1}, lambda: {"v": 1}), range(16)))
+    assert all(r == {"v": 1} for r in results)
+    cache.put_json("fal", {"k": 1}, {"v": 2})  # a second write of the same key doesn't crash
+    assert cache.get_json("fal", {"k": 1}) == {"v": 1}
+    assert not list(Path(cache.cache_dir()).rglob(".tmp-*"))  # no temp files left behind
+
+
+def test_greek_round_trip():
+    answer = {"text": "Φτιάξε συνταγές από το ψυγείο σου"}
+    cache.put_json("gemini", {"p": "el"}, answer)
+    assert cache.get_json("gemini", {"p": "el"}) == answer

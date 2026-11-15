@@ -42,7 +42,7 @@ def emit(stage: str, msg: str, progress: Optional[float] = None, data: Optional[
     )
     line = event.model_dump_json()
     if _run_dir is not None:
-        with open(_run_dir / "events.jsonl", "a") as f:
+        with open(_run_dir / "events.jsonl", "a", encoding="utf-8") as f:
             f.write(line + "\n")
     print(f"[{event.stage}] {event.msg}", flush=True)
     return event

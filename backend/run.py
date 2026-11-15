@@ -88,11 +88,11 @@ def check_outputs(stage: str, run_dir: Path) -> None:
         if not path.exists():
             raise RuntimeError(f"stage {stage} did not write {out}")
         if out in MODELS:
-            MODELS[out].model_validate_json(path.read_text())
+            MODELS[out].model_validate_json(path.read_text(encoding="utf-8"))
 
 
 def load_run(run_dir: Path) -> RunConfig:
-    return RunConfig.model_validate_json((run_dir / "run.json").read_text())
+    return RunConfig.model_validate_json((run_dir / "run.json").read_text(encoding="utf-8"))
 
 
 def new_run_id() -> str:
@@ -104,7 +104,7 @@ def create_run(cfg: RunConfig, recording: Path, move: bool = False) -> Path:
     run_dir = RUNS / cfg.run_id
     run_dir.mkdir(parents=True)
     RunConfig.model_validate(cfg.model_dump())
-    (run_dir / "run.json").write_text(cfg.model_dump_json(indent=2))
+    (run_dir / "run.json").write_text(cfg.model_dump_json(indent=2), encoding="utf-8")
     (shutil.move if move else shutil.copy2)(recording, run_dir / cfg.recording)
     return run_dir
 
@@ -122,7 +122,7 @@ def finished_stages(run_dir: Path) -> set[str]:
     if not log.exists():
         return set()
     done = set()
-    for line in log.read_text().splitlines():
+    for line in log.read_text(encoding="utf-8").splitlines():
         try:
             ev = json.loads(line)
         except json.JSONDecodeError:
@@ -163,7 +163,7 @@ def run_pipeline(run_dir: Path, only: Optional[str] = None) -> Path:
                 continue
             run_stage(stage, run_dir, cfg, stage in fakes, (i + 1) / len(STAGES))
             if stage == "rubric" and not recut_done:
-                recut = Decisions.model_validate_json((run_dir / "decisions.json").read_text()).recut
+                recut = Decisions.model_validate_json((run_dir / "decisions.json").read_text(encoding="utf-8")).recut
                 if recut is not None:
                     recut_done = True
                     events.emit("run", f"Recut {recut.shot_id}: {recut.reason}", data=recut.model_dump())

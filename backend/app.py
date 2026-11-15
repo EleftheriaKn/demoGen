@@ -44,7 +44,7 @@ def load_dotenv(path: Path = ROOT / ".env") -> None:
     """KEY=value lines from .env into the environment (real env vars win). No extra dependency."""
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, _, value = line.partition("=")
@@ -85,7 +85,7 @@ def read_events(run_dir: Path) -> list[dict]:
     if not log.exists():
         return []
     out = []
-    for line in log.read_text().splitlines():
+    for line in log.read_text(encoding="utf-8").splitlines():
         try:
             out.append(json.loads(line))
         except json.JSONDecodeError:
@@ -140,7 +140,7 @@ def _upload_paths(upload_id: str) -> tuple[Path, Path]:
 
 def _upload_state(upload_id: str) -> dict:
     meta, data = _upload_paths(upload_id)
-    m = json.loads(meta.read_text())
+    m = json.loads(meta.read_text(encoding="utf-8"))
     m["received"] = data.stat().st_size if data.exists() else 0
     m["complete"] = m["received"] == m["size"]
     return m
@@ -149,6 +149,7 @@ def _upload_state(upload_id: str) -> dict:
 def start_pipeline(run_dir: Path, github_token: Optional[str] = None) -> subprocess.Popen:
     """Run the pipeline in its own process. A login token goes only into that process's env."""
     env = os.environ.copy()
+    env.setdefault("PYTHONUTF8", "1")  # UTF-8 file I/O in every stage, even on a Greek-locale Windows
     if github_token:
         env["GITHUB_TOKEN"] = github_token
     log = open(run_dir / "pipeline.log", "ab")
@@ -195,7 +196,7 @@ async def start_upload(body: dict = Body(...)) -> dict:
         raise HTTPException(413, f"recording is {size:,} bytes; the limit is 1 GiB ({MAX_TAKE_BYTES:,})")
     upload_id = uuid.uuid4().hex
     uploads_root().mkdir(parents=True, exist_ok=True)
-    (uploads_root() / f"{upload_id}.json").write_text(json.dumps({"upload_id": upload_id, "ext": ext, "size": size}))
+    (uploads_root() / f"{upload_id}.json").write_text(json.dumps({"upload_id": upload_id, "ext": ext, "size": size}), encoding="utf-8")
     (uploads_root() / f"{upload_id}.part").touch()
     return {"upload_id": upload_id, "chunk_size": CHUNK_BYTES, "received": 0}
 
@@ -283,7 +284,7 @@ async def create_run(
             f.unlink(missing_ok=True)
     if brief_text.strip():
         # Until A, B and C agree on an optional brief.text in run.json (runbook), it lives next to it.
-        (run_dir / "brief.txt").write_text(brief_text.strip() + "\n")
+        (run_dir / "brief.txt").write_text(brief_text.strip() + "\n", encoding="utf-8")
     start_pipeline(run_dir, github_auth.token_for(request))
     return {"run_id": run_id, "events": f"/runs/{run_id}/events", "final": f"/runs/{run_id}/files/final.mp4"}
 
@@ -303,7 +304,7 @@ def get_run(run_id: str) -> dict:
     return {
         "run_id": run_id,
         "status": run_status(d),
-        "config": json.loads((d / "run.json").read_text()),
+        "config": json.loads((d / "run.json").read_text(encoding="utf-8")),
         "finished_stages": sorted(orchestrator.finished_stages(d)),
         "has_final": (d / "final.mp4").exists(),
     }

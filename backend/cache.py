@@ -99,15 +99,31 @@ def _path(namespace: str, k: str, suffix: str) -> Path:
     return cache_dir() / safe_ns / k[:2] / f"{k}{suffix}"
 
 
+REPLACE_TRIES = 10
+
+
 def _atomic_write(dst: Path, write: Callable[[Path], None]) -> None:
-    """Write via a temp file in the same folder, then rename: parallel threads never see half a file."""
+    """Write via a temp file in the same folder, then rename: parallel threads never see half a file.
+
+    Windows can't rename over a file another thread has open (PermissionError). The key is the
+    request, so whoever got there first stored the same answer: retry briefly, then keep theirs.
+    """
     dst.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=dst.parent, prefix=".tmp-", suffix=dst.suffix)
     os.close(fd)
     tmp_path = Path(tmp)
     try:
         write(tmp_path)
-        os.replace(tmp_path, dst)
+        for attempt in range(REPLACE_TRIES):
+            try:
+                os.replace(tmp_path, dst)
+                return
+            except PermissionError:
+                if attempt == REPLACE_TRIES - 1:
+                    if dst.exists():
+                        return  # another writer stored this key's answer; it stands
+                    raise
+                time.sleep(0.01 * (attempt + 1))
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -116,13 +132,20 @@ def get_json(namespace: str, request: Any) -> Optional[Any]:
     p = _path(namespace, key(namespace, request), ".json")
     if not _enabled() or not p.exists():
         return None
-    return json.loads(p.read_text())["answer"]
+    for attempt in range(3):
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))["answer"]
+        except PermissionError:  # Windows: being replaced right now
+            time.sleep(0.01 * (attempt + 1))
+        except (ValueError, KeyError):
+            return None  # unreadable entry: treat as a miss, it gets rewritten
+    return None
 
 
 def put_json(namespace: str, request: Any, answer: Any) -> None:
     p = _path(namespace, key(namespace, request), ".json")
     record = {"ns": namespace, "saved": time.time(), "answer": answer}
-    _atomic_write(p, lambda tmp: tmp.write_text(json.dumps(record, ensure_ascii=False, indent=1)))
+    _atomic_write(p, lambda tmp: tmp.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8"))
 
 
 def json_call(namespace: str, request: Any, make: Callable[[], T]) -> T:
