@@ -11,12 +11,14 @@ Run alone: python -m backend.pipeline.timeline runs/<run_id>
 from __future__ import annotations
 
 import math
+import re
 from pathlib import Path
 
 from backend import events
 from backend.contracts import (Assets, Candidates, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
-from backend.pipeline.ff import FONTS, duration, ff, filter_path, size_for
+from backend.pipeline.cards import best_frames, grab_frame, hero_card
+from backend.pipeline.ff import duration, ff, size_for
 
 FPS = 30
 BREATH_S = 0.25      # footage keeps running this long after the voice ends
@@ -107,26 +109,23 @@ def app_name(d: Path) -> str:
         return ""
 
 
-def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int], background: str | None = None) -> str:
-    """The app name in the middle of a card, in our font ("fal draws, we write": A's card backgrounds carry no
-    text). With `background` (A's fal card) it is cropped to fill the frame and darkened a little so white text
-    reads; without, a dark plain card. No claims on it: the voice line is in the captions."""
-    w, h = size
+def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int], background: str | None = None,
+               frame: Path | None = None, subtitle: str = "") -> str:
+    """A card image in our own hands (B11, see cards.py): A's fal background (or plain dark), the app name,
+    and optionally a real frame in a device mockup and a subtitle. No claims on it."""
     rel = f"cards/{'titled' if background else 'plain'}/{shot_id}.png"
-    (d / rel).parent.mkdir(parents=True, exist_ok=True)
-    text = d / rel.replace(".png", ".txt")
-    text.write_text(title, encoding="utf-8")
-    font = filter_path(FONTS / "NotoSans-Bold.ttf")
-    draw = (f"drawtext=fontfile={font}:textfile={filter_path(text.resolve())}:fontcolor=white:"
-            f"fontsize={round(h * 0.11)}:x=(w-tw)/2:y=(h-th)/2:shadowcolor=black@0.45:shadowx=0:shadowy={h // 180}"
-            if title.strip() else "null")
-    if background:
-        ff("-i", d / background, "-vf", f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,"
-           f"eq=brightness=-0.08,drawbox=color=black@0.18:t=fill,{draw}", "-frames:v", "1", d / rel)
-    else:
-        ff("-f", "lavfi", "-i", f"color=c=0x111827:s={w}x{h}:d=1", "-vf", draw, "-frames:v", "1", d / rel)
-    text.unlink(missing_ok=True)
+    hero_card(d / rel, size, title, d / background if background else None, frame, subtitle)
     return rel
+
+
+def card_frames(d: Path, recording: Path, n: int) -> list[Path]:
+    """Full-resolution copies of the n best-scored frames, for the card mockups ([] if none or it fails)."""
+    try:
+        return [grab_frame(recording, t, d / "cards" / "frames" / f"best_{i + 1}.png")
+                for i, t in enumerate(best_frames(d, n))]
+    except Exception as e:  # cards are decoration: a failed grab must never stop the video
+        events.emit("timeline", f"card frames skipped: {e}")
+        return []
 
 
 def run(run_dir: Path, run: RunConfig) -> None:
@@ -145,7 +144,12 @@ def run(run_dir: Path, run: RunConfig) -> None:
     segments = {g.segment_id: (g.start, g.end) for g in cands.segments} if cands else {}
     brolls = {b.shot_id: b for b in assets.broll}
 
-    name = app_name(d)
+    name = app_name(d) or run.repo_url.rstrip("/").rsplit("/", 1)[-1]
+    repo_label = re.sub(r"^https?://(www\.)?", "", run.repo_url).rstrip("/")
+    n_card_shots = sum(1 for s in script.shots if s.visual.kind != "footage")
+    hero = card_frames(d, d / run.recording, min(n_card_shots, 2)) if n_card_shots and \
+        (d / run.recording).exists() else []
+    n_cards = 0
     spans = [(s.visual.source_start, s.visual.source_end) if s.visual.kind == "footage" else None
              for s in script.shots]
     shots, t, last_end = [], 0.0, None
@@ -171,13 +175,15 @@ def run(run_dir: Path, run: RunConfig) -> None:
             start, end, speed, freeze = fit_source(0.0, b.duration_s, dur, b.duration_s)
             visual = TimelineVisual(kind="broll", path=b.path, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze)
-        elif s.shot_id in cards and (d / cards[s.shot_id]).exists():
-            path = plain_card(d, s.shot_id, name, size_for(run.mode), background=cards[s.shot_id]) if name \
-                else cards[s.shot_id]
-            visual = TimelineVisual(kind="card", path=path)
-        else:  # no card / b-roll file (no fal, cheap mode, a failed call): the video still renders
-            visual = TimelineVisual(kind="card", path=plain_card(d, s.shot_id, name, size_for(run.mode)))
-            events.emit("timeline", f"{s.shot_id}: no {vis.kind} file in assets.json, using a plain card")
+        else:  # a card: A's background (or plain when fal had none), our title, a real screen in a mockup
+            bg = cards[s.shot_id] if s.shot_id in cards and (d / cards[s.shot_id]).exists() else None
+            if bg is None:
+                events.emit("timeline", f"{s.shot_id}: no {vis.kind} file in assets.json, using a plain card")
+            frame = hero[n_cards % len(hero)] if hero else None
+            subtitle = repo_label if s.beat == "ask" else ""
+            visual = TimelineVisual(kind="card", path=plain_card(d, s.shot_id, name, size_for(run.mode), bg,
+                                                                  frame, subtitle))
+            n_cards += 1
         shots.append(TimelineShot(shot_id=s.shot_id, start=round(t, 3), duration_s=dur,
                                   voice_path=voice_path, visual=visual, caption=s.voice_line))
         t = round(t + dur, 6)

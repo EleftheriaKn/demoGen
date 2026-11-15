@@ -1,0 +1,150 @@
+"""Card images (owner: B, ticket B11). "fal draws, we write": A's fal backgrounds carry no text; render adds it.
+
+A card shot becomes: the background (fal card, or plain dark), the app name, and a real frame from the
+recording in a device mockup (browser window for landscape takes, phone for portrait). The frame is the one
+the judge scored best (frame_scores.json), re-extracted at full resolution. The ask card may add the repo
+address. Nothing on a card is a claim: name, address and a real frame. Greek and English (Noto Sans).
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+from backend.contracts import frame_time
+from backend.pipeline.ff import FONTS, ff, hdr_to_sdr, video_info
+
+FONT = FONTS / "NotoSans-Bold.ttf"
+BG_PLAIN = (17, 24, 39)
+
+
+def best_frames(d: Path, n: int = 2) -> list[float]:
+    """Recording times of the n best-scored frames, one per segment (frame_scores.json, else candidates)."""
+    times, segs = [], set()
+    fs = d / "frame_scores.json"
+    if fs.exists():
+        scores = sorted(json.loads(fs.read_text(encoding="utf-8"))["scores"], key=lambda s: -s["total"])
+        for s in scores:
+            if s["segment_id"] not in segs:
+                segs.add(s["segment_id"])
+                times.append(frame_time(s["frame"]))
+            if len(times) == n:
+                return times
+    cp = d / "candidates.json"
+    if cp.exists():
+        for g in json.loads(cp.read_text(encoding="utf-8"))["segments"]:
+            if g["source"] == "moment" and g["segment_id"] not in segs:
+                segs.add(g["segment_id"])
+                times.append(frame_time(g["frames"][1]))
+            if len(times) == n:
+                break
+    return times
+
+
+def grab_frame(recording: Path, t: float, out: Path) -> Path:
+    """Full-resolution frame at t (rotation and HDR handled), as PNG."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    hdr = hdr_to_sdr(video_info(recording))
+    ff("-ss", f"{t:.3f}", "-i", recording, "-frames:v", "1", *(["-vf", hdr.rstrip(",")] if hdr else []), out)
+    return out
+
+
+def _font(px: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(str(FONT), px)
+
+
+def _fit_text(draw: ImageDraw.ImageDraw, text: str, max_w: int, px: int) -> ImageFont.FreeTypeFont:
+    while px > 12 and draw.textlength(text, font=_font(px)) > max_w:
+        px -= 2
+    return _font(px)
+
+
+def _shadow(size: tuple[int, int], box: tuple[int, int, int, int], radius: int, blur: int) -> Image.Image:
+    layer = Image.new("RGBA", size, (0, 0, 0, 0))
+    ImageDraw.Draw(layer).rounded_rectangle(box, radius, fill=(0, 0, 0, 120))
+    return layer.filter(ImageFilter.GaussianBlur(blur))
+
+
+def mockup(frame: Image.Image, max_w: int, max_h: int) -> Image.Image:
+    """The frame inside a browser window (landscape) or a phone (portrait), with rounded corners."""
+    portrait = frame.height > frame.width
+    if portrait:
+        bezel = max(8, max_h // 45)
+        inner_h = max_h - 2 * bezel
+        inner_w = round(frame.width * inner_h / frame.height)
+        if inner_w + 2 * bezel > max_w:
+            inner_w = max_w - 2 * bezel
+            inner_h = round(frame.height * inner_w / frame.width)
+        w, h, top, side = inner_w + 2 * bezel, inner_h + 2 * bezel, bezel, bezel
+        radius = bezel * 4
+    else:
+        bar = max(14, max_h // 18)
+        inner_w = max_w
+        inner_h = round(frame.height * inner_w / frame.width)
+        if inner_h + bar > max_h:
+            inner_h = max_h - bar
+            inner_w = round(frame.width * inner_h / frame.height)
+        w, h, top, side = inner_w, inner_h + bar, bar, 0
+        radius = max(8, bar // 2)
+    shell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(shell)
+    draw.rounded_rectangle((0, 0, w - 1, h - 1), radius, fill=(20, 20, 22, 255) if portrait else (236, 236, 238, 255))
+    if not portrait:  # window buttons
+        r = max(3, top // 6)
+        for i, col in enumerate([(255, 95, 86), (255, 189, 46), (39, 201, 63)]):
+            cx = top // 2 + i * 3 * r
+            draw.ellipse((cx - r, top // 2 - r, cx + r, top // 2 + r), fill=col)
+    screen = frame.convert("RGBA").resize((inner_w, inner_h), Image.LANCZOS)
+    mask = Image.new("L", (inner_w, inner_h), 0)
+    if portrait:  # phone screen: all corners rounded inside the bezel
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, inner_w - 1, inner_h - 1), radius - bezel, fill=255)
+    else:  # browser: square under the title bar, rounded bottom corners
+        ImageDraw.Draw(mask).rounded_rectangle((0, -radius, inner_w - 1, inner_h - 1), radius, fill=255)
+    shell.paste(screen, (side, top), mask)
+    return shell
+
+
+def hero_card(out: Path, size: tuple[int, int], title: str, background: Path | None = None,
+              frame: Path | None = None, subtitle: str = "") -> Path:
+    """Compose one card PNG: background, title, optional framed real screen, optional subtitle."""
+    w, h = size
+    if background and background.exists():
+        bg = Image.open(background).convert("RGB")
+        k = max(w / bg.width, h / bg.height)
+        bg = bg.resize((round(bg.width * k), round(bg.height * k)), Image.LANCZOS)
+        x0, y0 = (bg.width - w) // 2, (bg.height - h) // 2
+        img = bg.crop((x0, y0, x0 + w, y0 + h)).convert("RGBA")
+        img = Image.alpha_composite(img, Image.new("RGBA", (w, h), (0, 0, 0, 70)))
+    else:
+        img = Image.new("RGBA", (w, h), BG_PLAIN + (255,))
+    draw = ImageDraw.Draw(img)
+    pad = round(h * 0.06)
+
+    if frame is None:  # title alone, centred
+        f = _fit_text(draw, title, w - 2 * pad, round(h * 0.11))
+        draw.text((w / 2, h / 2), title, font=f, fill="white", anchor="mm", stroke_width=max(1, h // 400),
+                  stroke_fill=(0, 0, 0, 90))
+    else:
+        title_px = round(h * 0.075)
+        f = _fit_text(draw, title, w - 2 * pad, title_px)
+        draw.text((w / 2, pad + title_px / 2), title, font=f, fill="white", anchor="mm",
+                  stroke_width=max(1, h // 400), stroke_fill=(0, 0, 0, 90))
+        sub_h = round(h * 0.07) if subtitle else 0
+        top = pad + title_px + pad // 2
+        box_h = h - top - pad - sub_h - round(h * 0.12)  # leave room for the captions at the bottom
+        dev = mockup(Image.open(frame), round(w * 0.62), box_h)
+        x, y = (w - dev.width) // 2, top
+        radius = max(8, h // 60)
+        img = Image.alpha_composite(img, _shadow((w, h), (x, y + h // 90, x + dev.width, y + dev.height + h // 90),
+                                                radius, max(6, h // 70)))
+        img.alpha_composite(dev, (x, y))
+        if subtitle:
+            draw = ImageDraw.Draw(img)
+            sf = _fit_text(draw, subtitle, w - 2 * pad, round(h * 0.04))
+            draw.text((w / 2, y + dev.height + sub_h / 2 + pad // 3), subtitle, font=sf, fill=(235, 235, 235),
+                      anchor="mm")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.convert("RGB").save(out)
+    return out
