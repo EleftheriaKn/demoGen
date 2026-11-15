@@ -24,8 +24,9 @@ GAP_S = 0.05         # tiny gap between cues so players never show two at once
 
 
 def chunks(text: str) -> list[str]:
-    """Split a voice line into balanced cues of at most MAX_CHARS, breaking early at punctuation."""
-    words = text.split()
+    """Split a voice line into balanced cues of at most MAX_CHARS, breaking early at punctuation.
+    A word longer than a line (a URL) is cut into line-sized pieces so it can't run off the screen."""
+    words = [w[i:i + MAX_CHARS] for w in text.split() for i in range(0, len(w), MAX_CHARS)]
     if not words:
         return []
     n = math.ceil(len(" ".join(words)) / MAX_CHARS)

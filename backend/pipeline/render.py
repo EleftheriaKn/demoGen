@@ -11,11 +11,12 @@ Run alone: python -m backend.pipeline.render runs/<run_id>
 
 from __future__ import annotations
 
+import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from backend import events
-from backend.contracts import RunConfig, Timeline, TimelineShot
+from backend.contracts import RunConfig, Timeline, TimelineMusic, TimelineShot
 from backend.pipeline.ff import (AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, filter_path, hdr_to_sdr, inner_size,
                                  place, video_info)
 
@@ -63,7 +64,24 @@ def shot(d: Path, s: TimelineShot, tl: Timeline, out: Path) -> None:
        "-t", dur, "-r", fps, *VIDEO, *AUDIO, out.relative_to(d), cwd=d)
 
 
-def final(d: Path, tl: Timeline) -> None:
+def check_inputs(d: Path, tl: Timeline) -> TimelineMusic | None:
+    """Fail early, naming the shot, when a voice or picture is missing; a missing music bed only drops the
+    music (it is decoration). Returns the music to use."""
+    for s in tl.shots:
+        if not (d / s.voice_path).exists():
+            raise RuntimeError(f"render: voice for {s.shot_id} is missing ({s.voice_path}); re-run assets")
+        if not (d / s.visual.path).exists():
+            raise RuntimeError(f"render: {s.visual.kind} for {s.shot_id} is missing ({s.visual.path}); "
+                               "re-run timeline")
+    if tl.music and not (d / tl.music.path).exists():
+        events.emit("render", f"music {tl.music.path} is missing: rendering without music")
+        return None
+    return tl.music
+
+
+def final(d: Path, tl: Timeline, music: TimelineMusic | None) -> None:
+    """Join the shots, lay the voices and music, burn the captions. Written to final.part.mp4 and renamed
+    when complete, so a crash or Ctrl-C never leaves a half-written final.mp4."""
     n = len(tl.shots)
     args = []
     for s in tl.shots:
@@ -77,30 +95,36 @@ def final(d: Path, tl: Timeline) -> None:
               f"adelay={round(s.start * 1000)}:all=1[v{i}]" for i, s in enumerate(tl.shots)]
     parts.append(f"{''.join(f'[v{i}]' for i in range(n))}amix=inputs={n}:duration=longest:normalize=0,"
                  f"loudnorm=I={LOUDNESS}:TP=-1.5:LRA=11,aresample={SAMPLE_RATE},apad,atrim=duration={total}"
-                 + ("[vo]" if tl.music else "[a]"))
-    if tl.music:
-        args += ["-stream_loop", "-1", "-i", tl.music.path]
+                 + ("[vo]" if music else "[a]"))
+    if music:
+        args += ["-stream_loop", "-1", "-i", music.path]
         parts.append(f"[{2 * n}:a]aresample={SAMPLE_RATE},aformat=channel_layouts=stereo,"
-                     f"volume={tl.music.gain_db}dB,atrim=duration={total}[m]")
-        if tl.music.duck:
+                     f"volume={music.gain_db}dB,atrim=duration={total}[m]")
+        if music.duck:
             parts.append("[vo]asplit=2[vo1][key]")
             parts.append("[m][key]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=300[md]")
             parts.append("[vo1][md]amix=inputs=2:duration=first:normalize=0[a]")
         else:
             parts.append("[vo][m]amix=inputs=2:duration=first:normalize=0[a]")
-    ff(*args, "-filter_complex", ";".join(parts), "-map", "[vid]", "-map", "[a]", "-t", total,
-       *VIDEO, *AUDIO, "-movflags", "+faststart", "final.mp4", cwd=d)
+    part = d / "final.part.mp4"
+    try:
+        ff(*args, "-filter_complex", ";".join(parts), "-map", "[vid]", "-map", "[a]", "-t", total,
+           *VIDEO, *AUDIO, "-movflags", "+faststart", part.name, cwd=d)
+        os.replace(part, d / "final.mp4")
+    finally:
+        part.unlink(missing_ok=True)
 
 
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir).resolve()
     tl = Timeline.model_validate_json((d / "timeline.json").read_text(encoding="utf-8"))
+    music = check_inputs(d, tl)
     (d / "shots").mkdir(exist_ok=True)
     outs = [d / "shots" / f"{s.shot_id}.mp4" for s in tl.shots]
     with ThreadPoolExecutor(WORKERS) as ex:
         for s, _ in zip(tl.shots, ex.map(lambda so: shot(d, so[0], tl, so[1]), zip(tl.shots, outs))):
             events.emit("render", f"shot {s.shot_id} rendered")
-    final(d, tl)
+    final(d, tl, music)
     events.emit("render", f"final.mp4 {tl.duration_s:.1f} s at {tl.width}x{tl.height}")
 
 
