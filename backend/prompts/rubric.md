@@ -10,6 +10,7 @@ Answer each question below, in the same order. For each, return:
 How to judge:
 - A claim counts as remaining only if its status is backed or rewritten and its shot is in the timeline. A dropped claim is not spoken. A pending claim was never checked, so it is not backed.
 - "Shown on screen" means a timeline shot with real footage (not a card or b-roll) shows the app producing its main result.
+- For the claims question, a claim in a generated shot (card or b-roll) counts as backed when its evidence is the README or a repo file.
 
 Questions:
 {questions}

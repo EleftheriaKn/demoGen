@@ -69,7 +69,7 @@ def test_judge_frames_stage(tmp_path):
 # --------------------------------------------------------------------------- #
 
 from backend import run as orchestrator  # noqa: E402
-from backend.contracts import Script, Timeline  # noqa: E402
+from backend.contracts import Claim, Evidence, Script, Timeline  # noqa: E402
 
 
 def _fixture_cut(durations: list[float]) -> tuple[Timeline, Script]:
@@ -121,6 +121,37 @@ def test_footage_share_boundary():
         assert item.passed and shot is None
 
 
+def _generated(script: Script, backed: dict[str, list[tuple[str, str]]]) -> Script:
+    """Mark shots generated; each gets one claim per (status, evidence type) pair given."""
+    for sh in script.shots:
+        if sh.shot_id in backed:
+            sh.generated = True
+            sh.claims = [Claim(claim_id=f"c{i}", text="x", status=st, evidence=[Evidence(type=ev, ref="README#x")] if ev else [])
+                         for i, (st, ev) in enumerate(backed[sh.shot_id])]
+    return script
+
+
+def test_generated_backed_check():
+    """Fixture beats: s01 hook, s02 problem, s03 demo."""
+    tl, script = _fixture_cut([4, 5, 6])
+    ok = [("dropped", "readme"), ("rewritten", "file")]
+    item, shot = judge.check_generated_backed(tl, _generated(script, {"s02": [("backed", "readme")], "s03": ok}))
+    assert item.passed and shot is None
+    item, shot = judge.check_generated_backed(tl, _generated(script, {"s03": [("backed", "footage"), ("pending", "readme")]}))
+    assert not item.passed and shot == "s03" and "s03" in item.reason  # one unbacked: recut it
+    item, shot = judge.check_generated_backed(tl, _generated(script, {"s02": [], "s03": [("dropped", "file")]}))
+    assert not item.passed and shot is None and "s02, s03" in item.reason  # two: no single shot to redo
+    cut = Timeline.model_validate({**tl.model_dump(), "shots": [s.model_dump() for s in tl.shots[:2]], "duration_s": 9})
+    item, shot = judge.check_generated_backed(cut, script)  # s03 not in the cut: only s02 counts
+    assert not item.passed and shot == "s02"
+    tl, script = _fixture_cut([4, 5, 6])
+    script.shots[0].claims = []
+    script.shots.append(script.shots[0].model_copy(update={"shot_id": "s04", "beat": "ask"}))
+    assert script.shots[0].generated and script.shots[0].beat == "hook"
+    item, shot = judge.check_generated_backed(tl, script)  # hook and ask exempt; no generated middle shots
+    assert item.passed and shot is None
+
+
 def _rubric_dir(tmp_path, mode: str):
     for name in ("script.json", "timeline.json", "decisions.json"):
         shutil.copy2(FIXTURE_RUN / name, tmp_path / name)
@@ -136,8 +167,9 @@ def test_rubric_cheap_mode_skips_gemini_checks(tmp_path):
     log = Decisions.model_validate_json((tmp_path / "decisions.json").read_text())
     assert [r.question for r in log.rubric] == [
         judge.Q_PROBLEM, "Under the 180 s time limit?", "At least 60% of the 75 s target?",
-        "At least 50% real footage?", judge.Q_CLAIMS, judge.Q_RESULT]
-    assert [r.reason for r in log.rubric[4:]] == [judge.SKIPPED] * 2 and log.recut is None
+        "At least 50% real footage?", judge.Q_GENERATED, judge.Q_CLAIMS, judge.Q_RESULT]
+    assert log.rubric[4].passed and log.rubric[4].reason != judge.SKIPPED  # code check runs in cheap mode
+    assert [r.reason for r in log.rubric[5:]] == [judge.SKIPPED] * 2 and log.recut is None
 
 
 def test_rubric_full_mode_gemini_checks(tmp_path):
@@ -147,12 +179,12 @@ def test_rubric_full_mode_gemini_checks(tmp_path):
     judge.run_rubric(tmp_path, cfg)
     judge.run_rubric(tmp_path, cfg)
     log = Decisions.model_validate_json((tmp_path / "decisions.json").read_text())
-    assert len(log.rubric) == 6 and all(r.reason != judge.SKIPPED for r in log.rubric)
+    assert len(log.rubric) == 7 and all(r.reason != judge.SKIPPED for r in log.rubric)
     rubric = [d for d in log.decisions if d.stage == "rubric"]
     assert len(rubric) == 1 and [a.question for a in rubric[0].answers] == [r.question for r in log.rubric]
     assert len(log.decisions) == len([d for d in before.decisions if d.stage != "rubric"]) + 1
     # The fixture cut is fine except its length: 15 s against a 75 s target, which names no shot.
-    assert [r.passed for r in log.rubric] == [True, True, False, True, True, True] and log.recut is None
+    assert [r.passed for r in log.rubric] == [True, True, False, True, True, True, True] and log.recut is None
 
 
 def test_one_shot_failure_reruns_timeline_once(tmp_path, monkeypatch):
