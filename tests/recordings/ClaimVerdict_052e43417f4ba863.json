@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "backend/recipes.py defines suggest() with n=3 returning recipes ranked by ingredient overlap.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

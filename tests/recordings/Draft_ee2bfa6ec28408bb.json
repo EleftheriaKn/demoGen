@@ -1,0 +1,105 @@
+{
+  "hooks": [
+    "Tired of wondering what to cook tonight?",
+    "Staring at a half-empty fridge again?",
+    "Ever let fresh food go to waste?"
+  ],
+  "hook_card_prompt": "Clean minimalist kitchen counter aesthetic with soft warm green and pastel orange tones, organic shapes, natural ambient lighting, flat vector style",
+  "problem": {
+    "voice_line": "People waste food and time because they don't know what to cook with what they have.",
+    "segment_id": "c01",
+    "source_start": 0.0,
+    "source_end": 4.0,
+    "claims": [
+      {
+        "text": "People waste food and time because they don't know what to cook with what they have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ],
+        "callout": "Stop wasting food"
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Snap a quick photo of your open fridge to detect your ingredients automatically.",
+      "segment_id": "c02",
+      "source_start": 5.0,
+      "source_end": 10.0,
+      "claims": [
+        {
+          "text": "Snap a quick photo of your open fridge to detect your ingredients automatically.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ],
+          "callout": "Scan your fridge"
+        }
+      ]
+    },
+    {
+      "voice_line": "Browse three suggested recipe cards with all your matched ingredients clearly highlighted.",
+      "segment_id": "c04",
+      "source_start": 12.0,
+      "source_end": 19.0,
+      "claims": [
+        {
+          "text": "Browse three suggested recipe cards with all your matched ingredients clearly highlighted.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ],
+          "callout": "Three recipe cards"
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "Computer vision detects raw ingredients directly from your photo.",
+    "segment_id": "c03",
+    "source_start": 10.0,
+    "source_end": 12.0,
+    "claims": [
+      {
+        "text": "Computer vision detects raw ingredients directly from your photo.",
+        "evidence": [
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          }
+        ],
+        "callout": "Vision detects ingredients"
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Three recipes are ranked by your matched ingredients.",
+    "segment_id": "c05",
+    "source_start": 19.0,
+    "source_end": 22.0,
+    "claims": [
+      {
+        "text": "Three recipes are ranked by your matched ingredients.",
+        "evidence": [
+          {
+            "type": "file",
+            "ref": "backend/recipes.py"
+          }
+        ],
+        "callout": "Ranked by matches"
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and turn your ingredients into dinner.",
+    "card_prompt": "Warm welcoming kitchen background with soft morning sunlight, sage green and creamy tones, modern flat vector texture",
+    "claims": []
+  }
+}

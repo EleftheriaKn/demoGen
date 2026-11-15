@@ -1,0 +1,7 @@
+{
+  "score": 0.4,
+  "reason": "backend/vision.py defines detect_ingredients with a vision model, but does not mention raw ingredients or photos.",
+  "action": "rewrite",
+  "rewrite": "vision detects ingredients",
+  "rewrite_supported": true
+}

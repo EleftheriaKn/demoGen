@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.3,
+          "reason": "It is an overused rhetorical question that fails to stand out quickly."
+        },
+        {
+          "score": 0.2,
+          "reason": "It could apply to any generic recipe book, food delivery service, or meal kit."
+        },
+        {
+          "score": 0.3,
+          "reason": "It frames a broad user frustration without hinting at the photo-to-recipe solution."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It paints an immediate, relatable mental picture within seconds."
+        },
+        {
+          "score": 0.5,
+          "reason": "Referencing the fridge connects directly to the app's photo-scanning concept."
+        },
+        {
+          "score": 0.5,
+          "reason": "It captures the specific moment of user need, though it omits the app's actual action."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.3,
+          "reason": "It feels like a standard public service inquiry rather than an engaging hook."
+        },
+        {
+          "score": 0.2,
+          "reason": "It addresses generic food spoilage rather than PantryPal's specific photo-recipe mechanic."
+        },
+        {
+          "score": 0.3,
+          "reason": "It focuses on an indirect byproduct rather than what the app immediately does for the user."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}
