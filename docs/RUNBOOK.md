@@ -268,7 +268,7 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B3 | Render on the real test take | Works on C's take in `samples/`, whatever its size and frame rate | 00:30 | Done on 7 test takes; recheck on C's take |
 | B4 | `ingest.py` | Clones a real repo; `repo_files.json`; `audio.wav` when the take has sound | 01:00 | Done (also private repos via `GITHUB_TOKEN`; silent `audio.wav` when the take has no sound) |
 | B5 | `candidates.py` | Scene cuts and 3 frames per moment from A's `moments.json` | 02:00 | Done (7-min 1080p take: ~28 s, max 40 scene clips) |
-| B6 | Checkpoint 1, with A | Test take + fixture script + real voices → captioned MP4 | 02:00 | To do |
+| B6 | Checkpoint 1, with A | Test take + fixture script + real voices → captioned MP4 | 02:00 | Done (Nov 15: TodoMVC 3-min take, fal voices, 22 s; captions on a dark box for light screens) |
 | B7 | First full run, with A, then speed | A full run takes under 15 minutes; add a 720p preview mode if not | 05:30 | To do |
 | B8 | Robustness | Handles no audio, very short or long moments, a failed fal call; resumes mid-run | 09:00 | To do |
 | B9 | Final video | Version 1 checked frame by frame, bugs fixed, version 2 uploaded | 15:30 | To do |

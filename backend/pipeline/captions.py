@@ -85,7 +85,9 @@ def ass_text(text: str) -> str:
 
 
 def ass(tl: Timeline, cs: list[tuple[float, float, str, str]]) -> str:
-    size, outline, margin = round(tl.height * 0.055), max(2, round(tl.height / 240)), round(tl.height * 0.07)
+    # Opaque-box style (BorderStyle 3): white text on a 35%-transparent black box, so captions read on
+    # light screen recordings too. With BorderStyle 3, libass draws the box in OutlineColour; Outline = padding.
+    size, pad, margin = round(tl.height * 0.05), max(4, round(tl.height / 90)), round(tl.height * 0.07)
     head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {tl.width}
@@ -95,7 +97,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{FONT_NAME},{size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,{outline},1,2,{margin},{margin},{margin},1
+Style: Default,{FONT_NAME},{size},&H00FFFFFF,&H000000FF,&H59000000,&H59000000,1,0,0,0,100,100,0,0,3,{pad},0,2,{margin},{margin},{margin},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
