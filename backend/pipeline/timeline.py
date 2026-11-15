@@ -33,7 +33,7 @@ MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment ca
                      # A shot with no claims (the fact-free problem line) states nothing footage can contradict:
                      # it plays on past its segment (inside its room) rather than freeze (Coach Platform: 15.7 s hold).
 ZOOM_EASE_S = 0.8
-MUSIC_GAIN_DB = -18.0
+MUSIC_GAIN_DB = -6.0  # was -18: the bed (~-16 dB) ended up at ~-36 dB, inaudible (run-19c98fc7)
 MAX_BEAT_SHIFT_S = 0.25  # B18: a cut moves at most this far (earlier or later) to land on a beat
 MIN_TAIL_S = 0.1     # ...and never lands sooner than this after the voice ends
 LOOP_FILE = "music_loop.wav"

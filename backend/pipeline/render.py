@@ -186,7 +186,7 @@ def final(d: Path, tl: Timeline, music: TimelineMusic | None, trans: list[tuple[
                      f"volume={music.gain_db}dB,atrim=duration={total}[m]")
         if music.duck:
             parts.append("[vo]asplit=2[vo1][key]")
-            parts.append("[m][key]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=300[md]")
+            parts.append("[m][key]sidechaincompress=threshold=0.05:ratio=4:attack=20:release=300[md]")
             parts.append("[vo1][md]amix=inputs=2:duration=first:normalize=0[a]")
         else:
             parts.append("[vo][m]amix=inputs=2:duration=first:normalize=0[a]")
