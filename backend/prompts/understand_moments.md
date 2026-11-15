@@ -13,6 +13,11 @@ For each moment return:
   - "dead": nothing useful happens (idle screen, mouse wandering, blank tab, waiting).
 - settled_at: for "result" moments, the second at which the outcome is fully on screen and settled (the new item is in the list, the clicked filter is highlighted and the list has changed); null for other kinds. It must be after start. The moment's end should be just after settled_at.
 - confidence: how sure you are about this moment, 0 to 1.
+- quality: how well this stretch would play in a demo video, one of:
+  - "wow": the payoff is clear on screen and settled long enough to read (the new item sits in the list, the filtered list has changed and stays still).
+  - "ok": it shows what happens, but nothing stands out.
+  - "weak": too fast to follow, messy (mistyped, undone, scrolling around, cursor hunting), or cut off before the result settles. Dead and setup moments are usually "weak" or "ok".
+- flow_step: the step_id from the flow below that this moment shows on screen, or null if it shows none of them. Pick a step only if its outcome is visible in this moment.
 
 An action and the result it causes are one moment: it starts when the user starts the action and ends once the result is visible on screen and has settled (about one second after it appears), never when the action starts or while it is still in progress. For example, typing a todo and pressing Enter is one "result" moment that ends after the new item shows in the list. Its description says the item is in the list only if it is in the list at the end time; if the moment ends while the text is still in the input box, end it later. Use "action" only when nothing visible comes of it.
 
@@ -22,3 +27,6 @@ Make a new moment whenever the kind changes. Keep idle stretches as their own "d
 
 Features:
 {features}
+
+Flow (the steps a user goes through in the app, in order, read from the repo; the recording may skip some or show them in another order):
+{flow}

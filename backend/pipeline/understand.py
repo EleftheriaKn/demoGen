@@ -13,7 +13,8 @@ moments.json is real: Gemini watches the recording (uploaded once per run, see
 ``gemini.upload``), then code clamps times to the recording length, sorts the moments, trims
 overlaps, merges each action with the result right after it (so the moment ends once the result is on
 screen), ends each result moment SETTLE_S after Gemini's settled_at, drops slivers, nulls unknown
-feature ids and numbers them m1, m2, ...
+feature ids and numbers them m1, m2, ... Each moment has a quality (wow / ok / weak) and the flow step it
+shows (unknown ids become null); flow steps no moment shows are "missing", listed in one event.
 
 Run alone: python -m backend.pipeline.understand runs/<run_id>
 """
@@ -28,7 +29,7 @@ from pydantic import BaseModel, Field
 
 from backend import events
 from backend.clients import gemini
-from backend.contracts import Feature, Moment, Moments, RepoFiles, RunConfig, Summary, Transcript
+from backend.contracts import Feature, FlowStep, Moment, Moments, RepoFiles, RunConfig, Summary, Transcript
 from backend.pipeline import ff
 
 MIN_MOMENT_S = 0.5  # shorter after clamping/trimming = dropped
@@ -137,6 +138,9 @@ class _RawMoment(BaseModel):
     settled_at: Optional[float] = Field(
         description="result only: seconds when the outcome is fully on screen and settled; null otherwise.")
     confidence: float = Field(description="0-1.")
+    quality: Literal["wow", "ok", "weak"] = Field(
+        description="wow = the payoff is clear on screen and settled; ok; weak = too fast, messy or cut off.")
+    flow_step: Optional[str] = Field(description="Flow step shown (step_id), or null.")
 
 
 class _RawMoments(BaseModel):
@@ -157,7 +161,9 @@ def merge_results(raw: list[_RawMoment]) -> list[_RawMoment]:
             out[-1] = prev.model_copy(update={"end": max(prev.end, r.end), "kind": "result",
                                               "settled_at": r.settled_at if r.settled_at is not None else r.start,
                                               "description": f"{prev.description} {r.description}",
-                                              "confidence": min(prev.confidence, r.confidence)})
+                                              "confidence": min(prev.confidence, r.confidence),
+                                              "quality": r.quality,  # the payoff's quality
+                                              "flow_step": r.flow_step or prev.flow_step})
         else:
             out.append(r)
     return out
@@ -172,9 +178,10 @@ def result_end(r: _RawMoment) -> float:
     return r.end
 
 
-def fix_moments(raw: list[_RawMoment], duration: float, feature_ids: set[str]) -> Moments:
+def fix_moments(raw: list[_RawMoment], duration: float, feature_ids: set[str],
+                flow_ids: set[str] = frozenset()) -> Moments:
     """Merge action+result, end results once settled, clamp to [0, duration], sort, trim each start to
-    the previous end, drop slivers, renumber."""
+    the previous end, drop slivers, null unknown feature / flow step ids, renumber."""
     out: list[Moment] = []
     prev_end = 0.0
     for r in merge_results(raw):
@@ -185,13 +192,20 @@ def fix_moments(raw: list[_RawMoment], duration: float, feature_ids: set[str]) -
         out.append(Moment(
             moment_id=f"m{len(out) + 1}", start=start, end=end, description=r.description,
             feature_id=r.feature_id if r.feature_id in feature_ids else None,
-            kind=r.kind, confidence=min(max(r.confidence, 0.0), 1.0),
+            kind=r.kind, confidence=min(max(r.confidence, 0.0), 1.0), quality=r.quality,
+            flow_step=r.flow_step if r.flow_step in flow_ids else None,
         ))
         prev_end = end
     if not out:
         raise ValueError("The recording doesn't show clear steps in the app. Record a 1–4 minute take of the "
                          "app in use, pausing about a second after each result.")
     return Moments(moments=out)
+
+
+def missing_steps(summary: Summary, moments: Moments) -> list[FlowStep]:
+    """Flow steps no moment shows (derived, not stored)."""
+    shown = {m.flow_step for m in moments.moments}
+    return [s for s in summary.flow if s.step_id not in shown]
 
 
 def find_moments(video: Path, summary: Summary) -> Moments:
@@ -201,11 +215,16 @@ def find_moments(video: Path, summary: Summary) -> Moments:
         app=summary.name,
         duration=f"{duration:.2f}",
         features="\n".join(f"- {f.feature_id}: {f.name}. {f.description}" for f in summary.features),
+        flow="\n".join(f"- {s.step_id}: {s.text}" for s in summary.flow) or "(none)",
     )
     raw = gemini.generate(text, _RawMoments, video=video)
-    moments = fix_moments(raw.moments, duration, {f.feature_id for f in summary.features})
+    moments = fix_moments(raw.moments, duration, {f.feature_id for f in summary.features},
+                          {s.step_id for s in summary.flow})
     if len(moments.moments) < len(raw.moments):
         events.emit("understand", f"Dropped {len(raw.moments) - len(moments.moments)} moment(s) outside the recording or too short")
+    if missing := missing_steps(summary, moments):
+        events.emit("understand", "Flow steps the take never shows: "
+                                  + "; ".join(f"{s.step_id} {s.text}" for s in missing))
     return moments
 
 
@@ -219,8 +238,9 @@ def run(run_dir: Path, run: RunConfig) -> None:
 
     moments = find_moments(run_dir / run.recording, summary)
     (run_dir / "moments.json").write_text(moments.model_dump_json(indent=2), encoding="utf-8")
-    kinds = [m.kind for m in moments.moments]
-    events.emit("understand", f"Moments: {len(kinds)} ({kinds.count('result')} result, {kinds.count('dead')} dead)")
+    kinds, quality = [m.kind for m in moments.moments], [m.quality for m in moments.moments]
+    events.emit("understand", f"Moments: {len(kinds)} ({kinds.count('result')} result, {kinds.count('dead')} dead; "
+                              f"{quality.count('wow')} wow, {quality.count('weak')} weak)")
 
 
 if __name__ == "__main__":
