@@ -122,6 +122,15 @@ class RunConfig(Contract):
     mode: Literal["full", "cheap"] = Field(
         description="'full' = best models, more judge calls; 'cheap' = fewer/cheaper calls for iteration."
     )
+    extra_recordings: Optional[list[str]] = Field(
+        None, description="Optional more videos of the app (paths in the run folder, e.g. 'extras/1.mp4'), or null. "
+        "Ingest joins them after the main take into the one file at `recording` (originals kept in takes/), so "
+        "every later stage sees one longer take. All uploads together: at most 5 GiB."
+    )
+
+    @model_serializer(mode="wrap")
+    def _no_extras(self, handler):
+        return _drop_none(handler(self), "extra_recordings")
 
 
 # --------------------------------------------------------------------------- #

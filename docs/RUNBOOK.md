@@ -412,6 +412,7 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B20 | Truth check reads stills | `script_claim.md`: an action (adds, filters, completes...) is backed when the frames show its result; stops most footage-claim drops | 14:00 | Done (Nov 15) |
 | B21 | Rubric: long enough | Code check "at least 60% of the target length" (runs in cheap mode too); the 24 s cut would now fail | 14:00 | Done (Nov 15) |
 | B22 | Draft checklist | Short checklist at the end of `script_draft.md` (word limits, claims with evidence, no facts in hook/ask, demo order, answer the brief, nothing invented) | 14:00 | Done (Nov 15) |
+| B23 | More videos (optional) | `RunConfig.extra_recordings` (optional, left out of run.json when unset): ingest joins the main take and the extra videos into ONE take at `recording` (main take's shape, ≤ 2560 px, 30 fps, SDR, stereo; other shapes over a blurred fill; all together ≤ 40 min, ≤ 6 Mbit/s so it stays under Gemini's 2 GB per file). Originals kept in `takes/`, `takes/takes.json` says where each video starts. Unreadable / missing extras are skipped, never fatal. Gemini, fal, timeline and render need no change | 14:30 | Done (Nov 15, B side). Needs C18 for the upload |
 
 ## Tickets · C · App, board, MCP and pitch
 
@@ -436,6 +437,7 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 | C15 | Board shows the flow | The decisions view lists the flow steps with what covered each: real footage (wow / ok), generated panel or animation, or missing | 13:30 | To do |
 | C16 | Pitch for v2 | Pitch and slides: "real footage first; weak or missing steps are filled with labelled illustrations built from your repo, and every claim is still checked" | 13:30 | Done (lines gated on A14/A16/B15, see PITCH.md) |
 | C17 | Take optional in the app | Contract: `RunConfig.recording` optional (A, B, C agree); the API and the phone flow accept repo + brief alone, with the take as the upgrade. **Only after the Android fixes are done** | 14:00 | To do |
+| C18 | More videos in the app | Step 1 (recording) gets an optional "More videos" picker (several files). Each one goes through the same chunked `/uploads`; `POST /runs` takes their upload ids and saves them as `extras/<n>.<ext>` in the run folder, listed in `run.json` `extra_recordings` (B23 joins them). Limits: every video ≤ 7:00; **all videos together ≤ 5 GiB** (was 1 GiB for the one take), checked on the phone AND in `app.py` | 14:30 | To do |
 
 ## Make runs fast
 
