@@ -1,6 +1,0 @@
-{
-  "score": 1.0,
-  "reason": "backend/vision.py uses a vision model to detect ingredients from the photo image bytes.",
-  "action": "keep",
-  "rewrite": ""
-}

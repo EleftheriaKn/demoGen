@@ -19,7 +19,8 @@ BEATS = ["hook", "problem", "demo", "demo", "how", "impact", "ask"]
 
 def _footage(seg: str, start: float, end: float, evidence=()) -> script.FootageDraft:
     claims = [script.ClaimDraft(text="it works", evidence=list(evidence))] if evidence else []
-    return script.FootageDraft(voice_line="line", segment_id=seg, source_start=start, source_end=end, claims=claims)
+    line = "it works" if claims else "Is it?"  # a question needs no claim
+    return script.FootageDraft(voice_line=line, segment_id=seg, source_start=start, source_end=end, claims=claims)
 
 
 def _draft(**over) -> script.Draft:
@@ -54,6 +55,11 @@ def test_build_shots_order_visuals_spans_and_pending_claims():
     assert [c.claim_id for c in claims] == ["cl1", "cl2"]
     assert {c.status for c in claims} == {"pending"}
     assert [e.ref for e in claims[0].evidence] == ["c04"]  # ghost.py is not in the repo
+
+    # a factual sentence the draft left unlisted becomes a claim backed by the shot's own footage
+    problem = script.FootageDraft(voice_line="Dinner is hard.", segment_id="c02", source_start=5, source_end=9, claims=[])
+    unlisted = script.build_shots(_draft(problem=problem), "Hook line", SEGMENTS, REPO)[1].claims
+    assert [(c.claim_id, c.text, [e.ref for e in c.evidence]) for c in unlisted] == [("cl1", "Dinner is hard.", ["c02"])]
 
 
 def test_build_shots_rejects_unknown_segment():
@@ -147,6 +153,12 @@ def test_apply_checks_edits_lines_and_removes_shots_left_empty():
     assert script.apply_checks(shots[3:], mixed)[0].voice_line == "It sees eggs. Then cook."
 
 
+def test_unclaimed_sentences_are_facts_with_no_claim():
+    line = "Is dinner hard? PantryPal reads your fridge. It suggests three recipes"
+    assert script.unclaimed_sentences(line, ["PantryPal reads your fridge"]) == ["It suggests three recipes"]
+    assert script.unclaimed_sentences(line, ["reads your fridge", "suggests three recipes"]) == []
+
+
 def test_readme_section_stops_at_the_next_heading_of_its_level():
     readme = "# App\nintro\n## Use\nstep\n### Detail\nmore\n```\n# not a heading\n```\n## Next\nother"
     assert script.readme_section(readme, "Use") == "## Use\nstep\n### Detail\nmore\n```\n# not a heading\n```"
@@ -162,7 +174,7 @@ def test_evidence_that_cannot_be_shown_counts_as_none(tmp_path):
     assert len(blocks) == 1 and [p.name for p in images] == [f.split("/")[1] for f in segs["c02"].frames]
 
 
-def test_check_claim_drops_without_evidence_and_when_a_rewrite_adds_words(monkeypatch):
+def test_check_claim_drops_without_evidence_and_when_a_rewrite_adds_words_or_is_unsupported(monkeypatch):
     claim = Claim(claim_id="cl1", text="writes three recipes in one second", evidence=[], status="pending")
 
     def no_call(*a, **k):
@@ -172,14 +184,16 @@ def test_check_claim_drops_without_evidence_and_when_a_rewrite_adds_words(monkey
     out, v = script.check_claim(claim, [], [])
     assert out.status == "dropped" and out.text == claim.text and v.score == 0
 
-    def answer(rewrite):
-        verdict = script.ClaimVerdict(score=0.5, reason="r", action="rewrite", rewrite=rewrite)
+    def answer(rewrite, supported=True):
+        verdict = script.ClaimVerdict(score=0.5, reason="r", action="rewrite", rewrite=rewrite,
+                                      rewrite_supported=supported)
         monkeypatch.setattr(gemini, "generate", lambda *a, **k: verdict)
         return script.check_claim(claim, ["README section:\n## X\ny"], [])[0]
 
     assert (answer("writes three recipes").status, answer("writes three recipes").text) == ("rewritten", "writes three recipes")
     assert answer("writes four recipes").status == "dropped"
     assert answer("Writes three recipes in one second.").status == "backed"
+    assert answer("writes three recipes", supported=False).status == "dropped"  # judge: still partly unsupported
 
 
 def test_script_stage_writes_checked_script_and_decisions(tmp_path):

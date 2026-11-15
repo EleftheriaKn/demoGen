@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "backend/vision.py defines detect_ingredients taking image bytes, and the README describes taking a photo to detect ingredients.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

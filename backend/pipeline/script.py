@@ -8,14 +8,15 @@ decision per claim.
 
 Gemini fills a ``Draft`` whose shape fixes the beat order (hook, problem, 2-4 demo, how,
 impact, ask), so only hook and ask can be cards. Code then keeps footage inside real
-segments, drops evidence that doesn't exist and numbers shots and claims. A second call
+segments, drops evidence that doesn't exist, turns any unlisted factual sentence of a problem,
+demo, how or impact line into a claim (evidence: the shot's footage) and numbers shots and claims. A second call
 scores the three hooks on HOOK_QUESTIONS and flags hooks that state a fact; the best mean
 among the rest wins.
 
 Truth check: each claim is judged in its own call against its evidence alone (README section
 text, key-file content, the segment's frames). Evidence that can't be shown counts as none, and
 a claim with none is dropped without a call. A rewrite may only cut words from the claim; one
-that adds a word is dropped. Code then edits the voice line: a rewrite replaces the claim's
+that adds a word, or that the judge says is still partly unsupported, is dropped. Code then edits the voice line: a rewrite replaces the claim's
 words, a drop cuts the sentence holding it. A shot left with no words is removed.
 
 Run alone: python -m backend.run runs/<run_id> --only script
@@ -69,6 +70,7 @@ CLAIM_QUESTION = "Does the evidence alone support the claim?"
 CLAIM_OPTIONS = ["keep", "rewrite", "drop"]
 STATUS = {"keep": "backed", "rewrite": "rewritten", "drop": "dropped"}
 WORKERS = 6  # parallel claim checks
+CHECKED_BEATS = {"problem", "demo", "how", "impact"}  # every factual sentence here must be a claim
 
 
 # --------------------------------------------------------------------------- #
@@ -133,6 +135,9 @@ class ClaimVerdict(BaseModel):
         description="For rewrite: the claim with the unsupported words cut, using only words already in "
         "the claim. Empty otherwise."
     )
+    rewrite_supported: bool = Field(
+        description="For rewrite: true only if the evidence shows every part of the rewrite. False otherwise."
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -144,6 +149,21 @@ def _span(d: FootageDraft, seg: Segment) -> tuple[float, float]:
     """Clamp the clip into its segment; a clip left empty becomes the whole segment."""
     start, end = max(d.source_start, seg.start), min(d.source_end, seg.end)
     return (start, end) if end > start else (seg.start, seg.end)
+
+
+def unclaimed_sentences(line: str, claims: list[str]) -> list[str]:
+    """Sentences of ``line`` that hold none of ``claims`` and aren't questions: facts that would skip the truth check."""
+    tokens, out, sentence = line.split(), [], []
+    for k, tok in enumerate(tokens):
+        sentence.append(tok)
+        if _ends_sentence(tok) or k == len(tokens) - 1:
+            text = " ".join(sentence)
+            if words(text) and not text.rstrip("\"')»”").endswith("?") and not any(
+                _locate(sentence, c) for c in claims
+            ):
+                out.append(text)
+            sentence = []
+    return out
 
 
 def build_shots(draft: Draft, hook_line: str, segments: list[Segment], repo: RepoFiles) -> list[Shot]:
@@ -172,8 +192,13 @@ def build_shots(draft: Draft, hook_line: str, segments: list[Segment], repo: Rep
             visual = ShotVisual(kind="footage", segment_id=seg.segment_id, source_start=start, source_end=end)
         else:
             visual = ShotVisual(kind="card", card_prompt=d.card_prompt)
+        drafts = list(d.claims)
+        if beat in CHECKED_BEATS:
+            # a factual sentence the draft didn't list still gets checked, against the shot's own footage
+            drafts += [ClaimDraft(text=t, evidence=[Evidence(type="footage", ref=seg.segment_id)])
+                       for t in unclaimed_sentences(d.voice_line, [c.text for c in d.claims])]
         claims = []
-        for c in d.claims:
+        for c in drafts:
             n_claims += 1
             evidence = [e for e in c.evidence if e.ref in real[e.type]]
             claims.append(Claim(claim_id=f"cl{n_claims}", text=c.text, evidence=evidence, status="pending"))
@@ -328,7 +353,8 @@ def evidence_shown(evidence: list[Evidence], run_dir: Path, segments: dict[str, 
 def check_claim(claim: Claim, blocks: list[str], images: list[Path]) -> tuple[Claim, ClaimVerdict]:
     """Judge one claim against what its evidence shows. Returns the checked claim and the verdict."""
     if not blocks:
-        verdict = ClaimVerdict(score=0, reason="No evidence to check it against.", action="drop", rewrite="")
+        verdict = ClaimVerdict(score=0, reason="No evidence to check it against.", action="drop", rewrite="",
+                               rewrite_supported=False)
     else:
         text = gemini.prompt("script_claim", claim=claim.text, evidence="\n\n".join(blocks))
         verdict = gemini.generate(text, ClaimVerdict, images=images)
@@ -337,6 +363,9 @@ def check_claim(claim: Claim, blocks: list[str], images: list[Path]) -> tuple[Cl
         if not only_cuts(verdict.rewrite, claim.text):
             action = "drop"
             verdict = verdict.model_copy(update={"reason": f"{verdict.reason} (the rewrite added words)"})
+        elif not verdict.rewrite_supported:
+            action = "drop"
+            verdict = verdict.model_copy(update={"reason": f"{verdict.reason} (the rewrite is still partly unsupported)"})
         elif words(verdict.rewrite) == words(claim.text):
             action = "keep"
         else:
@@ -372,7 +401,7 @@ def draft_script(run: RunConfig, summary: Summary, segment_lines: str, repo: Rep
         summary=summary.model_dump_json(indent=2),
         segments=segment_lines,
         headings=json.dumps(sorted(readme_headings(repo.readme))),
-        tree=json.dumps(repo.tree),
+        tree=json.dumps([k.path for k in repo.key_files]),  # only files the truth check can read
     )
     return gemini.generate(text, Draft)
 

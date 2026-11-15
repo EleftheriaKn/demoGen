@@ -7,9 +7,10 @@ Return:
 - reason: one line naming what in the evidence backs it, or what is missing.
 - action:
   - keep if the evidence shows the whole claim.
-  - rewrite if it shows only part of it, and cutting words from the claim leaves a true statement.
-  - drop if it shows none of it, or no cut makes it true.
+  - rewrite if it shows only part of it, and cutting words from the claim leaves a statement the evidence fully shows.
+  - drop if it shows none of it, or no cut leaves a fully shown statement. If any part of your rewrite would still be unsupported, choose drop, not rewrite.
 - rewrite: for rewrite only, the claim with the unsupported words cut. Use only words already in the claim, in the same order, and add none. Empty for keep and drop.
+- rewrite_supported: for rewrite only, true if the evidence shows every part of the rewrite. False for keep and drop.
 
 Evidence:
 <evidence>
