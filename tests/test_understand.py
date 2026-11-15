@@ -81,6 +81,36 @@ def _raw(start, end, kind="action", feature_id=None, settled_at=None, quality="o
                                  flow_step=flow_step)
 
 
+def _wire(start, end, kind="action", settled_at=None, flow_step=None):
+    return understand._WireMoment(start=start, end=end, description="d", feature_id=None, kind=kind,
+                                  settled_at=settled_at, confidence=0.9, quality="ok", flow_step=flow_step)
+
+
+def test_seconds_reads_mm_ss_not_digits():
+    assert understand.seconds("01:13.5") == 73.5  # Gemini wrote this as 113 when asked for a number
+    assert understand.seconds("4:56") == 296
+    assert understand.seconds("1:02:03") == 3723
+    assert understand.seconds(" 42.5 ") == 42.5  # a bare number is seconds
+    for bad in ("", "1:", "a:10", "1:2:3:4"):
+        with pytest.raises(ValueError):
+            understand.seconds(bad)
+    assert understand.mmss(296.35) == "04:56.4" and understand.mmss(5) == "00:05.0"
+
+
+def test_find_moments_turns_mm_ss_into_seconds_and_drops_unreadable_times(tmp_path, monkeypatch):
+    said = []
+    monkeypatch.setattr(understand.ff, "duration", lambda _: 296.35)
+    monkeypatch.setattr(understand.gemini, "generate", lambda text, *a, **k: (
+        said.append(text) or understand._RawMoments(moments=[
+            _wire("00:00", "01:13.0", "setup"), _wire("01:13.0", "02:37", "result", settled_at="02:36.0"),
+            _wire("02:37", "later"), _wire("02:40", "04:50")])))
+    monkeypatch.setattr(understand.events, "emit", lambda stage, msg: said.append(msg))
+    out = understand.find_moments(tmp_path / "rec.mp4", _summary())
+    assert [(m.start, m.end) for m in out.moments] == [(0, 73), (73, 156.7), (160, 290)]
+    assert "04:56.4 long" in said[0]
+    assert "Dropped 1 moment(s) with a time that isn't MM:SS" in said
+
+
 def test_fix_moments_keeps_quality_and_nulls_unknown_flow_steps():
     raw = [_raw(0, 4, "setup", quality="weak", flow_step="s1"),
            _raw(5, 8, "action", "f1", flow_step="s2"), _raw(8.2, 9, "result", "f1", quality="wow"),
@@ -99,7 +129,7 @@ def test_missing_steps_are_flow_steps_no_moment_shows(tmp_path, monkeypatch):
     said = []
     monkeypatch.setattr(understand.ff, "duration", lambda _: 60.0)
     monkeypatch.setattr(understand.gemini, "generate", lambda *a, **k: understand._RawMoments(
-        moments=[_raw(0, 4, flow_step="s2"), _raw(4, 8)]))
+        moments=[_wire("00:00", "00:04", flow_step="s2"), _wire("00:04", "00:08")]))
     monkeypatch.setattr(understand.events, "emit", lambda stage, msg: said.append(msg))
     understand.find_moments(tmp_path / "rec.mp4", summary)
     assert said == ["Flow steps the take never shows: s1 step 1; s3 step 3"]
