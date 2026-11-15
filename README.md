@@ -7,6 +7,19 @@ ffmpeg does the cutting. DemoCut edits your footage rather than generating new f
 comes from the recording, and a truth check stops the voice-over from claiming anything the repo or footage
 can't back up. Nobody touches the final video by hand. To change it, edit the prompts or code and re-run.
 
+## Who it's for and why
+
+DemoCut is for anyone who has built something and has to show it: hackathon teams in their last hours,
+founders shipping a launch, open-source maintainers cutting a release.
+
+**The problem.** The demo video is the part of a project most people see, and the part most teams have the
+least time to make. Cutting a take, writing a voice-over and making title cards eats the last hours before
+a deadline.
+
+**The solution.** Give DemoCut a rough recording of your app, its GitHub repo and the judging brief. It cuts
+a short launch video from your real footage, and checks every claim in the voice-over against the footage
+or the repo before it is spoken.
+
 ![DemoCut pipeline](docs/pipeline.png)
 
 ## Quick start
