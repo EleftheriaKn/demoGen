@@ -1,0 +1,7 @@
+{
+  "score": 0.7,
+  "reason": "backend/vision.py and backend/recipes.py show vision detection and ingredient ranking, but the evidence does not show timing in seconds.",
+  "action": "rewrite",
+  "rewrite": "Computer vision inspects the photo while recipe ranking matches ingredients.",
+  "rewrite_supported": true
+}

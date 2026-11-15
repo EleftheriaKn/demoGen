@@ -19,7 +19,9 @@ scores the three hooks on HOOK_QUESTIONS and flags hooks that state a fact; the 
 among the rest wins.
 
 Truth check: each claim is judged in its own call against its evidence alone (README section
-text, key-file content, the segment's frames). Evidence that can't be shown counts as none, and
+text, key-file content, the segment's frames). Footage frames go in time order, with the last
+frame before the segment and the first after it, so an action shows as a change between frames.
+A generated shot (no footage on screen) is checked against README and files only. Evidence that can't be shown counts as none, and
 a claim with none is dropped without a call. A rewrite may only cut words from the claim; one
 that adds a word, or that the judge says is still partly unsupported, is dropped. Code then edits the voice line: a rewrite replaces the claim's
 words, a drop cuts the sentence holding it. A shot left with no words is removed, except the problem
@@ -437,17 +439,39 @@ def readme_section(readme: str, heading: str) -> str:
     return "\n".join(out).strip()
 
 
+def ordered_frames(seg: Segment, segments: dict[str, Segment], run_dir: Path) -> list[tuple[str, str]]:
+    """``(label, frame)`` in time order: the last frame of the nearest segment ending at or before
+    ``seg`` starts ("before"), ``seg``'s own frames ("during"), the first frame of the nearest
+    segment starting at or after it ends ("after"). Segments overlap, so a neighbour must not.
+    Only frames on disk; no own frames means nothing (the neighbours alone show no claim)."""
+    def on_disk(s: Segment) -> list[str]:
+        return [f for f in s.frames if (run_dir / f).exists()]
+
+    during = on_disk(seg)
+    if not during:
+        return []
+    before = [s for s in segments.values() if s.end <= seg.start and on_disk(s)]
+    after = [s for s in segments.values() if s.start >= seg.end and on_disk(s)]
+    out = [("before", on_disk(max(before, key=lambda s: s.end))[-1])] if before else []
+    out += [("during", f) for f in during]
+    out += [("after", on_disk(min(after, key=lambda s: s.start))[0])] if after else []
+    return out
+
+
 def evidence_shown(evidence: list[Evidence], run_dir: Path, segments: dict[str, Segment],
-                   repo: RepoFiles) -> tuple[list[str], list[Path]]:
+                   repo: RepoFiles, generated: bool = False) -> tuple[list[str], list[Path]]:
     """What the judge sees for a claim's evidence: text blocks and frame images.
 
     A file whose content ingest didn't keep, or a segment with no frames on disk, shows
-    nothing and counts as no evidence.
+    nothing and counts as no evidence. A generated shot shows no footage, so its claims are
+    checked against README and files only.
     """
     files = {k.path: k.content for k in repo.key_files}
     blocks: list[str] = []
     images: list[Path] = []
     for e in evidence:
+        if generated and e.type == "footage":
+            continue
         if e.type == "readme":
             body = readme_section(repo.readme, e.ref.removeprefix("README#"))
             if body:
@@ -457,11 +481,12 @@ def evidence_shown(evidence: list[Evidence], run_dir: Path, segments: dict[str, 
                 blocks.append(f"File {e.ref}:\n{files[e.ref]}")
         else:
             seg = segments.get(e.ref)
-            frames = [f for f in (seg.frames if seg else []) if (run_dir / f).exists()]
-            if seg and frames:
+            frames = ordered_frames(seg, segments, run_dir) if seg else []
+            if frames:
+                listed = ", ".join(f"{label} {f}" for label, f in frames)
                 blocks.append(f"Footage {seg.segment_id}, {seg.start:g}-{seg.end:g} s of the recording: "
-                              f"{len(frames)} frames attached in order ({', '.join(frames)})")
-                images += [run_dir / f for f in frames]
+                              f"{len(frames)} frames attached in time order ({listed})")
+                images += [run_dir / f for _, f in frames]
     return blocks, images
 
 
@@ -610,9 +635,10 @@ def run(run_dir: Path, run: RunConfig) -> None:
     drafted = build_shots(draft, chosen.text, segments, repo)
 
     by_id = {s.segment_id: s for s in segments}
-    claims = [c for s in drafted for c in s.claims]
+    claims = [(c, s.generated) for s in drafted for c in s.claims]
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        results = list(pool.map(lambda c: check_claim(c, *evidence_shown(c.evidence, run_dir, by_id, repo)), claims))
+        results = list(pool.map(lambda cg: check_claim(cg[0], *evidence_shown(cg[0].evidence, run_dir, by_id, repo, cg[1])),
+                                claims))
     shots = keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted, summary.problem)
     if run.mode != "cheap":
         shots = add_zoom(run_dir, shots)

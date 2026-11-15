@@ -1,0 +1,7 @@
+{
+  "score": 0.25,
+  "reason": "The recording only displays synthetic test patterns without showing a fridge, photo capture, or ingredient detection.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}
