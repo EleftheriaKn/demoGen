@@ -265,12 +265,13 @@ TodoMVC take that left 24 s and 5 shots. The repo knows those things; the footag
 `Summary.flow: [{step_id, text, feature_id, evidence[]}]` · `Moment.quality: "wow"|"ok"|"weak"` and
 `Moment.flow_step` · `ShotVisual.reference_frames: [frames/...]` (frames sent to fal) · b-roll clips already
 fit `Assets.broll` / `TimelineVisual(kind="broll")`. `RunConfig.brief.text` (the pasted brief; today it
-only lands in `brief.txt` and **no stage reads it**).
+only lands in `brief.txt` and **no stage reads it**). Added with "Taste and references": `Shot.callout` (≤ 5 words, a truth-checked claim)
+and `RunConfig.recording` becoming optional (the only non-additive change: agree first).
 
 **Prompt review (Nov 15, B): what A's prompts were missing.**
 
 1. The pasted brief is never used: `app.py` saves `brief.txt`, but understand, script and rubric only get
-   `criteria`. The brief is one of our three inputs: pass its text to understand, script and rubric.
+   `criteria` (still true after A's 716e826, which uses only the brief's time limit for the length). The brief is one of our three inputs: pass its text to understand, script and rubric.
 2. `script_draft.md` forces every problem / demo / how / impact shot to be footage, so lines the footage
    can't show are dropped (the v3 shrink). Fixed by step 3 above.
 3. Footage claims are checked from a few still frames, so any action ("types", "clicks", "toggles") fails;
@@ -284,6 +285,62 @@ only lands in `brief.txt` and **no stage reads it**).
 
 **Meanwhile:** C and the team are still fixing Android (only an iPhone dry run so far). Nothing here touches
 the board, the upload or `app.py`'s phone code until that is done.
+
+## Taste and references (Nov 15)
+
+We use none of these products. They are the taste we describe to Gemini and fal, so both know what "good"
+looks like.
+
+| Reference | What it does | The taste we borrow |
+|---|---|---|
+| **Higgsfield Katana** (Claude MCP, Oct 2026) | A reference edit (3–30 s) + up to 5 photos → the same edit with your product; keeps the reference's shot order, shot lengths and cuts on the music | **Edit from a named format** (shot order + lengths), **cuts on the beat** |
+| **Screen Studio** | Screen recordings that look produced: auto zoom toward clicks, smoothed and enlarged cursor, window on a padded background, rounded corners, shadow | The baseline for **real footage**: zoom to the action, hold on the result, never raw full screen |
+| **Clueso** | Real recording → script, AI voice, captions, auto zooms; agents make the launch video whenever a feature ships | Proof the footage path sells; pitch line "every release gets its video" |
+| **Arcade** (AI video) | Prompt / screenshots / URLs → on-brand motion video: scenes, text animation, voice | **Kinetic text**, one scene per idea, for generated shots |
+| **RepoClip** | Repo URL only → script, narration, generated visuals | The closest no-recording rival: no real footage, no truth check |
+| **iArt / UX Pilot / Vibe Motion** | URL / changelog / repo → real screenshots → animated launch video | **Real screenshots as anchors** for generated UI (ingest already pulls README screenshots) |
+| **Slideshot / Bingeable** | An agent drives the live app and records the walkthrough | Later: an agent records when there is no take (out of scope today) |
+
+**Our edge:** each of them takes one input. DemoCut combines the **repo** (what is true), the **real footage**
+(proof it works) and the **brief** (what the judges score), and checks every claim. The take is optional; it
+is the upgrade that makes the video credible.
+
+**Taste brief (paste into A's script / fal prompts):**
+
+> **Format: launch spot.** One idea per shot. Hook 2–4 s; each feature 3–6 s; total from the brief's time
+> limit (30–60 s launch, up to 90 s explainer). Shots follow the user's flow. Cuts land on the music's beats.
+> **Real footage looks produced:** zoom toward the action, hold on the result, the window on a soft padded
+> background with rounded corners and a shadow; never a raw full-screen recording.
+> **Generated shots look designed, not fake:** flat vector, 2–3 colours taken from the app's own screenshots,
+> generous space, soft gradients, simplified UI cards and icons, gentle motion. **No text, letters or logos in
+> generated art**: every word is ours and truth-checked.
+> **On-screen words:** a callout of at most 5 words (a benefit or an on-screen fact) pops in next to what it names.
+> **Honesty:** real footage for what the take shows well, labelled illustrations for what it doesn't, every claim
+> backed by the footage or the repo.
+
+**fal model for generated shots: Ideogram Vector 1.0** (Oct 22, 2026; on fal: `ideogram/vector/text-to-vector`,
+`ideogram/vector/image-to-vector`).
+
+- **Weak moment → redraw the real frame:** `image-to-vector`, `simple` mode (~$0.10). The same screen, flat
+  and clean: honest and designed.
+- **Missing step / how / impact → infographic or UI scene:** `text-to-vector` with 1–5 real frames or README
+  screenshots as `image_urls`, `aspect_ratio: "16:9"`, `num_images: 4` (best of 4 in one call, judged), fixed
+  `seed` per run for one consistent look (~$0.13–0.20 each; $0.32 high with references).
+- Check on the first call that fal really returns SVG (its example shows PNG). Render rasterizes SVG to PNG
+  at the output size (ffmpeg can't read SVG). The vectorizer doesn't group shapes into layers yet.
+
+### Recording optional (Nov 15)
+
+The take becomes optional: **repo + brief** alone gives a fully generated launch video; **repo + brief +
+take** gives real footage for every step the take shows well and generated shots for the rest.
+
+| Part | Today | Needed |
+|---|---|---|
+| Contract | `RunConfig.recording` is required | Optional (A, B and C agree first) |
+| C · API and phone app | A take is required (or the fixture) | Repo + brief alone is allowed; the take is the upgrade. **After the Android fixes** |
+| B · ingest, candidates, timeline, render | Assume a take | No take: no `audio.wav` / candidates; every shot generated |
+| A · understand, script | Moments come from the footage | No footage: every flow step is "missing", so generated: vector UI scenes in the app's style from README screenshots, animated by push-in or image→video |
+| Speed | ~6 min with a take | Without a take there is no video to watch: well under a minute |
 
 ## Who owns which files
 
@@ -318,9 +375,11 @@ A makes every decision and every generated asset. Test each stage alone with
 | A13 | Weak / wow / missing | Each moment gets `quality` (wow / ok / weak) and `flow_step`; flow steps the take never shows are listed as missing | 12:30 | To do |
 | A14 | Script fills the gaps | Weak or missing flow steps get a generated shot (comic panel, or animation for 1–2 key steps) in any beat; wow / ok moments stay footage; how / impact may be generated with README/file claims; the brief text guides the story; target length kept | 13:00 | To do |
 | A15 | Truth check by shot type | Footage shots: claims vs footage (frames before + after, so actions count). Generated shots: claims vs README/file only, never footage. Fixes the v3 drops | 12:30 | To do |
-| A16 | fal comic panels | One comic-style panel per generated shot from its `reference_frames` (fal image model), best of 4 judged, no drawn text (we write it); plain-card fallback | 13:00 | To do |
+| A16 | fal comic panels | One comic-style panel per generated shot from its `reference_frames` (fal **Ideogram Vector 1.0**: `image-to-vector` for a weak moment's own frame, `text-to-vector` with frames / README screenshots as references for missing steps; see "Taste and references"), best of 4 judged, no drawn text (we write it); plain-card fallback | 13:00 | To do |
 | A17 | fal animation (if time) | 1–2 key generated shots become a 3–5 s clip (fal image→video from a real frame) into `assets.broll`; parallel, cached, silent; falls back to the comic panel | 13:30 | To do |
 | A18 | Rubric for v2 | Adds: at least 60% of the target length; at least 50% real footage; every generated shot has a backed README/file claim; reads the brief text | 13:00 | To do |
+| A19 | Taste brief in the prompts | The taste brief ("Taste and references") goes into `script_draft.md` and every fal prompt; the script returns a `callout` (≤ 5 words, a claim, truth-checked) per shot and picks a treatment per shot: footage (wow), footage + callout (ok), vector panel (weak), infographic (missing / how / impact) | 13:00 | To do |
+| A20 | No take: a generated flow | With no recording, understand skips moments, every flow step is "missing", and the script makes a fully generated launch spot (vector UI scenes from README screenshots, infographics); runs in well under a minute | 14:00 | To do |
 
 ## Tickets · B · Render (ffmpeg)
 
@@ -342,8 +401,10 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B12 | One command starts the server | `python -m backend.serve` (new file, B; Linux and macOS) runs C's app unchanged on `0.0.0.0:8000` and prints `DemoCut ready` with every phone address on the Wi-Fi, which stages run real or fake (from `DEMOCUT_FAKE`), a warning for real stages missing a key (never printing keys), and the GitHub callback URL to register for this address; `--tunnel` starts cloudflared when installed and prints its `https` link; Ctrl-C stops it and any tunnel cleanly. README's phone section points to it | 09:00 | Done (Nov 15) |
 | B13 | Log new devices | `backend/devices.py` (new file, B), attached to C's app by `serve.py` (no change to `app.py`): the first request from a device prints one line, e.g. `new device: iPhone · Safari · 172.20.1.42`, and appends it to `runs/devices.jsonl` (time, address, device, browser: nothing else). A device id cookie (address + browser as fallback) keeps reloads and later requests quiet. Starting a run logs which device started it | 09:00 | Done (Nov 15) |
 | B14 | QR code to open the app | At start the terminal shows a QR code of the phone address (or the tunnel link); `serve.py` adds `GET /qr.svg` (made in Python, e.g. `segno`, so no system tool is needed). On the board C adds one `<img src="/qr.svg">` for laptop screens (C's file: ask C). Done when scanning the laptop screen opens the board on the phone, on Linux and macOS | 09:00 | Done (Nov 15) |
-| B15 | Comic look | Generated stills render as comic panels (inset panel border, slight halftone, push-in) with a small "illustration" tag; captions unchanged; works on plain fallback cards | 13:00 | To do |
+| B15 | Comic look | Generated stills render as comic panels (inset panel border, slight halftone, push-in) with a small "illustration" tag; SVG from fal rasterized at output size; a **kinetic callout** (≤ 5 words, from `Shot.callout`) pops in next to the zoom box; captions unchanged; works on plain fallback cards | 13:00 | To do |
 | B16 | Animation clips | `broll` clips from fal play fitted to the voice (speed ≤ 1.5, hold, push-in on holds), any size / fps, no audio of their own, "illustration" tag; a missing clip falls back to the panel | 13:30 | To do |
+| B17 | No take in B's stages | Ingest, candidates, timeline and render run without a recording (no `audio.wav` / candidates, only generated shots); a run with a take is unchanged | 13:30 | To do |
+| B18 | Cuts on the beat | Shot boundaries snap to the music's beats (within ±0.25 s, never cutting a voice line) when there is a music bed | 14:00 | To do |
 
 ## Tickets · C · App, board, MCP and pitch
 
@@ -367,6 +428,7 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 | C14 | Brief text in the run | `brief.text` (optional) in `run.json` from the pasted brief (contract change agreed: A, B, C), so A12/A14/A18 can read it; `brief.txt` kept for old runs | 12:30 | To do |
 | C15 | Board shows the flow | The decisions view lists the flow steps with what covered each: real footage (wow / ok), generated panel or animation, or missing | 13:30 | To do |
 | C16 | Pitch for v2 | Pitch and slides: "real footage first; weak or missing steps are filled with labelled illustrations built from your repo, and every claim is still checked" | 13:30 | To do |
+| C17 | Take optional in the app | Contract: `RunConfig.recording` optional (A, B, C agree); the API and the phone flow accept repo + brief alone, with the take as the upgrade. **Only after the Android fixes are done** | 14:00 | To do |
 
 ## Make runs fast
 
@@ -405,7 +467,8 @@ Three checkpoints decide what gets cut. Each person sleeps once, staggered, so t
 cards), then fal infographic backgrounds (keep render's text overlays on plain backgrounds), then music, then the MCP tool, then GitHub login (keep the paste-a-repo-URL field). Never cut
 the truth check: it is the pitch. Never cut the three inputs on the phone: they are the pitch too.
 
-> Version 2 tickets (A12–A18, B15–B16, C14–C16) come from "Version 2 of the idea" above (Nov 15, ~11:00).
+> Version 2 tickets (A12–A20, B15–B18, C14–C17) come from "Version 2 of the idea", "Taste and references"
+> and "Recording optional" above (Nov 15, ~11:00–12:30).
 > The feature freeze moves for them; order: A15 and A12 first (they stop the empty videos), then A13/A14,
 > A16 with B15, A18; A17 + B16 (animation) only if time is left. Each step leaves a working video.
 >
