@@ -19,20 +19,27 @@ CARD_ENDPOINT = "fal-ai/flux-2"
 CARD_EDIT_ENDPOINT = "fal-ai/nano-banana-2/edit"
 MUSIC_ENDPOINT = "fal-ai/elevenlabs/music"
 SCRIBE_ENDPOINT = "fal-ai/elevenlabs/speech-to-text/scribe-v2"
+DOWNLOAD_TIMEOUT_S = 60
+
+
+def _download(url: str, out_path: Path) -> None:
+    """A stalled download raises (socket timeout) instead of hanging, so ``cache.retry`` retries it."""
+    with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_S) as r:
+        Path(out_path).write_bytes(r.read())
 
 
 def tts(text: str, language: str, out_path: Path) -> Path:
     """``language`` is a BCP-47 code ('en', 'el'); the voice is the endpoint's default."""
     # input accepts language_code, output is {"audio": {"url": ...}}.
     result = fal_client.subscribe(TTS_ENDPOINT, arguments={"text": text, "language_code": language})
-    urllib.request.urlretrieve(result["audio"]["url"], out_path)
+    _download(result["audio"]["url"], out_path)
     return Path(out_path)
 
 
 def card_image(prompt: str, out_path: Path) -> Path:
     """FLUX 2 text-to-image, 16:9. Output: {"images": [{"url", "width", "height", ...}], "seed", ...}."""
     result = fal_client.subscribe(CARD_ENDPOINT, arguments={"prompt": prompt, "image_size": "landscape_16_9"})
-    urllib.request.urlretrieve(result["images"][0]["url"], out_path)
+    _download(result["images"][0]["url"], out_path)
     return Path(out_path)
 
 
@@ -42,7 +49,7 @@ def card_edit(prompt: str, reference_images: list[Path], out_path: Path) -> Path
     result = fal_client.subscribe(
         CARD_EDIT_ENDPOINT, arguments={"prompt": prompt, "image_urls": urls, "aspect_ratio": "16:9"}
     )
-    urllib.request.urlretrieve(result["images"][0]["url"], out_path)
+    _download(result["images"][0]["url"], out_path)
     return Path(out_path)
 
 
@@ -50,7 +57,7 @@ def music(prompt: str, seconds: float, out_path: Path) -> Path:
     """ElevenLabs music, instrumental, MP3. ``music_length_ms`` must be 3000..600000. Output: {"audio": {"url"}}."""
     args = {"prompt": prompt, "music_length_ms": int(seconds * 1000), "force_instrumental": True}
     result = fal_client.subscribe(MUSIC_ENDPOINT, arguments=args)
-    urllib.request.urlretrieve(result["audio"]["url"], out_path)
+    _download(result["audio"]["url"], out_path)
     return Path(out_path)
 
 
