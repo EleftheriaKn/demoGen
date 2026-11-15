@@ -87,12 +87,6 @@ from backend.contracts import (
 from backend.decisions import append_decision, drop_stage
 from backend.pipeline.understand import missing_steps, readme_headings
 
-try:  # main (B19): gemini.prompt() fills {brief_block} from backend/brief.py itself
-    from backend import brief as _brief  # noqa: F401
-    BRIEF_BLOCK: dict[str, str] = {}
-except ImportError:  # ponytail: this branch predates B19; delete once main is merged
-    BRIEF_BLOCK = {"brief_block": ""}
-
 TARGET_S = 75  # the longest script, whatever the limit
 TARGET_WORDS = 190
 TARGET_SHARE = 0.85  # of the brief's time limit, so cards and holds still fit under it
@@ -761,7 +755,6 @@ def draft_script(run: RunConfig, summary: Summary, segment_lines: str, repo: Rep
         words=str(total),
         footage=", ".join("demos" if b == "demo" else b for b in footage),
         demo_count=DEMO_COUNT[model],
-        **BRIEF_BLOCK,
         flow=flow or "No user flow is given: every problem, demo, how and impact shot is footage.",
         beat_lines="".join(BEAT_LINES.get(b, "") for b in footage),
         budget="\n".join(f"- {b}: {w} words" + (" across all demo shots" if b == "demo" else "")
