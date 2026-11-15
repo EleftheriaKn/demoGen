@@ -232,6 +232,59 @@ class TimelineVisual(Contract):    # added fields, copied from the script by tim
     overlay: Optional[Overlay] = None
 ```
 
+## Version 2 of the idea: the repo tells the flow, fal fixes the weak parts (decided Nov 15, ~11:00)
+
+**Why.** Dry runs kept coming out short or empty: the truth check judges every middle line against a few
+still frames of the footage, and a rough take rarely *shows* the problem, how it works or the impact
+("The footage only shows a todo entry being typed, no reference to developer choices" → dropped). On the
+TodoMVC take that left 24 s and 5 shots. The repo knows those things; the footage doesn't have to.
+
+**How it works now.**
+
+1. **Expected user flow from the repo.** Gemini reads README, spec and key files and writes the flow a
+   user goes through, in order (open the app → add an item → complete it → filter...), each step with
+   README/file evidence.
+2. **Match the take to the flow.** Each moment of the real footage is matched to a flow step and marked
+   **wow** (the payoff is clear on screen), **ok** or **weak** (too fast, messy, cut off). Flow steps the
+   take never shows are **missing**.
+3. **fal fixes what is weak or missing.** For a weak or missing step the script asks for a generated shot:
+   a **comic-style panel** made from real frames as references (fal image model, best of 4, judged), or for
+   1–2 key steps a short **animation** (fal image→video from a real frame). Wow moments stay real footage.
+4. **Captions and render** as today: real footage, cards, generated panels and clips, push-in, captions.
+
+**Honesty rules (the pitch stays true).**
+
+- Real footage first: wow and ok moments are always real. Generated shots only cover weak or missing steps,
+  the hook and the ask.
+- A footage shot's claims must be visible in its footage (as now). A generated shot's claims must be
+  backed by README or code (the truth check reads that evidence).
+- Every generated shot is labelled: a small "illustration" tag in the video and the board badge (C13).
+- At least 50% of the runtime is real footage (rubric, computed from `timeline.json`).
+
+**Contract (optional fields only: nothing breaks).**
+`Summary.flow: [{step_id, text, feature_id, evidence[]}]` · `Moment.quality: "wow"|"ok"|"weak"` and
+`Moment.flow_step` · `ShotVisual.reference_frames: [frames/...]` (frames sent to fal) · b-roll clips already
+fit `Assets.broll` / `TimelineVisual(kind="broll")`. `RunConfig.brief.text` (the pasted brief; today it
+only lands in `brief.txt` and **no stage reads it**).
+
+**Prompt review (Nov 15, B): what A's prompts were missing.**
+
+1. The pasted brief is never used: `app.py` saves `brief.txt`, but understand, script and rubric only get
+   `criteria`. The brief is one of our three inputs: pass its text to understand, script and rubric.
+2. `script_draft.md` forces every problem / demo / how / impact shot to be footage, so lines the footage
+   can't show are dropped (the v3 shrink). Fixed by step 3 above.
+3. Footage claims are checked from a few still frames, so any action ("types", "clicks", "toggles") fails;
+   the prompt warns, Gemini still writes them. Check against frames before and after, or reword in code.
+4. `understand_summary.md` lists features "most important first", not in the order a user meets them.
+5. `understand_moments.md` has no quality (weak / ok / wow) and no link to a flow step.
+6. `rubric.md` has no minimum length (the 24 s cut passed 4/4) and "shown on screen" must allow generated
+   shots outside the main result.
+7. `script_draft.md` is ~700 words of interleaved rules; a short checklist at the end makes Gemini less
+   likely to drop one.
+
+**Meanwhile:** C and the team are still fixing Android (only an iPhone dry run so far). Nothing here touches
+the board, the upload or `app.py`'s phone code until that is done.
+
 ## Who owns which files
 
 No file has two owners, so three people can push to `main` all night without merge conflicts.
@@ -261,6 +314,13 @@ A makes every decision and every generated asset. Test each stage alone with
 | A9 | Our own video | Version 1 at 12:00; fixes only through prompts or code; version 2 by 14:00 | 14:00 | To do |
 | A10 | Brief from free text (mobile app) | `understand` fills `brief.criteria` from `brief.text` when the app sends only text; 7-minute take works (low media resolution in cheap mode) | 05:30 | Proposed |
 | A11 | Infographic shots | `script.py` picks which non-demo shots are infographics, writes `overlay` + `reference_frames` (overlay text only from backed claims); `assets.py` sends the frames to fal as references, best of 4; rubric checks ≥ 70% real footage | 11:00 | Proposed |
+| A12 | Flow from the repo | `understand` adds `summary.flow`: the user's steps in order, each with README/file evidence; the pasted brief's text is read too | 12:30 | To do |
+| A13 | Weak / wow / missing | Each moment gets `quality` (wow / ok / weak) and `flow_step`; flow steps the take never shows are listed as missing | 12:30 | To do |
+| A14 | Script fills the gaps | Weak or missing flow steps get a generated shot (comic panel, or animation for 1–2 key steps) in any beat; wow / ok moments stay footage; how / impact may be generated with README/file claims; the brief text guides the story; target length kept | 13:00 | To do |
+| A15 | Truth check by shot type | Footage shots: claims vs footage (frames before + after, so actions count). Generated shots: claims vs README/file only, never footage. Fixes the v3 drops | 12:30 | To do |
+| A16 | fal comic panels | One comic-style panel per generated shot from its `reference_frames` (fal image model), best of 4 judged, no drawn text (we write it); plain-card fallback | 13:00 | To do |
+| A17 | fal animation (if time) | 1–2 key generated shots become a 3–5 s clip (fal image→video from a real frame) into `assets.broll`; parallel, cached, silent; falls back to the comic panel | 13:30 | To do |
+| A18 | Rubric for v2 | Adds: at least 60% of the target length; at least 50% real footage; every generated shot has a backed README/file claim; reads the brief text | 13:00 | To do |
 
 ## Tickets · B · Render (ffmpeg)
 
@@ -282,6 +342,8 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B12 | One command starts the server | `python -m backend.serve` (new file, B; Linux and macOS) runs C's app unchanged on `0.0.0.0:8000` and prints `DemoCut ready` with every phone address on the Wi-Fi, which stages run real or fake (from `DEMOCUT_FAKE`), a warning for real stages missing a key (never printing keys), and the GitHub callback URL to register for this address; `--tunnel` starts cloudflared when installed and prints its `https` link; Ctrl-C stops it and any tunnel cleanly. README's phone section points to it | 09:00 | Done (Nov 15) |
 | B13 | Log new devices | `backend/devices.py` (new file, B), attached to C's app by `serve.py` (no change to `app.py`): the first request from a device prints one line, e.g. `new device: iPhone · Safari · 172.20.1.42`, and appends it to `runs/devices.jsonl` (time, address, device, browser: nothing else). A device id cookie (address + browser as fallback) keeps reloads and later requests quiet. Starting a run logs which device started it | 09:00 | Done (Nov 15) |
 | B14 | QR code to open the app | At start the terminal shows a QR code of the phone address (or the tunnel link); `serve.py` adds `GET /qr.svg` (made in Python, e.g. `segno`, so no system tool is needed). On the board C adds one `<img src="/qr.svg">` for laptop screens (C's file: ask C). Done when scanning the laptop screen opens the board on the phone, on Linux and macOS | 09:00 | Done (Nov 15) |
+| B15 | Comic look | Generated stills render as comic panels (inset panel border, slight halftone, push-in) with a small "illustration" tag; captions unchanged; works on plain fallback cards | 13:00 | To do |
+| B16 | Animation clips | `broll` clips from fal play fitted to the voice (speed ≤ 1.5, hold, push-in on holds), any size / fps, no audio of their own, "illustration" tag; a missing clip falls back to the panel | 13:30 | To do |
 
 ## Tickets · C · App, board, MCP and pitch
 
@@ -302,6 +364,9 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 | C11 | GitHub login | OAuth login; repo list from `GET /user/repos`; tap a repo fills `repo_url`; token kept server-side only | 09:00 | Done |
 | C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Done |
 | C13 | Generated badges | Board marks generated shots (`Shot.generated`) and shows the real-footage share from the rubric | 11:00 | Done |
+| C14 | Brief text in the run | `brief.text` (optional) in `run.json` from the pasted brief (contract change agreed: A, B, C), so A12/A14/A18 can read it; `brief.txt` kept for old runs | 12:30 | To do |
+| C15 | Board shows the flow | The decisions view lists the flow steps with what covered each: real footage (wow / ok), generated panel or animation, or missing | 13:30 | To do |
+| C16 | Pitch for v2 | Pitch and slides: "real footage first; weak or missing steps are filled with labelled illustrations built from your repo, and every claim is still checked" | 13:30 | To do |
 
 ## Make runs fast
 
@@ -340,6 +405,10 @@ Three checkpoints decide what gets cut. Each person sleeps once, staggered, so t
 cards), then fal infographic backgrounds (keep render's text overlays on plain backgrounds), then music, then the MCP tool, then GitHub login (keep the paste-a-repo-URL field). Never cut
 the truth check: it is the pitch. Never cut the three inputs on the phone: they are the pitch too.
 
+> Version 2 tickets (A12–A18, B15–B16, C14–C16) come from "Version 2 of the idea" above (Nov 15, ~11:00).
+> The feature freeze moves for them; order: A15 and A12 first (they stop the empty videos), then A13/A14,
+> A16 with B15, A18; A17 + B16 (animation) only if time is left. Each step leaves a working video.
+>
 > The "Proposed" tickets come from decisions on Nov 15: the mobile app (A10, B10, C10–C12), starting the
 > server, device log and QR code (B12–B14) and
 > infographics from the real footage (A11, B11, C13). Owners
