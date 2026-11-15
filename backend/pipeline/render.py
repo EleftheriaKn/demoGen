@@ -37,6 +37,7 @@ INTO_STORY_S = 0.45   # montage -> hook
 TRANSITIONS = ("smoothleft", "circleopen", "slideup", "hblur", "squeezeh", "radial")
 PAN = 0.06            # B30: cards / panels drift sideways this share of the picture while they push in
 TREND_DRIFT = 0.08
+TAIL_SLACK_S = 0.5    # extra frames after each shot, never shown (the next shot covers them)
 
 
 def zoom_filter(s: TimelineShot, iw: int, ih: int, fps: int, pan: float = 0.0, tail: float = 0.0) -> str:
@@ -206,7 +207,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
     outs = [d / "shots" / f"{s.shot_id}.mp4" for s in tl.shots]
     trend = style_of(run) == "trend" and len(tl.shots) > 1
     trans = transitions(d, tl) if trend else None
-    tails = [sec for _, sec in trans] + [0.0] if trans else [0.0] * len(tl.shots)
+    # +TAIL_SLACK_S: xfade ends the whole output if a shot runs out right at its transition (run-19c98fc7)
+    tails = [sec + TAIL_SLACK_S for _, sec in trans] + [0.0] if trans else [0.0] * len(tl.shots)
     pans = [(PAN if i % 2 else -PAN) if trend else 0.0 for i in range(len(tl.shots))]
     with ThreadPoolExecutor(WORKERS) as ex:
         jobs = zip(tl.shots, outs, tails, pans)
