@@ -117,3 +117,29 @@ def test_upload_log_moves_into_run(client, tmp_path):
 
 def test_parts_are_4mb():
     assert api.CHUNK_BYTES == 4 * 1024**2
+
+
+@pytest.mark.parametrize("name,mime,ext", [
+    ("1000012345", "video/mp4", ".mp4"),                     # Android Photos picker: no extension
+    ("1000012345", "video/quicktime", ".mov"),
+    ("1000012345", "", ".mp4"),                              # no type either: ffprobe decides later
+    ("Screen_Recording_20261115.mp4", "video/mp4", ".mp4"),
+    ("VID_20261115.3gp", "video/3gpp", ".3gp"),
+    ("IMG_0001.MOV", "video/quicktime", ".mov"),
+])
+def test_android_names(client, name, mime, ext):
+    r = client.post("/uploads", json={"filename": name, "size": 1000, "type": mime})
+    assert r.status_code == 201, r.text
+    assert api.video_ext(name, mime) == ext
+
+
+@pytest.mark.parametrize("name,mime", [("notes.txt", "text/plain"), ("photo.jpg", "image/jpeg"), ("1000012345", "image/jpeg")])
+def test_not_videos(client, name, mime):
+    assert client.post("/uploads", json={"filename": name, "size": 1000, "type": mime}).status_code == 422
+
+
+@needs_ffprobe
+def test_extensionless_android_take_runs(client, tmp_path):
+    uid = upload(client, TAKE, name="1000012345")
+    rid = client.post("/runs", data={"repo_url": REPO, "upload_id": uid}).json()["run_id"]
+    assert (tmp_path / rid / "recording.mp4").read_bytes() == TAKE
