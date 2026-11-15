@@ -1,0 +1,116 @@
+{
+  "moments": [
+    {
+      "start": 0.0,
+      "end": 4.0,
+      "description": "A blank black screen is displayed.",
+      "feature_id": null,
+      "kind": "dead",
+      "confidence": 1.0
+    },
+    {
+      "start": 4.0,
+      "end": 12.5,
+      "description": "The TodoMVC page loads showing \"todos\" and the \"What needs to be done?\" input while the cursor idly moves around.",
+      "feature_id": null,
+      "kind": "dead",
+      "confidence": 1.0
+    },
+    {
+      "start": 12.5,
+      "end": 14.5,
+      "description": "The user types \"Buy milk\" into the input field and presses Enter, adding it to the list.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 14.5,
+      "end": 22.5,
+      "description": "The user types \"Finish the hackathon demo video\" into the input field and presses Enter to add it to the list.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 22.5,
+      "end": 24.5,
+      "description": "The user types \"Call mom\" into the input field and presses Enter, adding it to the list.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 24.5,
+      "end": 31.5,
+      "description": "The user types \"fix login bug\" into the input field and presses Enter, adding it to the list.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 31.5,
+      "end": 42.5,
+      "description": "The cursor idly hovers across the items in the list and around the screen.",
+      "feature_id": null,
+      "kind": "dead",
+      "confidence": 1.0
+    },
+    {
+      "start": 42.5,
+      "end": 44.5,
+      "description": "The user clicks the check circle next to \"fix login bug\", marking it completed.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 44.5,
+      "end": 46.5,
+      "description": "The user clicks the check circle next to \"Finish the hackathon demo video\", marking it completed.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 46.5,
+      "end": 49.5,
+      "description": "The cursor moves across the list items without performing any action.",
+      "feature_id": null,
+      "kind": "dead",
+      "confidence": 1.0
+    },
+    {
+      "start": 49.5,
+      "end": 51.5,
+      "description": "The user clicks \"Active\" in the footer filter, displaying only active tasks.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 51.5,
+      "end": 54.5,
+      "description": "The user clicks \"Completed\" in the footer filter, displaying only completed tasks.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 54.5,
+      "end": 57.5,
+      "description": "The user clicks \"All\" in the footer filter, displaying all tasks.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    },
+    {
+      "start": 57.5,
+      "end": 60.0,
+      "description": "The user clicks \"Completed\" in the footer filter to filter the list to completed tasks.",
+      "feature_id": null,
+      "kind": "result",
+      "confidence": 1.0
+    }
+  ]
+}

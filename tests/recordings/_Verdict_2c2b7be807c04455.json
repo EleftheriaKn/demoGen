@@ -1,0 +1,72 @@
+{
+  "frames": [
+    {
+      "note": "Light gray background with small placeholder text.",
+      "answers": [
+        {
+          "score": 0.25,
+          "reason": "Visible text is present on the left."
+        },
+        {
+          "score": 0.7,
+          "reason": "Uniform light backdrop provides decent contrast."
+        },
+        {
+          "score": 0.35,
+          "reason": "Appears unfinished and basic."
+        }
+      ]
+    },
+    {
+      "note": "Dark navy backdrop with a large blue circle graphic.",
+      "answers": [
+        {
+          "score": 0.75,
+          "reason": "Entirely clear of text and logos."
+        },
+        {
+          "score": 0.75,
+          "reason": "Ample negative space supports clear text placement."
+        },
+        {
+          "score": 0.7,
+          "reason": "Modern, sleek graphic suits an app presentation."
+        }
+      ]
+    },
+    {
+      "note": "Solid flat terracotta red canvas.",
+      "answers": [
+        {
+          "score": 0.75,
+          "reason": "No text elements are visible."
+        },
+        {
+          "score": 0.7,
+          "reason": "Flat field allows readable high-contrast typography."
+        },
+        {
+          "score": 0.35,
+          "reason": "Lacks graphic detail and polished styling."
+        }
+      ]
+    },
+    {
+      "note": "Solid neutral dark gray canvas.",
+      "answers": [
+        {
+          "score": 0.75,
+          "reason": "Completely free of any characters."
+        },
+        {
+          "score": 0.7,
+          "reason": "Solid tone accommodates legible text overlays."
+        },
+        {
+          "score": 0.3,
+          "reason": "Overly plain without branding or visual appeal."
+        }
+      ]
+    }
+  ]
+}

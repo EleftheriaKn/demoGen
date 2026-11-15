@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "It creates an immediate relatable visual dilemma that sparks curiosity quickly."
+        },
+        {
+          "score": 0.4,
+          "reason": "It relates to fridge contents but omits the photo-to-recipe mechanic unique to the app."
+        },
+        {
+          "score": 0.3,
+          "reason": "It asks about the user's problem rather than stating what the app actually does for them."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It sounds like a generic infomercial opener, creating only mild curiosity."
+        },
+        {
+          "score": 0.2,
+          "reason": "It could apply to any food waste, grocery tracker, or budgeting tool."
+        },
+        {
+          "score": 0.2,
+          "reason": "It highlights general waste frustration rather than showing the app's direct benefit or action."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It sets up a common culinary struggle quickly and clearly."
+        },
+        {
+          "score": 0.4,
+          "reason": "It touches on cooking from fridge ingredients but misses the photo recognition feature."
+        },
+        {
+          "score": 0.3,
+          "reason": "It describes the user's pain point instead of detailing what the app delivers."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

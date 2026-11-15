@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import mimetypes
 import os
 import time
 from pathlib import Path
@@ -62,7 +63,7 @@ def recording_path(
 
 
 def generate(text: str, schema: type[T], images: Sequence[Path] = (), video: Optional[Path] = None) -> T:
-    """``images`` are JPEG files sent after the text, in order; ``video`` goes before the text."""
+    """``images`` are image files (JPEG, PNG...) sent after the text, in order; ``video`` goes before the text."""
     path = recording_path(text, schema, images, video) if RECORDINGS is not None else None
     if not LIVE:
         if path is None or not path.exists():
@@ -118,7 +119,7 @@ def _call(
     from google import genai
     from google.genai import types
 
-    contents: list[Any] = [text, *(types.Part.from_bytes(data=Path(i).read_bytes(), mime_type="image/jpeg") for i in images)]
+    contents: list[Any] = [text, *(types.Part.from_bytes(data=Path(i).read_bytes(), mime_type=mimetypes.guess_type(str(i))[0] or "image/jpeg") for i in images)]
     if video is not None:
         uri, mime = upload(video)
         contents.insert(0, types.Part.from_uri(file_uri=uri, mime_type=mime))

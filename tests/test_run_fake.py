@@ -42,8 +42,9 @@ def test_unknown_fake_stage_rejected(monkeypatch):
 
 
 def test_pick_best_stub_shape():
-    drafts = [f"cards/drafts/s01_{i}.png" for i in range(4)]
-    qs = ["Is the title legible at phone size?", "Does it match the app's look?"]
+    # Images are judged for real now (tests/test_assets.py); audio/video takes still hit the stub.
+    drafts = [f"voice/takes/s01_{i}.mp3" for i in range(4)]
+    qs = ["Is the voice clear?", "Does the pace fit the shot?"]
     r = pick_best(drafts, qs)
     assert r["index"] == 0 and len(r["scores"]) == 4 and r["judge_score"] == r["scores"][r["index"]]
     # The caller (assets) can build a take_pick Decision straight from it.

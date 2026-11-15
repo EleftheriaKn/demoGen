@@ -1,7 +1,0 @@
-{
-  "score": 1.0,
-  "reason": "The README features and backend/recipes.py suggest function confirm it suggests three recipes ranked by matching ingredients.",
-  "action": "keep",
-  "rewrite": "",
-  "rewrite_supported": false
-}

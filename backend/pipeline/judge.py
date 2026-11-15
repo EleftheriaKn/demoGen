@@ -10,7 +10,7 @@ Two stages plus one function other tracks call:
   of each segment. Re-running replaces this stage's earlier decisions.
 - ``run_rubric``  stage ``rubric``: reads timeline.json, script.json, brief; writes the
   rubric (and an optional ``recut``) into decisions.json.
-- ``pick_best``   called by C's assets stage to choose among N generated drafts.
+- ``pick_best``   called by the assets stage to choose among N generated drafts (images judged; audio/video stubbed).
 
 Run alone: python -m backend.pipeline.judge {frames|rubric} runs/<run_id>
 """
@@ -111,20 +111,47 @@ class PickResult(TypedDict):
     reason: str  # one line, shown in the UI
 
 
-def pick_best(candidates: list[Union[str, Path]], questions: list[str]) -> PickResult:
-    """Pick the best of N candidate files (images, audio or video) against ``questions``.
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
-    STUB: always picks index 0 with neutral scores. The return shape is final.
+
+def pick_best(candidates: list[Union[str, Path]], questions: list[str], context: str = "") -> PickResult:
+    """Pick the best of N candidate files against ``questions``; ``context`` says what they are for.
+
+    Images: Gemini sees every draft and answers each question per draft; the winner has the
+    highest mean score. Audio and video are still a stub (index 0, neutral scores).
     """
     if not candidates:
         raise ValueError("pick_best needs at least one candidate")
-    answers = [JudgeAnswer(question=q, score=0.5, reason="stub judge").model_dump() for q in questions]
+    paths = [Path(c) for c in candidates]
+    if not all(p.suffix.lower() in IMAGE_SUFFIXES for p in paths):
+        # ponytail: audio/video takes aren't judged yet (ticket A8); first take wins.
+        answers = [JudgeAnswer(question=q, score=0.5, reason="stub judge").model_dump() for q in questions]
+        return PickResult(index=0, scores=[0.5] * len(paths), answers=answers, judge_score=0.5,
+                          reason="stub judge: picked the first candidate")
+
+    text = gemini.prompt(
+        "judge_takes",
+        context=context or "a generated asset",
+        n=str(len(paths)),
+        takes=", ".join(f"draft {i}" for i in range(len(paths))),
+        questions="\n".join(f"{i}. {q}" for i, q in enumerate(questions, 1)),
+    )
+    for _ in range(gemini.RETRIES + 1):  # a schema-valid answer can still miscount drafts/questions
+        verdict = gemini.generate(text, _Verdict, images=paths)
+        if len(verdict.frames) == len(paths) and all(len(f.answers) == len(questions) for f in verdict.frames):
+            break
+    else:
+        raise ValueError(f"pick_best: Gemini answered the wrong number of drafts/questions for {paths}")
+
+    scores = [round(sum(a.score for a in f.answers) / len(f.answers), 3) for f in verdict.frames]
+    i = max(range(len(scores)), key=lambda k: scores[k])
+    win = verdict.frames[i]
     return PickResult(
-        index=0,
-        scores=[0.5] * len(candidates),
-        answers=answers,
-        judge_score=0.5,
-        reason="stub judge: picked the first candidate",
+        index=i,
+        scores=scores,
+        answers=[JudgeAnswer(question=q, score=a.score, reason=a.reason).model_dump() for q, a in zip(questions, win.answers)],
+        judge_score=scores[i],
+        reason=f"Best of {len(paths)} drafts ({scores[i]:.2f}): {win.note}",
     )
 
 
