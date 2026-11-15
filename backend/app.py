@@ -6,6 +6,7 @@ GET/POST /settings             keys from the board (laptop only; secrets write-o
 GET  /                         the board (web/index.html); installable: /manifest.webmanifest, /sw.js, /web/*
 POST /runs                    start a run (multipart form; no recording = fixture take)
 POST /uploads                 start a resumable upload {filename, size} -> {upload_id, chunk_size}
+POST /uploads/{id}/report     the phone reports an upload error (logged: terminal + runs/_uploads/<id>.log)
 PUT  /uploads/{id}?offset=N   append one part (raw bytes); a wrong offset -> 409 with what arrived
 GET  /uploads/{id}            how much arrived (to resume after a dropped connection)
 GET  /runs                    list runs, newest first
@@ -21,16 +22,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+from starlette.requests import ClientDisconnect
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -66,7 +70,8 @@ POLL_S = 0.25
 # Runbook limits for a take: 7:00 and 1 GiB, checked on the phone AND here.
 MAX_TAKE_S = 420
 MAX_TAKE_BYTES = 1024**3
-CHUNK_BYTES = 8 * 1024**2
+CHUNK_BYTES = 4 * 1024**2  # small parts: each request finishes quickly on venue Wi-Fi
+log = logging.getLogger("uvicorn.error")  # prints in the server's terminal
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".3gp", ".avi"}
 LANGUAGES = ("en", "el")  # runbook: English and Greek only, for now
 
@@ -140,6 +145,25 @@ def _upload_paths(upload_id: str) -> tuple[Path, Path]:
     return meta, data
 
 
+def _device(request: Request) -> str:
+    ua = request.headers.get("user-agent", "")
+    dev = "iPhone" if "iPhone" in ua else "iPad" if "iPad" in ua else "Android" if "Android" in ua else "Mac" if "Macintosh" in ua else "other"
+    br = "Chrome" if ("CriOS" in ua or "Chrome" in ua) else "Safari" if "Safari" in ua else "Firefox" if "Firefox" in ua else "?"
+    host = request.client.host if request.client else "?"
+    return f"{dev} · {br} · {host}"
+
+
+def upload_log(upload_id: str, msg: str, level: int = logging.INFO) -> None:
+    """One line per upload event: in the terminal and in runs/_uploads/<id>.log (moved into the run)."""
+    log.log(level, "upload %s: %s", upload_id[:8], msg)
+    try:
+        uploads_root().mkdir(parents=True, exist_ok=True)
+        with open(uploads_root() / f"{upload_id}.log", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} {msg}\n")
+    except OSError:
+        pass
+
+
 def _upload_state(upload_id: str) -> dict:
     meta, data = _upload_paths(upload_id)
     m = json.loads(meta.read_text(encoding="utf-8"))
@@ -186,8 +210,8 @@ app.mount("/web", StaticFiles(directory=ROOT / "web"), name="web")
 
 
 @app.post("/uploads", status_code=201)
-async def start_upload(body: dict = Body(...)) -> dict:
-    """Start a resumable upload. The phone then PUTs 8 MB parts in order."""
+async def start_upload(request: Request, body: dict = Body(...)) -> dict:
+    """Start a resumable upload. The phone then PUTs parts (CHUNK_BYTES) in order."""
     filename, size = str(body.get("filename", "")), body.get("size")
     ext = Path(filename).suffix.lower()
     if ext not in VIDEO_EXTS:
@@ -200,7 +224,23 @@ async def start_upload(body: dict = Body(...)) -> dict:
     uploads_root().mkdir(parents=True, exist_ok=True)
     (uploads_root() / f"{upload_id}.json").write_text(json.dumps({"upload_id": upload_id, "ext": ext, "size": size}), encoding="utf-8")
     (uploads_root() / f"{upload_id}.part").touch()
+    upload_log(upload_id, f"started: {filename} ({ext}), {size / 1e6:.1f} MB, from {_device(request)}")
     return {"upload_id": upload_id, "chunk_size": CHUNK_BYTES, "received": 0}
+
+
+@app.post("/uploads/{upload_id}/report", status_code=204)
+async def upload_report(upload_id: str, request: Request, body: dict = Body(...)) -> None:
+    """The phone says what went wrong (it can't reach our logs otherwise). Never fails."""
+    if not upload_id.isalnum() or len(upload_id) > 64:
+        raise HTTPException(404, "no such upload")
+    clip = lambda v, n=300: str(v)[:n].replace("\n", " ")
+    if body.get("phase") == "recovered":
+        upload_log(upload_id, f"phone recovered at offset {clip(body.get('offset', '?'), 20)} after {clip(body.get('attempt', '?'), 6)}"
+                   f" failed attempt(s) ({clip(body.get('message', ''))})")
+        return None
+    upload_log(upload_id, f"PHONE ERROR during {clip(body.get('phase', '?'), 20)} at offset {clip(body.get('offset', '?'), 20)}"
+               f" (attempt {clip(body.get('attempt', '?'), 6)}): {clip(body.get('name', 'Error'), 40)}: {clip(body.get('message', ''))}"
+               f" · {_device(request)}", logging.WARNING)
 
 
 @app.get("/uploads/{upload_id}")
@@ -213,17 +253,28 @@ async def upload_chunk(upload_id: str, request: Request, offset: int) -> dict:
     """Append one part at ``offset``. Resend from ``received`` if the offsets don't match."""
     state = _upload_state(upload_id)
     if offset != state["received"]:
+        upload_log(upload_id, f"offset {offset} but {state['received']} received: phone resyncs")
         raise HTTPException(409, {"msg": "offset mismatch", "received": state["received"]})
     _, data = _upload_paths(upload_id)
     written = 0
-    with open(data, "ab") as f:
-        async for piece in request.stream():
-            written += len(piece)
-            if state["received"] + written > state["size"]:
-                f.truncate(state["received"])  # drop this part, keep what arrived before
-                raise HTTPException(413, "more bytes than the declared size")
-            f.write(piece)
+    try:
+        with open(data, "ab") as f:
+            async for piece in request.stream():
+                written += len(piece)
+                if state["received"] + written > state["size"]:
+                    f.truncate(state["received"])  # drop this part, keep what arrived before
+                    upload_log(upload_id, "part bigger than the declared size: dropped", logging.WARNING)
+                    raise HTTPException(413, "more bytes than the declared size")
+                f.write(piece)
+    except ClientDisconnect:
+        upload_log(upload_id, f"connection dropped after {written:,} bytes of the part at {offset:,}: phone will resume",
+                   logging.WARNING)
+        raise
     state = _upload_state(upload_id)
+    if state["complete"]:
+        upload_log(upload_id, f"complete: {state['received'] / 1e6:.1f} MB")
+    elif written == 0:
+        upload_log(upload_id, f"empty part at {offset:,} (the phone sent no bytes)", logging.WARNING)
     return {"received": state["received"], "complete": state["complete"]}
 
 
@@ -271,8 +322,9 @@ async def create_run(
         if src.parent != orchestrator.FIXTURE_RUN:
             try:
                 check_take(src)
-            except HTTPException:
+            except HTTPException as e:
                 if upload_id:  # a rejected take is not kept
+                    upload_log(upload_id, f"rejected: {e.detail}", logging.WARNING)
                     for f in _upload_paths(upload_id):
                         f.unlink(missing_ok=True)
                 raise
@@ -281,9 +333,13 @@ async def create_run(
             run_dir = orchestrator.create_run(cfg, src, move=src.parent != orchestrator.FIXTURE_RUN)
         except ValueError as e:  # pydantic validation
             raise HTTPException(422, str(e))
-    if upload_id:  # the take now lives in the run folder
+    if upload_id:  # the take now lives in the run folder; its upload log goes with it
+        upload_log(upload_id, f"run {run_id} started from it")
         for f in _upload_paths(upload_id):
             f.unlink(missing_ok=True)
+        ulog = uploads_root() / f"{upload_id}.log"
+        if ulog.exists():
+            shutil.move(ulog, run_dir / "upload.log")
     if brief_text.strip():
         # Until A, B and C agree on an optional brief.text in run.json (runbook), it lives next to it.
         (run_dir / "brief.txt").write_text(brief_text.strip() + "\n", encoding="utf-8")
