@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README explains taking one photo of an open fridge and PantryPal detecting the ingredients, backed by vision.py.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

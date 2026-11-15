@@ -389,26 +389,26 @@ A makes every decision and every generated asset. Test each stage alone with
 
 | ID | Ticket | Done when | By | Status |
 |---|---|---|---|---|
-| A1 | Keys and clients: `gemini.py`, `fal.py` | One Gemini JSON call and one fal voice call both return | 23:00 | To do |
-| A2 | Check fal field names for scribe, voice, FLUX 2, Nano Banana 2, music | Every line marked *check field names* fixed | 00:00 | To do |
-| A3 | `understand.py`: summary and moments | `moments.json` from the test take, on-screen text copied word for word | 01:30 | To do |
-| A4 | Voice in `assets.py` | One MP3 per shot from fixture `script.json`, lengths in `assets.json` | 02:00 | To do |
-| A5 | `script.py` and the hook pick | `script.json` from real moments, uses only real moment ids, one hook chosen | 04:00 | To do |
-| A6 | `judge.py`: ranking and truth check | `rankings.json`; `claims.json` with quotes verified by code; failed claims rewritten | 05:30 | To do |
-| A7 | Title cards and music | Best of 4 cards picked by the judge; plain cards in cheap mode; music bed | 11:00 | To do |
-| A8 | Zoom boxes (should have) | One call per chosen frame writes a zoom box into `script.json` | 11:00 | To do |
-| A9 | Our own video | Version 1 at 12:00; fixes only through prompts or code; version 2 by 14:00 | 14:00 | To do |
-| A10 | Brief from free text (mobile app) | `understand` fills `brief.criteria` from `brief.text` when the app sends only text; 7-minute take works (low media resolution in cheap mode) | 05:30 | Proposed |
-| A11 | Infographic shots | `script.py` picks which non-demo shots are infographics, writes `overlay` + `reference_frames` (overlay text only from backed claims); `assets.py` sends the frames to fal as references, best of 4; rubric checks ≥ 70% real footage | 11:00 | Proposed |
-| A12 | Flow from the repo | `understand` adds `summary.flow`: the user's steps in order, each with README/file evidence; the pasted brief's text is read too | 12:30 | To do |
-| A13 | Weak / wow / missing | Each moment gets `quality` (wow / ok / weak) and `flow_step`; flow steps the take never shows are listed as missing | 12:30 | To do |
-| A14 | Script fills the gaps | Weak or missing flow steps get a generated shot (comic panel, or animation for 1–2 key steps) in any beat; wow / ok moments stay footage; how / impact may be generated with README/file claims; the brief text guides the story; target length kept | 13:00 | To do |
-| A15 | Truth check by shot type | Footage shots: claims vs footage (frames before + after, so actions count). Generated shots: claims vs README/file only, never footage. Fixes the v3 drops | 12:30 | To do |
-| A16 | fal comic panels | One comic-style panel per generated shot from its `reference_frames` (fal **Ideogram Vector 1.0**: `image-to-vector` for a weak moment's own frame, `text-to-vector` with frames / README screenshots as references for missing steps; see "Taste and references"), best of 4 judged, no drawn text (we write it); plain-card fallback | 13:00 | To do |
-| A17 | fal animation (if time) | 1–2 key generated shots become a 3–5 s clip (fal image→video from a real frame) into `assets.broll`; parallel, cached, silent; falls back to the comic panel | 13:30 | To do |
-| A18 | Rubric for v2 | Adds: at least 60% of the target length; at least 50% real footage; every generated shot has a backed README/file claim; reads the brief text | 13:00 | To do |
-| A19 | Taste brief in the prompts | The taste brief ("Taste and references") goes into `script_draft.md` and every fal prompt; the script returns a `callout` (≤ 5 words, a claim, truth-checked) per shot and picks a treatment per shot: footage (wow), footage + callout (ok), vector panel (weak), infographic (missing / how / impact) | 13:00 | To do |
-| A20 | No take: a generated flow | With no recording, understand skips moments, every flow step is "missing", and the script makes a fully generated launch spot (vector UI scenes from README screenshots, infographics); runs in well under a minute | 14:00 | To do |
+| A1 | Keys and clients: `gemini.py`, `fal.py` | One Gemini JSON call and one fal voice call both return | 23:00 | Done (Nov 15) |
+| A2 | Check fal field names for scribe, voice, FLUX 2, Nano Banana 2, music | Every line marked *check field names* fixed | 00:00 | Done (Nov 15) |
+| A3 | `understand.py`: summary and moments | `moments.json` from the test take, on-screen text copied word for word | 01:30 | Done (Nov 15) |
+| A4 | Voice in `assets.py` | One MP3 per shot from fixture `script.json`, lengths in `assets.json` | 02:00 | Done (Nov 15) |
+| A5 | `script.py` and the hook pick | `script.json` from real moments, uses only real moment ids, one hook chosen | 04:00 | Done (Nov 15) |
+| A6 | `judge.py`: ranking and truth check | `rankings.json`; `claims.json` with quotes verified by code; failed claims rewritten | 05:30 | Done (Nov 15) |
+| A7 | Title cards and music | Best of 4 cards picked by the judge; plain cards in cheap mode; music bed | 11:00 | Done (Nov 15) |
+| A8 | Zoom boxes (should have) | One call per chosen frame writes a zoom box into `script.json` | 11:00 | Done (Nov 15) |
+| A9 | Our own video | Version 1 at 12:00; fixes only through prompts or code; version 2 by 14:00 | 14:00 | Cut from the Coach Platform take (Nov 15): 46 s, 9 shots, 82% real footage, rubric 6/6. A cut from DemoCut's own take waits for the recording (C7) |
+| A10 | Brief from free text (mobile app) | `understand` fills `brief.criteria` from `brief.text` when the app sends only text; 7-minute take works (low media resolution in cheap mode) | 05:30 | Superseded: the pasted brief reaches understand (A12) and the other prompts (B19, C14) |
+| A11 | Infographic shots | `script.py` picks which non-demo shots are infographics, writes `overlay` + `reference_frames` (overlay text only from backed claims); `assets.py` sends the frames to fal as references, best of 4; rubric checks ≥ 70% real footage | 11:00 | Superseded by A14 + A16 |
+| A12 | Flow from the repo | `understand` adds `summary.flow`: the user's steps in order, each with README/file evidence; the pasted brief's text is read too | 12:30 | Done (Nov 15): `summary.flow`, each step with repo evidence |
+| A13 | Weak / wow / missing | Each moment gets `quality` (wow / ok / weak) and `flow_step`; flow steps the take never shows are listed as missing | 12:30 | Done (Nov 15): `Moment.quality` and `flow_step`; missing steps in one event |
+| A14 | Script fills the gaps | Weak or missing flow steps get a generated shot (comic panel, or animation for 1–2 key steps) in any beat; wow / ok moments stay footage; how / impact may be generated with README/file claims; the brief text guides the story; target length kept | 13:00 | Done (Nov 15): weak or missing steps get a generated shot; at least half the runtime stays real |
+| A15 | Truth check by shot type | Footage shots: claims vs footage (frames before + after, so actions count). Generated shots: claims vs README/file only, never footage. Fixes the v3 drops | 12:30 | Done (Nov 15): footage claims on before / during / after frames; generated shots on README and files only; a dropped or reworded claim edits its own sentence, not the whole line |
+| A16 | fal comic panels | One comic-style panel per generated shot from its `reference_frames` (fal **Ideogram Vector 1.0**: `image-to-vector` for a weak moment's own frame, `text-to-vector` with frames / README screenshots as references for missing steps; see "Taste and references"), best of 4 judged, no drawn text (we write it); plain-card fallback | 13:00 | Done (Nov 15): Ideogram Vector text-to-vector, best of 4, delivered as PNG (`resvg-py`); plain-card fallback |
+| A17 | fal animation (if time) | 1–2 key generated shots become a 3–5 s clip (fal image→video from a real frame) into `assets.broll`; parallel, cached, silent; falls back to the comic panel | 13:30 | Done (Nov 15): up to 2 panels become a 4 s silent clip (Wan 2.2 image-to-video); the panel is the fallback; `MAX_CLIPS = 0` turns it off |
+| A18 | Rubric for v2 | Adds: at least 60% of the target length; at least 50% real footage; every generated shot has a backed README/file claim; reads the brief text | 13:00 | Done (Nov 15): 7 checks. In code: 60% of target length, 50% real footage, every generated middle shot backed by the repo |
+| A19 | Taste brief in the prompts | The taste brief ("Taste and references") goes into `script_draft.md` and every fal prompt; the script returns a `callout` (≤ 5 words, a claim, truth-checked) per shot and picks a treatment per shot: footage (wow), footage + callout (ok), vector panel (weak), infographic (missing / how / impact) | 13:00 | Done (Nov 15): style rules in every fal prompt; a callout is made only of its claim's words and is dropped with it. The treatment per shot is decided in code (A14) |
+| A20 | No take: a generated flow | With no recording, understand skips moments, every flow step is "missing", and the script makes a fully generated launch spot (vector UI scenes from README screenshots, infographics); runs in well under a minute | 14:00 | Superseded by B24 (context mode) and B26 (the app records itself) |
 
 ## Tickets · B · Render (ffmpeg)
 

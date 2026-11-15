@@ -1,6 +1,6 @@
 {
   "score": 1.0,
-  "reason": "The README explicitly lists 'Three recipes ranked by how many of your ingredients they use' under Features.",
+  "reason": "The README features explicitly list three recipes ranked by how many of your ingredients they use.",
   "action": "keep",
   "rewrite": "",
   "rewrite_supported": false

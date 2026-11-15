@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README confirms taking one photo of an open fridge lets PantryPal detect ingredients.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

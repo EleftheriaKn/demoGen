@@ -1,0 +1,7 @@
+{
+  "score": 0.25,
+  "reason": "The footage displays test bars rather than any fridge or item detection.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

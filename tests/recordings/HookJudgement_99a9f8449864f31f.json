@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It is an instantly relatable problem, but too common a cliché to spark strong curiosity."
+        },
+        {
+          "score": 0.4,
+          "reason": "It mentions the fridge, but it could apply to any generic recipe or meal-planning tool."
+        },
+        {
+          "score": 0.3,
+          "reason": "It describes the user's frustration rather than highlighting the photo-scanning solution."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.3,
+          "reason": "It is an overused rhetorical question that creates minimal intrigue."
+        },
+        {
+          "score": 0.1,
+          "reason": "It is extremely broad and could introduce meal prep kits, delivery services, or any cooking app."
+        },
+        {
+          "score": 0.2,
+          "reason": "It addresses takeout habits instead of showcasing what this fridge-scanning app delivers."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It provokes some curiosity about potential meals, though remains a familiar pitch trope."
+        },
+        {
+          "score": 0.4,
+          "reason": "It connects to pantry ingredients generally, but lacks the photo-to-recipe specificity."
+        },
+        {
+          "score": 0.3,
+          "reason": "It focuses on user contemplation rather than actively presenting what the app accomplishes."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

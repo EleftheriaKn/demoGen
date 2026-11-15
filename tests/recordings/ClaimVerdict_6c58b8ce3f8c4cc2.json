@@ -1,0 +1,7 @@
+{
+  "score": 0.0,
+  "reason": "The frames display a synthetic color-bar test pattern with no open fridge visible.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "backend/recipes.py defines suggest with default n=3 and the README lists three recipes ranked by how many of your ingredients they use.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "It quickly taps into an immediate, relatable daily frustration within five seconds."
+        },
+        {
+          "score": 0.6,
+          "reason": "It directly touches on the fridge-to-recipe context, though it remains a common phrasing for cooking apps."
+        },
+        {
+          "score": 0.8,
+          "reason": "It highlights the exact core user frustration that the app is built to solve."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It is an ordinary rhetorical question about food waste that fails to spark strong curiosity."
+        },
+        {
+          "score": 0.3,
+          "reason": "It targets food expiration and waste rather than fridge scanning and recipe generation."
+        },
+        {
+          "score": 0.5,
+          "reason": "It focuses on an indirect byproduct of meal planning rather than the app's direct function."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It presents a clear, instant pain point, though it feels like a familiar pitch opening."
+        },
+        {
+          "score": 0.5,
+          "reason": "It describes cooking with leftovers in general without referencing the fridge snapshot mechanism."
+        },
+        {
+          "score": 0.8,
+          "reason": "It squarely addresses the user need to turn available kitchen ingredients into a meal."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

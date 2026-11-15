@@ -1,6 +1,6 @@
 {
   "score": 1.0,
-  "reason": "The README explains that taking one photo of your open fridge allows PantryPal to detect ingredients.",
+  "reason": "README states PantryPal detects ingredients from one photo of your open fridge.",
   "action": "keep",
   "rewrite": "",
   "rewrite_supported": false
