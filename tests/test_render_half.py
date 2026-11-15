@@ -73,6 +73,17 @@ def test_long_voice_plays_more_footage_not_a_long_freeze():
     assert timeline.fit_footage(1.0, 2.0, 6.0, None, 3.0)[3] == pytest.approx(5.0, abs=0.01)  # no segment: no growth
 
 
+def test_a_shot_with_no_claims_plays_past_its_segment_instead_of_freezing():
+    # Coach Platform: 3 s problem clip under an 18.7 s fact-free line held one frame for 15.7 s
+    start, end, speed, freeze = timeline.fit_footage(30.2, 33.2, 18.7, (30.2, 33.2), 296.0, (0.0, 130.4),
+                                                     beyond=float("inf"))
+    assert start == 30.2 and speed == 1.0 and freeze <= timeline.MAX_FREEZE_S and end < 130.4
+    # still never into the next footage shot's span
+    assert timeline.fit_footage(30.2, 33.2, 18.7, (30.2, 33.2), 296.0, (0.0, 40.0), beyond=float("inf"))[1] <= 40.0
+    # a shot with claims keeps to its segment (the default)
+    assert timeline.fit_footage(30.2, 33.2, 18.7, (30.2, 33.2), 296.0, (0.0, 130.4))[3] > 15
+
+
 def test_growing_never_replays_a_neighbour():
     spans = [None, (46.3, 49.2), (54.3, 56.3), None]
     rooms = timeline.rooms(spans)
