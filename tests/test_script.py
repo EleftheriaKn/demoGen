@@ -543,3 +543,16 @@ def test_kept_claims_callout_is_made_only_of_its_words(monkeypatch):
     # stop words need not be in the claim
     assert script.add_callouts(kept, {"s03": ("cl1", "The specification of your application")})[0].callout == \
         "The specification of your application"
+
+
+def test_kept_claim_worded_differently_replaces_its_sentence():
+    # Coach Platform: the line said "Add Farasia as CB" while the kept claim said "Add a player as CB".
+    kept = {"cl1": Claim(claim_id="cl1", text="Add a player as CB", evidence=[], status="backed"),
+            "cl2": Claim(claim_id="cl2", text="Schedule a tactical session", evidence=[], status="backed")}
+    shot = _shot("Add Farasia as CB. Schedule a tactical session! Then cook.",
+                 "Add a player as CB", "Schedule a tactical session")
+    assert script.apply_checks([shot], kept)[0].voice_line == \
+        "Add a player as CB. Schedule a tactical session! Then cook."  # exact match and unclaimed sentence untouched
+    lower = {"cl1": kept["cl1"].model_copy(update={"text": "add a player as CB."})}
+    assert script.apply_checks([_shot("Then cook. Add Farasia as CB", "add a player as CB.")], lower)[0].voice_line == \
+        "Then cook. Add a player as CB"  # the line's capital and (missing) end punctuation

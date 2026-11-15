@@ -572,12 +572,16 @@ def edit_line(line: str, claim: str, new: str) -> Optional[str]:
 
 
 def apply_checks(shots: list[Shot], checked: dict[str, Claim]) -> list[Shot]:
-    """Swap in the checked claims and edit each voice line to match; drop shots left with no words."""
+    """Swap in the checked claims and edit each voice line to match; drop shots left with no words.
+    A kept claim worded differently from its line replaces the sentence that stands for it, so the
+    line says only the checked words ("Add Farasia as CB" kept as "Add a player as CB")."""
     out = []
     for shot in shots:
         line, claims = shot.voice_line, [checked[c.claim_id] for c in shot.claims]
         for old, new in zip(shot.claims, claims):
             if new.status == "backed":
+                if _locate(line.split(), old.text) is None and _sentence_of(line.split(), old.text) is not None:
+                    line = edit_line(line, old.text, new.text)
                 continue
             rewrite = new.text if new.status == "rewritten" else ""
             edited = edit_line(line, old.text, rewrite)
