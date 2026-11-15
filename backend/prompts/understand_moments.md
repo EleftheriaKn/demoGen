@@ -16,6 +16,8 @@ For each moment return:
 
 An action and the result it causes are one moment: it starts when the user starts the action and ends once the result is visible on screen and has settled (about one second after it appears), never when the action starts or while it is still in progress. For example, typing a todo and pressing Enter is one "result" moment that ends after the new item shows in the list. Its description says the item is in the list only if it is in the list at the end time; if the moment ends while the text is still in the input box, end it later. Use "action" only when nothing visible comes of it.
 
+A click or keypress counts only if you can see its result on screen before the recording ends. The cursor moving toward or resting on a button is not a click. If the recording ends before the result appears (for example a filter is pointed at but the list and the highlighted filter have not changed by {duration} seconds), the last moment is "dead" and its description names the filter that is still highlighted.
+
 Make a new moment whenever the kind changes. Keep idle stretches as their own "dead" moments rather than folding them into a neighbour.
 
 Features:
