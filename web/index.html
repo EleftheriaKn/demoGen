@@ -102,6 +102,19 @@
     button, .btn { padding: 14px; }
   }
 
+  /* the cut (C13) */
+  .strip { display: flex; height: 28px; border-radius: 6px; overflow: hidden; margin: 4px 0 8px; gap: 2px; }
+  .strip .seg { min-width: 0; font-size: 11px; line-height: 28px; text-align: center; color: #fff; overflow: hidden; white-space: nowrap; }
+  .strip .seg.real { background: var(--ok); }
+  .strip .seg.gen { background: #c98a00; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.18) 0 6px, transparent 6px 12px); }
+  ul.shots { list-style: none; margin: 0; padding: 0; }
+  ul.shots li { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  ul.shots .head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  ul.shots .when { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  ul.shots .line { display: block; color: var(--muted); margin-top: 4px; }
+  .b-real { color: var(--ok); } .b-gen { color: #c98a00; }
+  #real-sum .ok { color: var(--ok); } #real-sum .bad { color: var(--bad); }
+
   /* decisions (C6) */
   #decisions { margin-top: 20px; display: none; }
   #decisions h3 { font-size: 15px; margin: 18px 0 8px; } #decisions h3:first-of-type { margin-top: 0; }
@@ -233,6 +246,11 @@
       <div class="links" id="links"></div>
 
       <div id="decisions">
+        <h3>The cut</h3>
+        <div class="summary-line" id="real-sum"></div>
+        <div class="strip" id="strip"></div>
+        <ul class="shots" id="shots"></ul>
+
         <h3>Truth check</h3>
         <div class="summary-line" id="claims-sum"></div>
         <ul class="claims" id="claims"></ul>
@@ -258,7 +276,7 @@
 const STAGES = ["ingest","transcribe","understand","candidates","judge_frames","script",
                 "assets","timeline","rubric","captions","render"];
 const $ = (id) => document.getElementById(id);
-const DECISION_STAGES = new Set(["understand", "judge_frames", "script", "assets", "rubric"]);
+const DECISION_STAGES = new Set(["understand", "judge_frames", "script", "assets", "timeline", "rubric"]);
 let source = null;
 let currentRun = null;
 
@@ -289,14 +307,59 @@ async function getJson(runId, file) {
   } catch (e) { return null; }
 }
 
+// The cut (C13): which shots are real footage and which are generated, and the real-footage share.
+const REAL_TARGET = 0.7;                                   // runbook: at least 70% of the runtime
+const fmtT = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+
+function renderCut(script, timeline, dec) {
+  const shots = script?.shots ?? [];
+  const byId = Object.fromEntries((timeline?.shots ?? []).map(t => [t.shot_id, t]));
+  const total = timeline?.duration_s;
+  const isGen = (s) => s.generated || (byId[s.shot_id] && byId[s.shot_id].visual.kind !== "footage");
+  const kindOf = (s) => byId[s.shot_id]?.visual.kind ?? s.visual.kind;
+  const label = (k) => ({ card: "card", broll: "b-roll" }[k] || k);
+
+  // Share of the runtime that is real footage, measured on timeline.json like the rubric does.
+  if (timeline && total) {
+    const real = timeline.shots.filter(t => t.visual.kind === "footage").reduce((a, t) => a + t.duration_s, 0);
+    const share = real / total;
+    const ok = share >= REAL_TARGET - 1e-9;
+    const rub = (dec?.rubric ?? []).find(r => /real[ -]footage|generated/i.test(r.question));
+    $("real-sum").innerHTML = `<b class="${ok ? "ok" : "bad"}">${pct(share)}% real footage</b> · ${real.toFixed(1)} of ${total.toFixed(1)} s · `
+      + (ok ? `meets the ${pct(REAL_TARGET)}% target` : `under the ${pct(REAL_TARGET)}% target`)
+      + (rub ? ` · rubric: ${rub.passed ? "passed" : "failed"} (${esc(rub.reason)})` : "");
+    $("strip").innerHTML = timeline.shots.map(t => {
+      const s = shots.find(x => x.shot_id === t.shot_id);
+      const gen = s ? isGen(s) : t.visual.kind !== "footage";
+      return `<div class="seg ${gen ? "gen" : "real"}" style="flex:${t.duration_s}" title="${esc(t.shot_id)} · ${gen ? "generated" : "real footage"} · ${t.duration_s.toFixed(1)} s">${esc(t.shot_id)}</div>`;
+    }).join("");
+  } else {
+    $("real-sum").textContent = shots.length ? "Real-footage share appears once the timeline is built." : "No shots yet.";
+    $("strip").innerHTML = "";
+  }
+
+  $("shots").innerHTML = shots.map(s => {
+    const t = byId[s.shot_id];
+    const gen = isGen(s);
+    const when = t ? `${fmtT(t.start)}–${fmtT(t.start + t.duration_s)}` : "";
+    return `<li class="${gen ? "gen" : "real"}"><div class="head"><span class="badge ${gen ? "b-gen" : "b-real"}">`
+      + (gen ? `Generated · ${esc(label(kindOf(s)))}` : "Real footage") + `</span>`
+      + `<span class="chip">${esc(s.shot_id)}</span><span class="chip">${esc(s.beat)}</span>`
+      + (when ? `<span class="when">${when}</span>` : "") + `</div>`
+      + `<span class="line">“${esc(s.voice_line)}”</span></li>`;
+  }).join("");
+}
+
 async function renderDecisions(runId) {
-  const [dec, script, summary] = await Promise.all(
-    ["decisions.json", "script.json", "summary.json"].map(f => getJson(runId, f)));
+  const [dec, script, summary, timeline] = await Promise.all(
+    ["decisions.json", "script.json", "summary.json", "timeline.json"].map(f => getJson(runId, f)));
   if (!dec && !script && !summary) return;
   $("decisions").style.display = "block";
   const decisions = dec?.decisions ?? [];
   const bySubject = (kind, id) => decisions.find(d => d.kind === kind && d.subject === id);
   const base = `/runs/${runId}/files/`;
+
+  renderCut(script, timeline, dec);
 
   // Truth check: every claim in the script, with what the judge did to it.
   const claims = (script?.shots ?? []).flatMap(s => s.claims.map(c => ({ ...c, shot: s.shot_id })));
@@ -613,6 +676,10 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
 
 loadRuns();
 if (location.hash.length > 1) watch(decodeURIComponent(location.hash.slice(1)));
+window.addEventListener("hashchange", () => {               // a run link opened in the same tab
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (id && id !== currentRun) watch(id);
+});
 </script>
 </body>
 </html>
