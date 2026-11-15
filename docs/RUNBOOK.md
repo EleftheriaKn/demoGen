@@ -146,7 +146,12 @@ or logs**. Ingest gets it from the environment (`GITHUB_TOKEN`) to clone private
 repos need no token. Scopes: `read:user` and `repo` (for private repos), or no `repo` scope if we only
 demo public repos.
 
-### Starting the server (today, until B12–B14)
+### Starting the server
+
+**One command (B12–B14, done):** `python -m backend.serve` (add `--tunnel` for an https link on any Wi-Fi).
+It prints the phone address, a QR code to scan, which stages are real or fake, missing keys and the GitHub
+callback URL; every new device and who started which run is logged (also in `runs/devices.jsonl`);
+`/qr.svg` shows the QR on the laptop screen. The manual way, for reference:
 
 The board, the API and the phone app are one FastAPI process (`backend/app.py`, run by uvicorn).
 Each run it starts is a separate `python -m backend.run runs/<id>` process, logging to
@@ -274,9 +279,9 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B9 | Final video | Version 1 checked frame by frame, bugs fixed, version 2 uploaded | 15:30 | V1 + V2 on the TodoMVC take (Nov 15): footage never leaves its moment, held frames push in, titles on cards. Submission cut waits for C7 (DemoCut's own take) |
 | B10 | Phone footage (mobile app) | A portrait, HEVC, variable-frame-rate `.mov` take of 7 minutes renders correctly: rotation applied, portrait over a blurred fill, no A/V drift. Ingest clones private repos with `GITHUB_TOKEN` | 05:30 | Proposed |
 | B11 | Overlays, mockups, picture-in-picture | Render draws `overlay` text (title / bullets / steps / stat, Greek and English) over cards; `inset_frame` inside a device mockup or picture-in-picture with a slow zoom; stills get gentle motion; works with plain backgrounds in cheap mode | 11:00 | Proposed |
-| B12 | One command starts the server | `python -m backend.serve` (new file, B; Linux and macOS) runs C's app unchanged on `0.0.0.0:8000` and prints `DemoCut ready` with every phone address on the Wi-Fi, which stages run real or fake (from `DEMOCUT_FAKE`), a warning for real stages missing a key (never printing keys), and the GitHub callback URL to register for this address; `--tunnel` starts cloudflared when installed and prints its `https` link; Ctrl-C stops it and any tunnel cleanly. README's phone section points to it | 09:00 | Proposed |
-| B13 | Log new devices | `backend/devices.py` (new file, B), attached to C's app by `serve.py` (no change to `app.py`): the first request from a device prints one line, e.g. `new device: iPhone · Safari · 172.20.1.42`, and appends it to `runs/devices.jsonl` (time, address, device, browser: nothing else). A device id cookie (address + browser as fallback) keeps reloads and later requests quiet. Starting a run logs which device started it | 09:00 | Proposed |
-| B14 | QR code to open the app | At start the terminal shows a QR code of the phone address (or the tunnel link); `serve.py` adds `GET /qr.svg` (made in Python, e.g. `segno`, so no system tool is needed). On the board C adds one `<img src="/qr.svg">` for laptop screens (C's file: ask C). Done when scanning the laptop screen opens the board on the phone, on Linux and macOS | 09:00 | Proposed |
+| B12 | One command starts the server | `python -m backend.serve` (new file, B; Linux and macOS) runs C's app unchanged on `0.0.0.0:8000` and prints `DemoCut ready` with every phone address on the Wi-Fi, which stages run real or fake (from `DEMOCUT_FAKE`), a warning for real stages missing a key (never printing keys), and the GitHub callback URL to register for this address; `--tunnel` starts cloudflared when installed and prints its `https` link; Ctrl-C stops it and any tunnel cleanly. README's phone section points to it | 09:00 | Done (Nov 15) |
+| B13 | Log new devices | `backend/devices.py` (new file, B), attached to C's app by `serve.py` (no change to `app.py`): the first request from a device prints one line, e.g. `new device: iPhone · Safari · 172.20.1.42`, and appends it to `runs/devices.jsonl` (time, address, device, browser: nothing else). A device id cookie (address + browser as fallback) keeps reloads and later requests quiet. Starting a run logs which device started it | 09:00 | Done (Nov 15) |
+| B14 | QR code to open the app | At start the terminal shows a QR code of the phone address (or the tunnel link); `serve.py` adds `GET /qr.svg` (made in Python, e.g. `segno`, so no system tool is needed). On the board C adds one `<img src="/qr.svg">` for laptop screens (C's file: ask C). Done when scanning the laptop screen opens the board on the phone, on Linux and macOS | 09:00 | Done (Nov 15) |
 
 ## Tickets · C · App, board, MCP and pitch
 

@@ -1,1 +1,2 @@
 -r common.txt
+segno  # QR codes for the phone address (B14)
