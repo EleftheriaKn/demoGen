@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 from backend import events
-from backend.contracts import (Assets, Candidates, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
+from backend.contracts import (Assets, BrollAsset, Candidates, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
 from backend.pipeline.beats import beat_times, snap
 from backend.pipeline.cards import best_frames, grab_frame, hero_card, panel_card, rasterize
@@ -103,6 +103,16 @@ def silent_voice(d: Path, shot_id: str, line: str) -> tuple[str, float]:
     (d / rel).parent.mkdir(parents=True, exist_ok=True)
     ff("-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", f"{seconds:.2f}", d / rel)
     return rel, seconds
+
+
+def usable_broll(d: Path, b: BrollAsset | None) -> BrollAsset | None:
+    """The broll clip for a shot if its file is really there, else None (the shot becomes a panel / card)."""
+    if b is None:
+        return None
+    if not (d / b.path).is_file() or (d / b.path).stat().st_size == 0:
+        events.emit("timeline", f"{b.shot_id}: broll {b.path} is missing, using the panel instead")
+        return None
+    return b
 
 
 def app_name(d: Path) -> str:
@@ -197,14 +207,15 @@ def run(run_dir: Path, run: RunConfig) -> None:
             zoom = Zoom(box=vis.focus_box, ease_s=ZOOM_EASE_S) if vis.focus_box else None
             visual = TimelineVisual(kind="footage", path=run.recording, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze, zoom=zoom)
-        elif vis.kind == "broll" and s.shot_id in brolls:
-            b = brolls[s.shot_id]
+        elif vis.kind != "footage" and (b := usable_broll(d, brolls.get(s.shot_id))):
+            # B16: a fal clip (A17) for a generated shot, whatever kind the script gave it: speed up to 1.5x
+            # or hold its last frame (render pushes in on long holds); a missing clip falls to the panel below
             start, end, speed, freeze = fit_source(0.0, b.duration_s, dur, b.duration_s)
             visual = TimelineVisual(kind="broll", path=b.path, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze)
         else:  # a card (or footage with no take)
             bg = cards[s.shot_id] if s.shot_id in cards and (d / cards[s.shot_id]).exists() else None
-            if bg is None and vis.kind != "footage":
+            if bg is None and vis.kind != "footage" and s.shot_id not in brolls:  # (broll: said above)
                 events.emit("timeline", f"{s.shot_id}: no {vis.kind} file in assets.json, using a plain card")
             size = size_for(run.mode)
             if bg and Path(bg).suffix.lower() == ".svg":  # Ideogram Vector art (A16): rasterize for ffmpeg

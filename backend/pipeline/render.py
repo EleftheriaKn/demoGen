@@ -17,7 +17,7 @@ from pathlib import Path
 
 from backend import events
 from backend.contracts import RunConfig, Timeline, TimelineMusic, TimelineShot
-from backend.pipeline.cards import font_safe
+from backend.pipeline.cards import font_safe, tag_overlay
 from backend.pipeline.ff import (AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, filter_path, hdr_to_sdr, inner_size,
                                  place, video_info)
 
@@ -83,10 +83,16 @@ def shot(d: Path, s: TimelineShot, tl: Timeline, out: Path) -> None:
         inp = ["-ss", f"{v.source_start:.3f}", "-to", f"{v.source_end:.3f}", "-i", v.path]
         src = (f"[0:v]{hdr_to_sdr(info)}setpts=(PTS-STARTPTS)/{v.speed},fps={fps},scale={iw}:{ih},setsar=1,"
                f"tpad=stop_mode=clone:stop_duration={v.freeze_s + 1:.3f}{zoom_filter(s, iw, ih, fps)}[src]")
+    tag, extra = "", []
+    if v.kind == "broll":  # generated video: the same "Illustration" pill as the panels (honesty rule)
+        extra = ["-i", tag_overlay(d / "shots" / f"{s.shot_id}.tag.png", (w, h)).relative_to(d)]
+        tag = "[placed][2:v]overlay=0:0:format=auto,format=yuv420p[tagged];[tagged]"
+    else:
+        tag = "[placed]"
     graph = ";".join([src, place("src", "placed", iw, ih, w, h),
-                      f"[placed]{callout_filter(d, s, w, h)}trim=duration={dur}[v]",
-                      f"[1:a]aresample={SAMPLE_RATE},apad[a]"])
-    ff(*inp, "-i", s.voice_path, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
+                      f"{tag}{callout_filter(d, s, w, h)}trim=duration={dur}[v]",
+                      f"[1:a]aresample={SAMPLE_RATE},apad[a]"])  # a broll clip's own sound is never mapped
+    ff(*inp, "-i", s.voice_path, *extra, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
        "-t", dur, "-r", fps, *VIDEO, *AUDIO, out.relative_to(d), cwd=d)
 
 

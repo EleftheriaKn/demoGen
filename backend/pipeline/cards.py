@@ -233,13 +233,28 @@ def panel_card(out: Path, size: tuple[int, int], art: Path | None, tag: str = "I
         ImageDraw.Draw(mask).rounded_rectangle((0, 0, pw - 1, ph - 1), radius, fill=255)
         frame.paste(src.resize((pw, ph), Image.LANCZOS).convert("RGBA"), (border, border), mask)
         img.alpha_composite(frame, (x - border, y - border))
-    if tag:  # pill in the top-left corner
-        d = ImageDraw.Draw(img)
-        f = _font(max(12, round(h * 0.024)))
-        tw = d.textlength(tag, font=f)
-        tx, ty, ph_ = pad // 2, pad // 2, round(h * 0.04)
-        d.rounded_rectangle((tx, ty, tx + tw + ph_, ty + ph_), ph_ // 2, fill=(0, 0, 0, 150))
-        d.text((tx + ph_ / 2, ty + ph_ / 2), tag, font=f, fill=(255, 255, 255, 230), anchor="lm")
+    if tag:
+        _draw_tag(img, tag)
     out.parent.mkdir(parents=True, exist_ok=True)
     img.convert("RGB").save(out)
+    return out
+
+
+def _draw_tag(img: Image.Image, tag: str) -> None:
+    """The small "Illustration" pill in the top-left corner (same place on panels and broll clips)."""
+    h = img.height
+    d, pad = ImageDraw.Draw(img), round(h * 0.07)
+    f = _font(max(12, round(h * 0.024)))
+    tw = d.textlength(tag, font=f)
+    tx, ty, ph_ = pad // 2, pad // 2, round(h * 0.04)
+    d.rounded_rectangle((tx, ty, tx + tw + ph_, ty + ph_), ph_ // 2, fill=(0, 0, 0, 150))
+    d.text((tx + ph_ / 2, ty + ph_ / 2), tag, font=f, fill=(255, 255, 255, 230), anchor="lm")
+
+
+def tag_overlay(out: Path, size: tuple[int, int], tag: str = "Illustration") -> Path:
+    """A transparent w x h PNG with only the tag on it, for render to lay over generated video (B16)."""
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    _draw_tag(img, tag)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out)
     return out
