@@ -29,7 +29,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
-import resvg_py
 from PIL import Image
 
 from backend import cache, events
@@ -102,6 +101,11 @@ def panel_prompt(prompt: str) -> str:
 
 def _rasterize(svg: str, out: Path) -> None:
     """SVG fitted inside the full output size, centred on the plain card colour, saved as PNG."""
+    try:
+        import resvg_py  # here, not at the top: a machine without it still runs assets, panels go plain
+    except ImportError as e:
+        raise RuntimeError("resvg-py is not installed, so the panel can't be drawn; "
+                           "`pip install -r requirements/a.txt` fixes it") from e
     w, h = ff.size_for("full")
     art = Image.open(io.BytesIO(resvg_py.svg_to_bytes(svg_string=svg, width=w, height=h))).convert("RGBA")
     canvas = Image.new("RGBA", (w, h), CHEAP_CARD_RGB)
@@ -132,7 +136,7 @@ def _panel(run_dir: Path, shot: Shot, frames: list[Path]) -> list[str]:
             _rasterize(svg, run_dir / rels[-1])
         return rels
     except Exception as e:
-        events.emit("assets", f"Card {shot.shot_id}: fal panel failed ({e})", data={"shot_id": shot.shot_id})
+        events.emit("assets", f"Card {shot.shot_id}: panel failed ({e})", data={"shot_id": shot.shot_id})
         return []
 
 

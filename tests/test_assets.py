@@ -318,3 +318,23 @@ def test_panels_never_call_fal_in_cheap_mode_or_without_key(panel, monkeypatch, 
     _, out, _ = _load(run_dir)
     assert calls["redraw"] == calls["scene"] == [] and out.cards[0].drafts == ["cards/drafts/s01_0.png"]
     assert any(f"plain card ({why})" in e for e in _events(run_dir))
+
+
+def test_missing_resvg_makes_the_panel_plain_and_spares_other_cards(panel, monkeypatch):
+    run_dir, calls, set_frames = panel
+    set_frames(["frames/f0.png"])
+    script = Script.model_validate_json((run_dir / "script.json").read_text(encoding="utf-8"))
+    plain_card = script.shots[0].model_copy(deep=True, update={"shot_id": "s04"})
+    plain_card.visual.reference_frames = []
+    script.shots.append(plain_card)  # a second card without frames: the FLUX path
+    (run_dir / "script.json").write_text(script.model_dump_json(indent=2), encoding="utf-8")
+    import sys
+    monkeypatch.setitem(sys.modules, "resvg_py", None)  # `import resvg_py` now raises ImportError
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
+    _, out, picks = _load(run_dir)
+    s01, s04 = out.cards
+    assert s01.drafts == ["cards/drafts/s01_plain.png"] and (run_dir / s01.path).exists()
+    assert len(s04.drafts) == 4 and s04.chosen_index == 2 and [d.subject for d in picks] == ["s04"]
+    log = _events(run_dir)
+    assert any("s01: panel failed" in e and "resvg-py is not installed" in e and "pip install -r requirements/a.txt" in e
+               for e in log)
