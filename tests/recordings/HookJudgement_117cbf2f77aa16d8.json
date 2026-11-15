@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It quickly sets up a relatable scenario but is a standard rhetorical question."
+        },
+        {
+          "score": 0.5,
+          "reason": "It captures cooking from fridge ingredients but misses the photo-to-recipe mechanic."
+        },
+        {
+          "score": 0.7,
+          "reason": "It directly addresses the user's core dilemma of finding a meal from available food."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It raises a common annoyance but lacks urgency or novelty."
+        },
+        {
+          "score": 0.3,
+          "reason": "It addresses food waste generally rather than this specific photo recipe tool."
+        },
+        {
+          "score": 0.5,
+          "reason": "It highlights a secondary benefit of reducing waste rather than the direct action."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "The visual imagery of a half-empty fridge quickly captures judges' attention."
+        },
+        {
+          "score": 0.6,
+          "reason": "It describes the exact problem situation, though omitting the camera aspect."
+        },
+        {
+          "score": 0.7,
+          "reason": "It zeroes in on the immediate user pain point that PantryPal solves."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

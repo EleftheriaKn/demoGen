@@ -252,3 +252,36 @@ def test_script_stage_writes_checked_script_and_decisions(tmp_path):
     assert len(by_claim) == len(mine) - 1
     for c in claims:  # claims of a removed shot are only in the log
         assert by_claim[c.claim_id].chosen == {"backed": "keep", "rewritten": "rewrite", "dropped": "drop"}[c.status]
+
+
+def test_focus_box_converts_and_rejects_bad_boxes():
+    assert script.focus_box([100, 200, 600, 700]) == pytest.approx([0.2, 0.1, 0.5, 0.5])
+    assert script.focus_box([0, 0, 1000, 1000]) == [0, 0, 1, 1]
+    assert script.focus_box([100, 200, 600, 350]) is None  # 15% wide: too narrow
+    assert script.focus_box([100, 800, 600, 1100]) is None  # leaves the frame
+    assert script.focus_box([600, 200, 100, 700]) is None  # upside down
+    assert script.focus_box([1, 2, 3]) is None
+
+
+def test_add_zoom_one_call_per_chosen_frame(tmp_path, monkeypatch):
+    """Replays tests/recordings/ (record with `pytest --live`)."""
+    shutil.copytree(FIXTURE_RUN / "frames", tmp_path / "frames")
+    shutil.copy2(FIXTURE_RUN / "decisions.json", tmp_path / "decisions.json")
+    events.bind(tmp_path, "test")
+    shots = Script.model_validate_json((FIXTURE_RUN / "script.json").read_text(encoding="utf-8")).shots
+    demo = shots[2]
+    demo = demo.model_copy(update={"visual": demo.visual.model_copy(update={"focus_box": None})})
+    impact = demo.model_copy(update={"shot_id": "s04", "beat": "impact", "voice_line": "Dinner is planned in seconds.", "claims": []})
+    shots = [shots[0], shots[1], demo, impact]  # demo and impact share c04's chosen frame
+
+    calls = []
+    real = gemini.generate
+    monkeypatch.setattr(gemini, "generate", lambda *a, **k: calls.append(k["images"]) or real(*a, **k))
+    out = script.add_zoom(tmp_path, shots)
+
+    assert calls == [[tmp_path / "frames/c04_15.5s.jpg"]]  # one call for the one chosen frame
+    assert out[0] == shots[0] and out[1] == shots[1]  # card and problem shot: no zoom
+    box = out[2].visual.focus_box
+    assert box is not None and box[2] >= script.MIN_ZOOM_W and box[0] + box[2] <= 1 and box[1] + box[3] <= 1
+    assert out[3].visual.focus_box == box
+    Script(language="en", hooks=[{"hook_id": "h1", "text": "x", "score": 0}], chosen_hook_id="h1", shots=out)

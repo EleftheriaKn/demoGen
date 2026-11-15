@@ -20,7 +20,7 @@ from __future__ import annotations
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import TypedDict, Union
+from typing import Optional, TypedDict, Union
 
 from PIL import Image, ImageFilter, ImageStat
 from pydantic import BaseModel, Field
@@ -112,13 +112,18 @@ class PickResult(TypedDict):
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
+PASS = 0.5  # a candidate under this on the ``must_pass`` question can't win
 
 
-def pick_best(candidates: list[Union[str, Path]], questions: list[str], context: str = "") -> PickResult:
+def pick_best(
+    candidates: list[Union[str, Path]], questions: list[str], context: str = "", must_pass: Optional[str] = None
+) -> PickResult:
     """Pick the best of N candidate files against ``questions``; ``context`` says what they are for.
 
     Images: Gemini sees every draft and answers each question per draft; the winner has the
-    highest mean score. Audio and video are still a stub (index 0, neutral scores).
+    highest mean score among drafts scoring at least PASS on ``must_pass`` (one of ``questions``).
+    If none pass, the best mean wins anyway, so the caller sees the winner fail ``must_pass``.
+    Audio and video are still a stub (index 0, neutral scores).
     """
     if not candidates:
         raise ValueError("pick_best needs at least one candidate")
@@ -144,7 +149,9 @@ def pick_best(candidates: list[Union[str, Path]], questions: list[str], context:
         raise ValueError(f"pick_best: Gemini answered the wrong number of drafts/questions for {paths}")
 
     scores = [round(sum(a.score for a in f.answers) / len(f.answers), 3) for f in verdict.frames]
-    i = max(range(len(scores)), key=lambda k: scores[k])
+    gate = questions.index(must_pass) if must_pass is not None else None
+    passes = [gate is None or f.answers[gate].score >= PASS for f in verdict.frames]
+    i = max(range(len(scores)), key=lambda k: (passes[k], scores[k]))
     win = verdict.frames[i]
     return PickResult(
         index=i,

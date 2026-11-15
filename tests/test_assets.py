@@ -40,7 +40,7 @@ def fake(tmp_path, monkeypatch):
 
     def fake_generate(text, schema, images=(), video=None):
         calls["gemini"] += 1
-        return _verdict(len(images), len(assets.CARD_QUESTIONS), best=2)
+        return calls.get("verdict") or _verdict(len(images), len(assets.CARD_QUESTIONS), best=2)
 
     monkeypatch.setattr(fal, "tts", fake_tts)
     monkeypatch.setattr(fal, "card_image", fake_card)
@@ -122,3 +122,31 @@ def test_pick_best_judges_image_drafts(tmp_path):
 def test_card_prompt_drops_quoted_titles_keeps_look():
     p = assets.card_prompt("Bold title card: 'PantryPal' over a warm orange background, in the app's style")
     assert "PantryPal" not in p and "warm orange background" in p and "app's style" in p and assets.NO_TEXT in p
+
+
+def _rows(*rows):
+    """One draft per row of (no-text, readable, polished) scores."""
+    return judge._Verdict(frames=[judge._Frame(note=f"draft {i}", answers=[judge._Answer(score=x, reason=f"r{i}") for x in r])
+                                  for i, r in enumerate(rows)])
+
+
+def test_draft_with_drawn_text_cannot_win(fake):
+    run_dir, calls = fake
+    # draft 1 has the best mean but drawn text; draft 2 is the best text-free one
+    calls["verdict"] = _rows((0.1, 1, 1), (0.2, 1, 1), (0.6, 0.5, 0.5), (0.5, 0.3, 0.3))
+    assets.run(run_dir, load_run(run_dir).model_copy(update={"mode": "full"}))
+    _, out, picks = _load(run_dir)
+    assert all(c.chosen_index == 2 and len(c.drafts) == 4 for c in out.cards)
+    assert all(d.chosen.endswith("_2.png") for d in picks)
+
+
+def test_all_drafts_with_text_fall_back_to_plain_card(fake):
+    run_dir, calls = fake
+    calls["verdict"] = _rows(*[(0.2, 1, 1)] * 4)
+    assets.run(run_dir, load_run(run_dir).model_copy(update={"mode": "full"}))
+    _, out, picks = _load(run_dir)
+    for c, d in zip(out.cards, picks):
+        assert c.drafts[-1] == f"cards/drafts/{c.shot_id}_plain.png" and c.chosen_index == 4
+        assert (run_dir / c.path).read_bytes() == (run_dir / c.drafts[4]).read_bytes()
+        assert d.chosen == c.drafts[4] and d.options == c.drafts and "plain card" in d.reason
+    assert len(picks) == len(out.cards)

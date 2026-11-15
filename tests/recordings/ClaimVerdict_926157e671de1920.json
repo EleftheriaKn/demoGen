@@ -1,0 +1,7 @@
+{
+  "score": 0.8,
+  "reason": "The README confirms three recipes ranked by ingredient usage, but the evidence does not show choosing from them.",
+  "action": "rewrite",
+  "rewrite": "three recipes ranked by how many of your ingredients they use.",
+  "rewrite_supported": true
+}

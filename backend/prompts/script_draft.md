@@ -7,7 +7,7 @@ Judges score on these criteria: {criteria}.
 
 Return:
 - hooks: exactly three different opening lines (one sentence each, within the hook budget). Make them specific to this app, for example the viewer's problem as a question. A hook makes no factual claim about the app: no feature, number or speed.
-- hook_card_prompt: a prompt for a bold title card shown under the hook: the app's name over a background in the app's style.
+- hook_card_prompt: a prompt for the background artwork of the title card shown under the hook, in the app's style (colours, mood, texture). We write the title on top ourselves, so describe only the artwork: no titles, app names, buttons, words, letters or logos.
 - problem, demos, how, impact: footage shots. Each has:
   - voice_line: exactly what the voice says.
   - segment_id: one segment id from the list below. Prefer segments with a high frame score. Never use a segment whose moment is "dead".
@@ -16,7 +16,7 @@ Return:
 - demos: 2 to 4 shots, one feature each, in the order a user would meet them. Show results on screen, not navigation. Each demo line says what the user achieves, addressed to the viewer ("Filter to see only what's left: just Call mom and Buy milk."), not a flat description of the screen ("The list displays two items."). What the user achieves must still be what the segment's end state shows.
 - how: one shot on how it works under the hood.
 - impact: one shot on what changes for the user.
-- ask: the closing line, a plain call to try it or to vote for it (within the ask budget) that states no fact about the app, so its claims are empty; plus a card_prompt for its end card.
+- ask: the closing line, a plain call to try it or to vote for it (within the ask budget) that states no fact about the app, so its claims are empty; plus a card_prompt for the background artwork of its end card, described the same way as hook_card_prompt: artwork only, no titles, app names, buttons, words, letters or logos.
 
 Use only what the summary, segments and repo below show. Do not invent features.
 
