@@ -1,0 +1,14 @@
+{
+  "checks": [
+    {
+      "passed": true,
+      "reason": "Shots s02 and s03 have all remaining claims supported by footage or repo evidence.",
+      "shot_id": ""
+    },
+    {
+      "passed": true,
+      "reason": "Shot s03 shows real demo footage of the app generating recipes.",
+      "shot_id": ""
+    }
+  ]
+}

@@ -347,12 +347,17 @@ class ShotVisual(Contract):
     source_end: Optional[Seconds] = Field(None, description="Clip end in the recording (footage only).")
     card_prompt: Optional[str] = Field(None, description="Prompt for the card/b-roll generator (card/broll).")
     focus_box: Optional[Box] = Field(None, description="Region to zoom into (footage only), or null.")
+    reference_frames: list[str] = Field(
+        default_factory=list, description="Real frames (frames/...) sent to fal as references (card/broll only)."
+    )
 
     @model_validator(mode="after")
     def _check(self) -> "ShotVisual":
         if self.kind == "footage":
             if self.segment_id is None or self.source_start is None or self.source_end is None:
                 raise ValueError("footage visual needs segment_id, source_start and source_end")
+            if self.reference_frames:
+                raise ValueError("reference_frames are for card/broll visuals only")
             _check_span(self.source_start, self.source_end, "footage visual")
         elif self.card_prompt is None:
             raise ValueError(f"{self.kind} visual needs card_prompt")
