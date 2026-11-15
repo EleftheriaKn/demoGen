@@ -105,8 +105,8 @@ def test_short_video_lengths(runs):
 
 def test_cut_panel_on_board():
     page = TestClient(api.app).get("/").text
-    # C13: generated-shot badges and the real-footage share (>= 70%) read from timeline.json
-    assert 'id="strip"' in page and "renderCut" in page and "REAL_TARGET = 0.7" in page
+    # C13: generated-shot badges and the real-footage share (>= 50%, v2) read from timeline.json
+    assert 'id="strip"' in page and "renderCut" in page and "REAL_TARGET = 0.5" in page
     assert '"timeline.json"' in page
 
 

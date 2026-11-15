@@ -347,7 +347,7 @@ async function getJson(runId, file) {
 }
 
 // The cut (C13): which shots are real footage and which are generated, and the real-footage share.
-const REAL_TARGET = 0.7;                                   // runbook: at least 70% of the runtime
+const REAL_TARGET = 0.5;                                   // runbook v2: at least 50% of the runtime is real footage (A18)
 const fmtT = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
 function renderCut(script, timeline, dec) {
