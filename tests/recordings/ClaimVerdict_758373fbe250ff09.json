@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README and backend/vision.py confirm the vision model detects ingredients from a fridge photo to suggest recipes you can cook.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

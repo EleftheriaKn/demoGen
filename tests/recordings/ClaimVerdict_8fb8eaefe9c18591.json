@@ -1,0 +1,7 @@
+{
+  "score": 0.0,
+  "reason": "The frames only show a color test pattern and timestamp, with no photo, fridge, or ingredient scanning visible.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

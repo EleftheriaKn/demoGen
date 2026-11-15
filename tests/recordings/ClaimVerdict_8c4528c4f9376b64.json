@@ -1,0 +1,7 @@
+{
+  "score": 0.0,
+  "reason": "The README lists feature bullets for recipe ranking and ingredient detection, but does not show cooking meals or eliminating food waste.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

@@ -1,0 +1,109 @@
+{
+  "hooks": [
+    "Staring at your fridge wondering what to cook?",
+    "Tired of throwing away good food every week?",
+    "What if dinner was hidden in your fridge?"
+  ],
+  "hook_card_prompt": "Clean modern kitchen background with soft warm lighting, minimalist shelves, gentle teal and pastel green tones, soft blurred focus, smooth gradients, no text, no logo.",
+  "problem": {
+    "voice_line": "People waste food and time because they don't know what to cook with what they already have.",
+    "segment_id": "c01",
+    "source_start": 0.0,
+    "source_end": 4.0,
+    "claims": [
+      {
+        "text": "People waste food and time because they don't know what to cook with what they already have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ],
+        "callout": "Waste food and time"
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Snap a quick photo of your open fridge directly in the app.",
+      "segment_id": "c02",
+      "source_start": 5.0,
+      "source_end": 10.0,
+      "claims": [
+        {
+          "text": "Snap a quick photo of your open fridge directly in the app.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ],
+          "callout": "Photo of your fridge"
+        }
+      ]
+    },
+    {
+      "voice_line": "Get three recipe cards sliding in with matched ingredients highlighted.",
+      "segment_id": "c04",
+      "source_start": 12.0,
+      "source_end": 18.0,
+      "claims": [
+        {
+          "text": "Get three recipe cards sliding in with matched ingredients highlighted.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ],
+          "callout": "Three recipe cards"
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "Vision models detect ingredients from one photo of the fridge.",
+    "segment_id": "c03",
+    "source_start": 10.0,
+    "source_end": 12.0,
+    "claims": [
+      {
+        "text": "Vision models detect ingredients from one photo of the fridge.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#How it works"
+          },
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          }
+        ],
+        "callout": "Detect ingredients from photo"
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Cook delicious meals while eliminating household food waste instantly.",
+    "segment_id": "c05",
+    "source_start": 19.0,
+    "source_end": 22.0,
+    "claims": [
+      {
+        "text": "Cook delicious meals while eliminating household food waste instantly.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          }
+        ],
+        "callout": "Eliminating household food waste"
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and turn your groceries into meals.",
+    "card_prompt": "Warm aesthetic dining table setting with plates of freshly cooked food, gentle lighting, vibrant fresh herbs, modern clean vector graphic style, no text, no logo.",
+    "claims": []
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "hooks": [
+    "Staring at your fridge wondering what to cook?",
+    "Tired of letting leftover groceries go to waste?",
+    "Need dinner ideas with ingredients you already own?"
+  ],
+  "hook_card_prompt": "Clean modern kitchen background with an open refrigerator bathed in warm soft light, minimalist vector illustration style in fresh green and cream tones.",
+  "problem": {
+    "voice_line": "Busy cooks waste food when they don't know what to cook.",
+    "segment_id": "c01",
+    "source_start": 0.0,
+    "source_end": 4.0,
+    "claims": [
+      {
+        "text": "Busy cooks waste food when they don't know what to cook.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ],
+        "callout": "waste food"
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Tap the camera button to photograph your open fridge.",
+      "segment_id": "c02",
+      "source_start": 5.0,
+      "source_end": 10.0,
+      "claims": [
+        {
+          "text": "Tap the camera button to photograph your open fridge.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ],
+          "callout": "photograph your fridge"
+        }
+      ]
+    },
+    {
+      "voice_line": "Browse three suggested recipes with your matched ingredients highlighted.",
+      "segment_id": "c04",
+      "source_start": 12.0,
+      "source_end": 19.0,
+      "claims": [
+        {
+          "text": "Browse three suggested recipes with your matched ingredients highlighted.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ],
+          "callout": "Three recipe cards"
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "Computer vision detects your ingredients from a single photo.",
+    "segment_id": "c03",
+    "source_start": 10.0,
+    "source_end": 12.0,
+    "claims": [
+      {
+        "text": "Computer vision detects your ingredients from a single photo.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#How it works"
+          },
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          }
+        ],
+        "callout": "detects your ingredients"
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Recipes are ranked by ingredients you have.",
+    "segment_id": "c05",
+    "source_start": 19.0,
+    "source_end": 22.0,
+    "claims": [
+      {
+        "text": "Recipes are ranked by ingredients you have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          },
+          {
+            "type": "file",
+            "ref": "backend/recipes.py"
+          }
+        ],
+        "callout": "ranked by ingredients"
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and turn your groceries into dinner.",
+    "card_prompt": "Stylized recipe card display and fresh produce flat vector graphics on a soft sage green background.",
+    "claims": []
+  }
+}

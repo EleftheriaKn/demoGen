@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It quickly taps into a relatable everyday struggle but is a common rhetorical opener."
+        },
+        {
+          "score": 0.5,
+          "reason": "Mentioning the fridge connects loosely to fridge photos, but could apply to any recipe app."
+        },
+        {
+          "score": 0.8,
+          "reason": "It directly highlights the primary problem and situation the app helps the user resolve."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It presents a familiar frustration quickly, though it feels like a standard pitch opener."
+        },
+        {
+          "score": 0.3,
+          "reason": "It is generic to any food-waste or inventory-management tool rather than fridge photo recipes."
+        },
+        {
+          "score": 0.7,
+          "reason": "It addresses an underlying user benefit of using up existing groceries, though indirectly."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.55,
+          "reason": "It clearly frames the immediate user dilemma in a few seconds, but lacks surprise."
+        },
+        {
+          "score": 0.4,
+          "reason": "It fits any pantry-based recipe finder and misses the photo-snapping mechanic."
+        },
+        {
+          "score": 0.9,
+          "reason": "It accurately reflects the exact end result the app delivers to the user."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

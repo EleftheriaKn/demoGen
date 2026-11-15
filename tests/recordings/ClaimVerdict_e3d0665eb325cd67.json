@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README and vision.py confirm a vision model detects ingredients from one photo.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

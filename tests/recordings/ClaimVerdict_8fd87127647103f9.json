@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README and backend/recipes.py state that recipes are ranked by how many of your ingredients they use.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

@@ -46,8 +46,8 @@ what remains. Each trim is logged.
 
 Callouts: a problem / demo / how / impact claim may carry a callout (at most CALLOUT_WORDS words; a
 longer one is dropped, never cut). It is tied to that claim by id and shown only if the claim is
-kept, or rewritten with every callout word still in it; a number in it must be in the claim; hook and
-ask never get one.
+kept or rewritten and every callout word (bar CALLOUT_STOP words) is in the checked claim's text, so
+a number in it must be in the claim too; hook and ask never get one.
 
 Zoom boxes (full mode only): each demo and impact shot takes its segment's ``frame_pick``
 winner from decisions.json; Gemini is asked once per chosen frame for the region to zoom into.
@@ -118,6 +118,7 @@ MIN_ZOOM_W = 0.2  # narrower boxes zoom in too far to read
 WORDS_PER_S = 3.0  # voice-over pace; a footage shot's line may not outrun its clip (+ HOLD_S)
 HOLD_S = 2.0  # the timeline holds a clip's last frame (slow push-in) up to this long past its end
 CALLOUT_WORDS = 5  # a callout longer than this is dropped, never truncated
+CALLOUT_STOP = {"a", "an", "the", "of", "to", "and", "your", "in", "on", "for", "with"}  # need not be in the claim
 MIN_REAL = 0.5  # share of the planned runtime that must stay real footage
 NO_APP = ("context", "dead")  # moment kinds whose frames never show the app's screen
 BREATH_S = 0.4  # ponytail: per-shot gap in the runtime estimate, mirrors timeline's pause; read it there if it drifts
@@ -575,12 +576,16 @@ def edit_line(line: str, claim: str, new: str) -> Optional[str]:
 
 
 def apply_checks(shots: list[Shot], checked: dict[str, Claim]) -> list[Shot]:
-    """Swap in the checked claims and edit each voice line to match; drop shots left with no words."""
+    """Swap in the checked claims and edit each voice line to match; drop shots left with no words.
+    A kept claim worded differently from its line replaces the sentence that stands for it, so the
+    line says only the checked words ("Add Farasia as CB" kept as "Add a player as CB")."""
     out = []
     for shot in shots:
         line, claims = shot.voice_line, [checked[c.claim_id] for c in shot.claims]
         for old, new in zip(shot.claims, claims):
             if new.status == "backed":
+                if _locate(line.split(), old.text) is None and _sentence_of(line.split(), old.text) is not None:
+                    line = edit_line(line, old.text, new.text)
                 continue
             rewrite = new.text if new.status == "rewritten" else ""
             edited = edit_line(line, old.text, rewrite)
@@ -623,21 +628,21 @@ def keep_problem(shots: list[Shot], drafted: list[Shot], problem: str,
 
 
 def add_callouts(shots: list[Shot], ties: dict[str, tuple[str, str]]) -> list[Shot]:
-    """Put each tied callout on its shot if its claim survived the truth check: kept, or rewritten
-    with every callout word still in the rewrite. A number must be in the claim too (the claim is
-    what was checked). A shot with no voice line or claim gets none."""
+    """Put each tied callout on its shot if its claim survived the truth check (kept or rewritten)
+    and every callout word but CALLOUT_STOP is in the checked claim's text: the claim is what was
+    checked, so a number must be in it too. A shot with no voice line or claim gets none."""
     out = []
     for s in shots:
         if s.shot_id in ties:
             claim_id, callout = ties[s.shot_id]
             claim = next((c for c in s.claims if c.claim_id == claim_id), None)
+            extra = sorted(set(words(callout)) - CALLOUT_STOP - set(words(claim.text))) if claim else []
             why = ("its shot has no voice line" if not words(s.voice_line)
                    else f"its claim {claim_id} is gone" if claim is None
                    else f"its claim {claim_id} was dropped" if claim.status == "dropped"
-                   else f'its claim {claim_id} was rewritten to "{claim.text}"'
-                   if claim.status == "rewritten" and set(words(callout)) - set(words(claim.text))
-                   else f'its number is not in claim {claim_id}'
-                   if any(re.search(r"\d", w) for w in set(words(callout)) - set(words(claim.text))) else "")
+                   else f'{", ".join(extra)} not in its claim {claim_id} '
+                        + ("rewritten to" if claim.status == "rewritten" else "kept as") + f' "{claim.text}"'
+                   if extra else "")
             if why:
                 events.emit("script", f'Callout {s.shot_id} dropped: "{callout}", {why}')
             else:

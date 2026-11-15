@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README and backend/vision.py document using a vision model to detect ingredients from a single photo of the fridge.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

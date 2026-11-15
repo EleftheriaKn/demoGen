@@ -1,6 +1,6 @@
 {
   "score": 0.0,
-  "reason": "The evidence does not mention or show people wasting food or time.",
+  "reason": "The evidence describes app features but contains no mention or demonstration of people wasting food or time.",
   "action": "drop",
   "rewrite": "",
   "rewrite_supported": false
