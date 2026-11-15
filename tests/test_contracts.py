@@ -358,3 +358,14 @@ def test_fixture_story_shape(f):
     assert statuses == ["backed", "backed", "dropped", "rewritten"]
     assert len(f["decisions"].rubric) == 4 and f["decisions"].recut is None
     json.loads((RUN / "run.json").read_text())  # plain JSON, no comments
+
+
+def test_brief_text_optional_and_left_out_when_unset():
+    """C14: Brief.text is optional; unset, it is not written, so old run.json files stay the same."""
+    from backend.contracts import Brief
+    b = Brief(criteria=["craft"], time_limit_s=60)
+    assert "text" not in b.model_dump() and '"text"' not in b.model_dump_json()
+    b = Brief(criteria=["craft"], time_limit_s=60, text="Judged on craft.")
+    assert Brief.model_validate_json(b.model_dump_json()).text == "Judged on craft."
+    fixture = (Path(__file__).resolve().parent.parent / "fixtures" / "run" / "run.json").read_text(encoding="utf-8")
+    assert RunConfig.model_validate_json(fixture).brief.text is None

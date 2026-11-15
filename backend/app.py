@@ -307,7 +307,7 @@ async def create_run(
     time_limit_s: int = Form(180),
     language: str = Form("en"),
     second_language: Optional[str] = Form(None),
-    brief_text: str = Form("", description="The judging brief as pasted; saved as brief.txt in the run."),
+    brief_text: str = Form("", description="The judging brief as pasted: run.json brief.text (and brief.txt)."),
     mode: str = Form("cheap"),
     recording: Optional[UploadFile] = File(None, description="Small recording in one go; omit to use the fixture take."),
     upload_id: Optional[str] = Form(None, description="A finished POST /uploads (big recordings from the phone)."),
@@ -320,6 +320,7 @@ async def create_run(
         time_limit_s=time_limit_s,
         language=language,
         second_language=second_language,
+        text=brief_text.strip() or None,  # C14: the pasted brief, for A's understand / script / rubric
     )
     run_id = orchestrator.new_run_id()
     with tempfile.TemporaryDirectory() as tmp:
@@ -362,7 +363,7 @@ async def create_run(
         if ulog.exists():
             shutil.move(ulog, run_dir / "upload.log")
     if brief_text.strip():
-        # Until A, B and C agree on an optional brief.text in run.json (runbook), it lives next to it.
+        # Also as brief.txt, for anything that still reads the pre-C14 file.
         (run_dir / "brief.txt").write_text(brief_text.strip() + "\n", encoding="utf-8")
     start_pipeline(run_dir, github_auth.token_for(request))
     return {"run_id": run_id, "events": f"/runs/{run_id}/events", "final": f"/runs/{run_id}/files/final.mp4"}
