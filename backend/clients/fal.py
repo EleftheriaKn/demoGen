@@ -22,6 +22,8 @@ CARD_ENDPOINT = "fal-ai/flux-2"
 CARD_EDIT_ENDPOINT = "fal-ai/nano-banana-2/edit"
 MUSIC_ENDPOINT = "fal-ai/elevenlabs/music"
 SCRIBE_ENDPOINT = "fal-ai/elevenlabs/speech-to-text/scribe-v2"
+VECTOR_REDRAW_ENDPOINT = "ideogram/vector/image-to-vector"  # Ideogram Vector 1.0; ids have no "fal-ai/" prefix
+VECTOR_SCENE_ENDPOINT = "ideogram/vector/text-to-vector"
 DOWNLOAD_TIMEOUT_S = 60
 
 
@@ -73,6 +75,28 @@ def card_edit(prompt: str, reference_images: list[Path], out_path: Path) -> Path
     )
     _download(result["images"][0]["url"], out_path)
     return Path(out_path)
+
+
+def vector_redraw(image: Path, out_path: Path) -> Path:
+    """Ideogram Vector image-to-vector, "simple" mode: one real frame redrawn flat. No prompt input.
+    Output: {"images": [{"url", "content_type", ...}], "seed"}; the file is SVG."""
+    _key()
+    url = fal_client.upload_file(str(image))
+    result = fal_client.subscribe(VECTOR_REDRAW_ENDPOINT, arguments={"image_url": url, "mode": "simple"})
+    _download(result["images"][0]["url"], out_path)
+    return Path(out_path)
+
+
+def vector_scene(prompt: str, reference_images: list[Path], out_paths: list[Path], seed: int) -> list[Path]:
+    """Ideogram Vector text-to-vector, 16:9, one image per ``out_paths`` (max 8) from one call.
+    ``reference_images``: 1..5 local frames, the first is the primary source. Output as vector_redraw."""
+    _key()
+    urls = [fal_client.upload_file(str(p)) for p in reference_images[:5]]
+    args = {"prompt": prompt, "image_urls": urls, "aspect_ratio": "16:9", "num_images": len(out_paths), "seed": seed}
+    result = fal_client.subscribe(VECTOR_SCENE_ENDPOINT, arguments=args)
+    for img, out in zip(result["images"], out_paths):
+        _download(img["url"], out)
+    return [Path(o) for o in out_paths[: len(result["images"])]]
 
 
 def music(prompt: str, seconds: float, out_path: Path) -> Path:
