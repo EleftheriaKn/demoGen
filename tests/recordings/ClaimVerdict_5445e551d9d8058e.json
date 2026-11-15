@@ -1,0 +1,7 @@
+{
+  "score": 0.2,
+  "reason": "Evidence shows a vision model detecting visible ingredients from image bytes, but not ranking matching dinner recipes.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It presents a relatable moment quickly, though it is a common rhetorical trope."
+        },
+        {
+          "score": 0.3,
+          "reason": "It applies generically to any recipe search tool rather than photo-based recipe generation."
+        },
+        {
+          "score": 0.4,
+          "reason": "It focuses on the user's frustration instead of showcasing what the app actively does."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It touches on grocery waste fast, but feels more like a generic survey question than an intriguing hook."
+        },
+        {
+          "score": 0.2,
+          "reason": "It fits any food management or expiration tracking app rather than PantryPal specifically."
+        },
+        {
+          "score": 0.3,
+          "reason": "It frames a negative user scenario rather than illustrating the product's solution or function."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It immediately establishes the exact culinary dilemma in under five seconds."
+        },
+        {
+          "score": 0.4,
+          "reason": "It aligns with ingredient-based cooking, but misses the unique fridge photo capture aspect."
+        },
+        {
+          "score": 0.4,
+          "reason": "It highlights the user's struggle rather than communicating the app's three-recipe output action."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

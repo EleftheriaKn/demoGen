@@ -1,0 +1,7 @@
+{
+  "score": 0.2,
+  "reason": "The frames display test patterns and contain no recipe cards or ingredient information.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

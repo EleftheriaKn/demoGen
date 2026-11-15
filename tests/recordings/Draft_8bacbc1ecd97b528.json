@@ -1,0 +1,165 @@
+{
+  "hooks": [
+    "Do you ever stare into your fridge wondering what to cook?",
+    "Are you tired of letting fresh groceries go to waste each week?",
+    "Do you struggle to make meals from random leftover ingredients?"
+  ],
+  "hook_card_prompt": "Top down shot of an organized rustic kitchen counter with fresh colorful vegetables, herbs, olive oil, warm atmospheric lighting, soft shadows, cinematic depth of field.",
+  "problem": {
+    "voice_line": "People waste food and time because they do not know what to cook with what they already have.",
+    "segment_id": "c01",
+    "source_start": 0.0,
+    "source_end": 4.0,
+    "claims": [
+      {
+        "text": "People waste food and time because they do not know what to cook with what they already have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ]
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Snap a photo of your fridge to detect ingredients from one photo. You capture the open fridge with the camera button. The screen shows the open fridge.",
+      "segment_id": "c02",
+      "source_start": 5.0,
+      "source_end": 10.0,
+      "claims": [
+        {
+          "text": "Snap a photo of your fridge to detect ingredients from one photo.",
+          "evidence": [
+            {
+              "type": "readme",
+              "ref": "README#How it works"
+            },
+            {
+              "type": "file",
+              "ref": "backend/vision.py"
+            },
+            {
+              "type": "file",
+              "ref": "frontend/src/Camera.tsx"
+            }
+          ]
+        },
+        {
+          "text": "You capture the open fridge with the camera button.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ]
+        },
+        {
+          "text": "The screen shows the open fridge.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "voice_line": "Get three recipes ranked by how many of your ingredients they use. Three recipe cards slide in on screen. Matched ingredients are highlighted on the cards.",
+      "segment_id": "c04",
+      "source_start": 12.0,
+      "source_end": 19.0,
+      "claims": [
+        {
+          "text": "Get three recipes ranked by how many of your ingredients they use.",
+          "evidence": [
+            {
+              "type": "readme",
+              "ref": "README#Features"
+            },
+            {
+              "type": "file",
+              "ref": "backend/recipes.py"
+            }
+          ]
+        },
+        {
+          "text": "Three recipe cards slide in on screen.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ]
+        },
+        {
+          "text": "Matched ingredients are highlighted on the cards.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "The backend detects ingredients from one photo of the open fridge. It ranks three recipes by how many of your ingredients they use.",
+    "segment_id": "c03",
+    "source_start": 10.0,
+    "source_end": 12.0,
+    "claims": [
+      {
+        "text": "The backend detects ingredients from one photo of the open fridge.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#How it works"
+          },
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          }
+        ]
+      },
+      {
+        "text": "It ranks three recipes by how many of your ingredients they use.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          },
+          {
+            "type": "file",
+            "ref": "backend/recipes.py"
+          }
+        ]
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Busy home cooks and students save time and stop wasting food.",
+    "segment_id": "c05",
+    "source_start": 19.0,
+    "source_end": 22.0,
+    "claims": [
+      {
+        "text": "Busy home cooks and students save time and stop wasting food.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ]
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and vote for us in the hackathon!",
+    "card_prompt": "Warm culinary background with fresh herbs, cutting board, soft warm kitchen ambiance, clean photographic composition.",
+    "claims": []
+  }
+}

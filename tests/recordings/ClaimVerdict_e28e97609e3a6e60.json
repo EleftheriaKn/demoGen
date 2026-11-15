@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README features list and backend suggest function directly describe three recipes ranked by how many ingredients they use.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

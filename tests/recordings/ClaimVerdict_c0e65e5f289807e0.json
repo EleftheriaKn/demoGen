@@ -1,0 +1,7 @@
+{
+  "score": 0.2,
+  "reason": "The footage displays a color test pattern rather than an open fridge.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

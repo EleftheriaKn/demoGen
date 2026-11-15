@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "Immediately relatable and sets a clear, quick scene within seconds."
+        },
+        {
+          "score": 0.5,
+          "reason": "Mentions the fridge, but could still apply to many generic recipe apps."
+        },
+        {
+          "score": 0.6,
+          "reason": "Focuses on the user's direct dilemma that the app solves rather than the solution itself."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "Common and somewhat generic question that generates mild curiosity."
+        },
+        {
+          "score": 0.3,
+          "reason": "Too broad, as it applies to almost any meal planning or recipe platform."
+        },
+        {
+          "score": 0.5,
+          "reason": "Identifies the user's pain point but does not describe what the app does."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "A familiar guilt-driven opening that is mildly engaging but slow."
+        },
+        {
+          "score": 0.3,
+          "reason": "Broadly targets meal planning without touching on the app's unique visual fridge scanning."
+        },
+        {
+          "score": 0.4,
+          "reason": "Frames the user's struggle rather than communicating the app's utility or action."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

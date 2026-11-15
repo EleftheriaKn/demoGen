@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README lists 'Three recipes ranked by how many of your ingredients they use' and recipes.py defines suggest().",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

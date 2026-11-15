@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It is an instantly relatable scenario but a somewhat cliché rhetorical question."
+        },
+        {
+          "score": 0.4,
+          "reason": "It mentions the fridge, but could easily apply to any generic recipe or meal delivery service."
+        },
+        {
+          "score": 0.3,
+          "reason": "It highlights the user's dilemma rather than explaining what the app actually does."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.4,
+          "reason": "It opens with a standard rhetorical question that feels routine rather than intriguing."
+        },
+        {
+          "score": 0.2,
+          "reason": "It fits almost any food conservation, grocery tracking, or inventory management app."
+        },
+        {
+          "score": 0.3,
+          "reason": "It targets user frustration rather than detailing the app's functionality or deliverables."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It highlights a familiar everyday struggle but lacks a novel or surprising hook."
+        },
+        {
+          "score": 0.3,
+          "reason": "It describes a general leftover problem that fits many cooking sites, missing the photo-to-recipe feature."
+        },
+        {
+          "score": 0.3,
+          "reason": "It focuses on the user's pain point instead of the app's direct capabilities."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

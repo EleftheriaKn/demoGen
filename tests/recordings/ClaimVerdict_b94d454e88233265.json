@@ -1,0 +1,7 @@
+{
+  "score": 0.3,
+  "reason": "frontend/src/Camera.tsx defines a camera component, but nothing in the evidence mentions handling an open fridge photo.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}
