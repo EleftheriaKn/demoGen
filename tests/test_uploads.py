@@ -88,3 +88,32 @@ def test_too_long_or_not_a_video(client, tmp_path):
     # the one-shot form upload gets the same checks
     r = client.post("/runs", data={"repo_url": REPO}, files={"recording": ("x.mp4", b"nope", "video/mp4")})
     assert r.status_code == 422
+
+
+def test_upload_is_logged_and_phone_errors_reported(client, tmp_path):
+    data = TAKE[:300_000]
+    uid = client.post("/uploads", json={"filename": "IMG_1.MOV", "size": len(data)},
+                      headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) CriOS/131"}).json()["upload_id"]
+    client.put(f"/uploads/{uid}?offset=0", content=data[:100_000])
+    r = client.post(f"/uploads/{uid}/report", json={"phase": "send", "offset": 100000, "attempt": 1,
+                                                     "name": "TypeError", "message": "Load failed\nextra"})
+    assert r.status_code == 204
+    client.put(f"/uploads/{uid}?offset=0", content=b"x")                 # stale offset -> 409, logged
+    log = (tmp_path / "_uploads" / f"{uid}.log").read_text(encoding="utf-8")
+    assert "started: IMG_1.MOV (.mov), 0.3 MB, from iPhone · Chrome" in log
+    assert "PHONE ERROR during send at offset 100000 (attempt 1): TypeError: Load failed extra" in log
+    assert "phone resyncs" in log
+    assert client.post("/uploads/../x/report", json={}).status_code == 404
+
+
+@needs_ffprobe
+def test_upload_log_moves_into_run(client, tmp_path):
+    uid = upload(client, TAKE)
+    rid = client.post("/runs", data={"repo_url": REPO, "upload_id": uid}).json()["run_id"]
+    log = (tmp_path / rid / "upload.log").read_text(encoding="utf-8")
+    assert "complete: " in log and f"run {rid} started from it" in log
+    assert not (tmp_path / "_uploads" / f"{uid}.log").exists()
+
+
+def test_parts_are_4mb():
+    assert api.CHUNK_BYTES == 4 * 1024**2

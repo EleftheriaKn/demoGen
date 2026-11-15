@@ -583,7 +583,7 @@ async function shareVideo(runId) {
   catch (e) { prompt("Copy the link:", url); }
 }
 
-// ---- big uploads (C12): 8 MB parts, resumes after a dropped connection or a reload ----
+// ---- big uploads (C12): 4 MB parts, resumes after a dropped connection or a reload ----
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const takeKey = (f) => `democut-upload:${f.name}:${f.size}:${f.lastModified}`;
 const store = {
@@ -604,10 +604,20 @@ function showUpload(sent, total, note) {
   $("uptext").textContent = `Uploading ${Math.floor(100 * sent / total)}% · ${fmtSize(sent)} of ${fmtSize(total)}` + (note ? ` · ${note}` : "");
 }
 
+// Tell the server what went wrong on the phone: its terminal and runs/_uploads/<id>.log show it.
+function reportUpload(id, info) {
+  try {
+    fetch(`/uploads/${id}/report`, { method: "POST", keepalive: true,
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(info) }).catch(() => {});
+  } catch (_) {}
+}
+
+class ReadError extends Error {}
+
 // Returns the upload_id of a finished upload. Throws Error(message) on a hard failure.
 async function uploadTake(file) {
   const key = takeKey(file);
-  let id = store.get(key), size = 1 << 23, received = 0;
+  let id = store.get(key), size = 1 << 22, received = 0;
   if (id) {                                              // same file as a cut-off upload: resume it
     const r = await fetch(`/uploads/${id}`).catch(() => null);
     if (r && r.ok) received = (await r.json()).received; else id = null;
@@ -619,24 +629,40 @@ async function uploadTake(file) {
     ({ upload_id: id, chunk_size: size } = await r.json());
     store.set(key, id);
   }
-  let failures = 0;
+  size = Math.min(size || 1 << 22, 1 << 22);               // 4 MB parts: quick requests on phone Wi-Fi
+  let failures = 0, lastErr = "";
   while (received < file.size) {
-    showUpload(received, file.size, failures ? "connection lost, retrying…" : "");
+    showUpload(received, file.size, failures ? `connection problem, retrying (${failures})…` : "");
+    // 1. Read the part into memory first. iOS can fail to read a big Photos video; that is not a network error.
+    let part;
     try {
-      const r = await fetch(`/uploads/${id}?offset=${received}`, { method: "PUT", body: file.slice(received, received + size) });
+      part = await file.slice(received, Math.min(received + size, file.size)).arrayBuffer();
+    } catch (e) {
+      reportUpload(id, { phase: "read", offset: received, attempt: failures + 1, name: e.name, message: e.message });
+      throw new ReadError(`This phone couldn't read the video (${e.name}: ${e.message}). Pick it again and press the button: the upload resumes where it stopped.`);
+    }
+    // 2. Send plain bytes (not a file slice): avoids WebKit's sliced-file upload bug.
+    try {
+      const r = await fetch(`/uploads/${id}?offset=${received}`, { method: "PUT",
+        headers: { "Content-Type": "application/octet-stream" }, body: part });
       if (r.status === 409) { received = (await r.json()).detail.received; continue; }   // server has a different amount
-      if (!r.ok) { store.del(key); throw new Error(await apiError(r)); }
+      if (!r.ok) {
+        const msg = await apiError(r);
+        reportUpload(id, { phase: "server", offset: received, attempt: failures + 1, name: `HTTP ${r.status}`, message: msg });
+        if (r.status === 404 || r.status === 413) store.del(key);
+        throw new Error(`Upload failed: ${msg}`);
+      }
       received = (await r.json()).received;
+      if (failures) reportUpload(id, { phase: "recovered", offset: received, attempt: failures, name: "ok", message: `after: ${lastErr}` });
       failures = 0;
     } catch (e) {
-      if (e instanceof TypeError) {                      // network down: wait, ask what arrived, carry on
-        if (++failures > 40) throw new Error("The connection keeps dropping. Try again when it's back: the upload will resume.");
-        await sleep(Math.min(15000, 1000 * 2 ** Math.min(failures, 4)));
-        const r = await fetch(`/uploads/${id}`).catch(() => null);
-        if (r && r.ok) received = (await r.json()).received;
-        continue;
-      }
-      throw e;
+      if (!(e instanceof TypeError)) throw e;
+      lastErr = `${e.name}: ${e.message}`;               // network error ("Load failed", "Failed to fetch")
+      reportUpload(id, { phase: "send", offset: received, attempt: failures + 1, name: e.name, message: e.message });
+      if (++failures > 40) throw new Error(`The connection keeps dropping (${lastErr}). Press the button again when it's back: the upload resumes.`);
+      await sleep(Math.min(15000, 1000 * 2 ** Math.min(failures, 4)));
+      const r = await fetch(`/uploads/${id}`).catch(() => null);
+      if (r && r.ok) received = (await r.json()).received;
     }
   }
   showUpload(file.size, file.size, "checking the video…");
@@ -664,7 +690,7 @@ $("form").onsubmit = async (e) => {
     $("run-title").scrollIntoView({ behavior: "smooth", block: "start" });
     showStep(1);
   } catch (err) {
-    $("err-3").textContent = err instanceof TypeError ? "Can't reach the server. Check the Wi-Fi and press the button again." : err.message;
+    $("err-3").textContent = err instanceof TypeError ? `Can't reach the server (${err.message}). Check the Wi-Fi and press the button again.` : err.message;
     $("go").disabled = false;
   }
 };

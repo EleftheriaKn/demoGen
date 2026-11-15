@@ -50,9 +50,11 @@ Scan the QR code in the terminal, or the one on the board's laptop screen, with 
 The manual way: `uvicorn backend.app:app --host 0.0.0.0 --port 8000`, then open
 `http://<laptop-ip>:8000` on the phone (`ipconfig getifaddr en0` on macOS).
 
-Recordings up to 7:00 and 1 GiB upload in 8 MB parts; if the Wi-Fi drops, the upload carries on
+Recordings up to 7:00 and 1 GiB upload in 4 MB parts; if the Wi-Fi drops, the upload carries on
 from where it stopped (even after reloading the page and picking the same file). The server checks
-both limits again with ffprobe before a run starts. Over plain `http`, phones don't offer *Install*
+both limits again with ffprobe before a run starts. Every upload is logged in the server's terminal and in
+`runs/_uploads/<id>.log` (moved to the run as `upload.log`), including the exact error a phone hit.
+Over plain `http`, phones don't offer *Install*
 and *Share* falls back to copying the link; upload and playback work. If the venue Wi-Fi keeps
 devices apart, a tunnel such as `cloudflared tunnel --url http://localhost:8000` gives an `https`
 link instead (optional, not a project dependency).
