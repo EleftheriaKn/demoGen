@@ -450,3 +450,49 @@ def test_old_summary_without_flow_keeps_todays_draft():
     assert script.draft_model(26, True) is script.DraftShortG
     shots = script.build_shots(_draft(), "h", SEGMENTS, REPO)  # no moments, no flow: all middle shots footage
     assert [s.generated for s in shots] == [True, False, False, False, False, False, True]
+
+
+# --------------------------------------------------------------------------- #
+# A19: callouts ride on a claim and live or die with it
+# --------------------------------------------------------------------------- #
+
+
+def _called(seg, line, callout):
+    return script.FootageDraft(voice_line=line, segment_id=seg, source_start=12.0, source_end=18.0,
+                               claims=[script.ClaimDraft(text=line.rstrip("."), evidence=[], callout=callout)])
+
+
+def test_callout_survives_with_its_claim_and_goes_with_it(monkeypatch):
+    monkeypatch.setattr(events, "emit", lambda *a, **k: None)
+    draft = _draft(demos=[_called("c04", "It lists two items left.", "Two items left"),
+                          _called("c04", "It edits titles in place.", "Edits titles in place"),
+                          _called("c04", "It filters done tasks.", "One click filters every task here")],
+                   impact=_called("c02", "It saves time.", "Saves time"),
+                   ask=script.CardDraft(voice_line="Try it.", card_prompt="end",
+                                        claims=[script.ClaimDraft(text="Try it", evidence=[], callout="Try it")]))
+    ties: dict = {}
+    shots = script.build_shots(draft, "h", SEGMENTS, REPO, ties=ties)
+    assert set(ties) == {"s03", "s04", "s07"}  # over 5 words (s05) and the ask get no tie
+    status = {"s03": ("backed", "lists two items left"), "s04": ("rewritten", "edits titles"),
+              "s07": ("dropped", "x")}
+    checked = {c.claim_id: c.model_copy(update=dict(zip(("status", "text"), status.get(s.shot_id, ("backed", c.text)))))
+               for s in shots for c in s.claims}
+    out = {s.shot_id: s for s in script.add_callouts(script.apply_checks(shots, checked), ties)}
+    assert out["s03"].callout == "Two items left"
+    assert out["s04"].callout is None  # rewrite lost "in place"
+    assert "s07" not in out  # its only claim dropped: no shot, no callout
+    assert all(s.callout is None for s in out.values() if s.beat in ("hook", "ask"))
+    kept = script.add_callouts([out["s04"].model_copy(update={"claims": [
+        out["s04"].claims[0].model_copy(update={"text": "edits titles in place"})]})], ties)
+    assert kept[0].callout == "Edits titles in place"  # every callout word still in the rewrite
+    problem = script.keep_problem([], [shots[1]], "A plain problem.")  # fact-free comeback: no claim
+    assert script.add_callouts(problem, {"s02": ("cl1", "Hard problem")})[0].callout is None
+    count = {"s03": (out["s03"].claims[0].claim_id, "4 items left")}  # "4" is in no checked claim
+    assert script.add_callouts([out["s03"].model_copy(update={"callout": None})], count)[0].callout is None
+
+
+def test_draft_without_callouts_gives_todays_script():
+    ties: dict = {}
+    shots = script.build_shots(_draft(), "h", SEGMENTS, REPO, ties=ties)
+    assert ties == {} and script.add_callouts(shots, ties) == shots == script.build_shots(_draft(), "h", SEGMENTS, REPO)
+    assert all("callout" not in s.model_dump() for s in shots)

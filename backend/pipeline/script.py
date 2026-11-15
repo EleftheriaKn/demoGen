@@ -42,6 +42,11 @@ clip inside the same segment; what still doesn't fit loses whole sentences from 
 below the first sentence, never mid-sentence) before claims are built, so the truth check runs on
 what remains. Each trim is logged.
 
+Callouts: a problem / demo / how / impact claim may carry a callout (at most CALLOUT_WORDS words; a
+longer one is dropped, never cut). It is tied to that claim by id and shown only if the claim is
+kept, or rewritten with every callout word still in it; a number in it must be in the claim; hook and
+ask never get one.
+
 Zoom boxes (full mode only): each demo and impact shot takes its segment's ``frame_pick``
 winner from decisions.json; Gemini is asked once per chosen frame for the region to zoom into.
 Code keeps the box only if it lies inside the frame and is at least MIN_ZOOM_W wide, else
@@ -110,6 +115,7 @@ ZOOM_BEATS = {"demo", "impact"}
 MIN_ZOOM_W = 0.2  # narrower boxes zoom in too far to read
 WORDS_PER_S = 3.0  # voice-over pace; a footage shot's line may not outrun its clip (+ HOLD_S)
 HOLD_S = 2.0  # the timeline holds a clip's last frame (slow push-in) up to this long past its end
+CALLOUT_WORDS = 5  # a callout longer than this is dropped, never truncated
 MIN_REAL = 0.5  # share of the planned runtime that must stay real footage
 BREATH_S = 0.4  # ponytail: per-shot gap in the runtime estimate, mirrors timeline's pause; read it there if it drifts
 
@@ -122,6 +128,9 @@ BREATH_S = 0.4  # ponytail: per-shot gap in the runtime estimate, mirrors timeli
 class ClaimDraft(BaseModel):
     text: str = Field(description="The factual statement, worded as in the voice line.")
     evidence: list[Evidence] = Field(description="Proof for it; empty if none.")
+    callout: str = Field("", description="Problem, demo, how and impact shots: on-screen words for this claim, at "
+                         "most 5, a benefit or a fact visible on screen that this claim states. At most one claim "
+                         "per shot has one; empty otherwise.")
 
 
 class FootageDraft(BaseModel):
@@ -364,11 +373,14 @@ def treatment(d: FootageDraft, beat: str, by_id: dict[str, Segment], moments: di
 
 
 def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: RepoFiles,
-                moments: Optional[Moments] = None, flow: list[FlowStep] = ()) -> list[Shot]:
+                moments: Optional[Moments] = None, flow: list[FlowStep] = (),
+                ties: Optional[dict[str, tuple[str, str]]] = None) -> list[Shot]:
     """Draft -> shots in beat order, footage inside real segments, claims ``pending``.
 
     Evidence follows the shot type: every claim of a footage shot carries its own segment; a
-    generated shot's claims carry only README / file evidence (plus its flow step's)."""
+    generated shot's claims carry only README / file evidence (plus its flow step's).
+    ``ties`` (if given) collects each middle shot's callout: shot_id -> (claim_id, callout), the
+    first claim with one; ``add_callouts`` writes it once the truth check is done."""
     by_id = {s.segment_id: s for s in segments}
     by_moment = {m.moment_id: m for m in moments.moments} if moments else {}
     steps = {f.step_id: f for f in flow}
@@ -428,6 +440,12 @@ def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: 
             if generated or beat == "demo" or not evidence:
                 evidence += [e for e in own if e not in evidence and e.ref in real[e.type]]
             claims.append(Claim(claim_id=f"cl{n_claims}", text=c.text, evidence=evidence, status="pending"))
+            callout = getattr(c, "callout", "").strip()
+            if ties is not None and callout and beat in CHECKED_BEATS and f"s{i:02d}" not in ties:
+                if len(words(callout)) <= CALLOUT_WORDS:
+                    ties[f"s{i:02d}"] = (f"cl{n_claims}", callout)
+                else:
+                    events.emit("script", f'Callout s{i:02d} dropped: "{callout}" is over {CALLOUT_WORDS} words')
         shots.append(Shot(shot_id=f"s{i:02d}", beat=beat, voice_line=d.voice_line, visual=visual,
                           claims=claims, generated=generated))
     return shots
@@ -566,6 +584,30 @@ def keep_problem(shots: list[Shot], drafted: list[Shot], problem: str) -> list[S
     shot = old.model_copy(update={"voice_line": problem, "claims": []})
     i = next((k + 1 for k, s in enumerate(shots) if s.beat == "hook"), 0)
     return [*shots[:i], shot, *shots[i:]]
+
+
+def add_callouts(shots: list[Shot], ties: dict[str, tuple[str, str]]) -> list[Shot]:
+    """Put each tied callout on its shot if its claim survived the truth check: kept, or rewritten
+    with every callout word still in the rewrite. A number must be in the claim too (the claim is
+    what was checked). A shot with no voice line or claim gets none."""
+    out = []
+    for s in shots:
+        if s.shot_id in ties:
+            claim_id, callout = ties[s.shot_id]
+            claim = next((c for c in s.claims if c.claim_id == claim_id), None)
+            why = ("its shot has no voice line" if not words(s.voice_line)
+                   else f"its claim {claim_id} is gone" if claim is None
+                   else f"its claim {claim_id} was dropped" if claim.status == "dropped"
+                   else f'its claim {claim_id} was rewritten to "{claim.text}"'
+                   if claim.status == "rewritten" and set(words(callout)) - set(words(claim.text))
+                   else f'its number is not in claim {claim_id}'
+                   if any(re.search(r"\d", w) for w in set(words(callout)) - set(words(claim.text))) else "")
+            if why:
+                events.emit("script", f'Callout {s.shot_id} dropped: "{callout}", {why}')
+            else:
+                s = s.model_copy(update={"callout": callout})
+        out.append(s)
+    return out
 
 
 def readme_section(readme: str, heading: str) -> str:
@@ -795,7 +837,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
     judgement = judge_hooks(summary, draft.hooks)
     hooks, verdict = score_hooks(draft.hooks, judgement, summary.name)
     chosen = next(h for h in hooks if h.hook_id == verdict.hook_id) if verdict else hooks[-1]
-    drafted = cap_generated(build_shots(draft, chosen.text, segments, repo, moments, summary.flow))
+    ties: dict[str, tuple[str, str]] = {}
+    drafted = cap_generated(build_shots(draft, chosen.text, segments, repo, moments, summary.flow, ties))
     events.emit("script", "Shots: " + ", ".join(
         f"{s.shot_id} {s.beat} {'generated' if s.generated else 'footage'}" for s in drafted)
         + f"; real footage {real_share(drafted):.0%} of the plan")
@@ -807,6 +850,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
                                 claims))
     shots = cap_generated(keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted,
                                        summary.problem))
+    shots = add_callouts(shots, ties)
     if run.mode != "cheap":
         shots = add_zoom(run_dir, shots)
     script = Script(language=run.brief.language, hooks=hooks, chosen_hook_id=chosen.hook_id, shots=shots)
