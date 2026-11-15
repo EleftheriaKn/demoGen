@@ -1,13 +1,13 @@
 {
   "name": "PantryPal",
-  "one_liner": "Snap a photo of your fridge to get three recipe recommendations based on your ingredients.",
-  "problem": "Deciding what to cook with available ingredients in the fridge can be difficult and lead to food waste.",
-  "audience": "Home cooks looking to prepare meals using ingredients they already have.",
+  "one_liner": "Snap a photo of your fridge, get 3 recipes.",
+  "problem": "It can be difficult to figure out what to cook using only the ingredients already available in your fridge.",
+  "audience": "Home cooks wanting quick meal ideas using ingredients on hand.",
   "features": [
     {
       "feature_id": "f1",
-      "name": "Fridge Ingredient Detection",
-      "description": "Captures a photo of an open fridge and automatically detects visible ingredients.",
+      "name": "Ingredient Detection",
+      "description": "Detects visible ingredients from a single photo of an open fridge.",
       "evidence": [
         "README#Features",
         "backend/vision.py",
@@ -16,8 +16,8 @@
     },
     {
       "feature_id": "f2",
-      "name": "Recipe Recommendations",
-      "description": "Provides three recipes ranked by how many of your detected ingredients they use.",
+      "name": "Recipe Suggestions",
+      "description": "Suggests three recipes ranked by how many of your detected ingredients they use.",
       "evidence": [
         "README#Features",
         "backend/recipes.py"
@@ -25,8 +25,8 @@
     },
     {
       "feature_id": "f3",
-      "name": "Missing Ingredients Shopping List",
-      "description": "Generates a shopping list for the missing items needed to make suggested recipes.",
+      "name": "Shopping List",
+      "description": "Generates a shopping list for the few missing ingredients needed for recipes.",
       "evidence": [
         "README#Features",
         "frontend/src/ShoppingList.tsx"
@@ -36,16 +36,16 @@
   "flow": [
     {
       "step_id": "s1",
-      "text": "Open the PantryPal home screen.",
+      "text": "The user opens the PantryPal home screen.",
       "feature_id": null,
       "evidence": [
         "README#How it works",
-        "frontend/src/App.tsx"
+        "docs/home.png"
       ]
     },
     {
       "step_id": "s2",
-      "text": "Tap the camera button to open the camera view.",
+      "text": "The user taps the camera button to open the camera view.",
       "feature_id": "f1",
       "evidence": [
         "README#How it works",
@@ -54,16 +54,7 @@
     },
     {
       "step_id": "s3",
-      "text": "Take a photo of the open fridge.",
-      "feature_id": "f1",
-      "evidence": [
-        "README#How it works",
-        "frontend/src/Camera.tsx"
-      ]
-    },
-    {
-      "step_id": "s4",
-      "text": "View detected ingredients identified from the photo.",
+      "text": "The user takes a photo of their open fridge.",
       "feature_id": "f1",
       "evidence": [
         "README#How it works",
@@ -71,8 +62,8 @@
       ]
     },
     {
-      "step_id": "s5",
-      "text": "Review three recipe suggestions ranked by matching ingredients.",
+      "step_id": "s4",
+      "text": "The user views three suggested recipes ranked by ingredient overlap.",
       "feature_id": "f2",
       "evidence": [
         "README#How it works",
@@ -80,8 +71,8 @@
       ]
     },
     {
-      "step_id": "s6",
-      "text": "Check the shopping list for any missing items needed for the recipes.",
+      "step_id": "s5",
+      "text": "The user checks the shopping list for any missing ingredients.",
       "feature_id": "f3",
       "evidence": [
         "README#Features",
