@@ -152,3 +152,18 @@ def test_one_shot_failure_reruns_timeline_once(tmp_path, monkeypatch):
     msgs = [json.loads(l)["msg"] for l in (run_dir / "events.jsonl").read_text().splitlines()]
     assert msgs.count("timeline started (fake)") == 2
     assert any(m.startswith("Recut s01:") for m in msgs) and msgs[-1] == "Run done"
+
+
+def test_judge_frames_with_no_segments_still_writes_both_outputs(tmp_path):
+    """A short or static take can give candidates.json no segments; the stage must not crash the run."""
+    for name in ("run.json", "summary.json"):
+        shutil.copy2(FIXTURE_RUN / name, tmp_path / name)
+    cands = Candidates.model_validate_json((FIXTURE_RUN / "candidates.json").read_text(encoding="utf-8"))
+    (tmp_path / "candidates.json").write_text(cands.model_copy(update={"segments": []}).model_dump_json(), encoding="utf-8")
+    cfg = load_run(tmp_path)
+    events.bind(tmp_path, cfg.run_id)
+
+    judge.run_frames(tmp_path, cfg)
+
+    assert FrameScores.model_validate_json((tmp_path / "frame_scores.json").read_text()).scores == []
+    assert Decisions.model_validate_json((tmp_path / "decisions.json").read_text()).decisions == []
