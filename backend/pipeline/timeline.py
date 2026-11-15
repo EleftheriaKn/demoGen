@@ -16,7 +16,7 @@ from pathlib import Path
 from backend import events
 from backend.contracts import (Assets, Candidates, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
-from backend.pipeline.ff import FONTS, duration, ff, size_for
+from backend.pipeline.ff import FONTS, duration, ff, filter_path, size_for
 
 FPS = 30
 BREATH_S = 0.25      # footage keeps running this long after the voice ends
@@ -90,7 +90,7 @@ def rooms(spans: list[tuple[float, float] | None]) -> list[tuple[float, float]]:
 def app_name(d: Path) -> str:
     """The app's name for a plain card, from summary.json; empty when understand hasn't run."""
     try:
-        return Summary.model_validate_json((d / "summary.json").read_text()).name
+        return Summary.model_validate_json((d / "summary.json").read_text(encoding="utf-8")).name
     except (OSError, ValueError):
         return ""
 
@@ -102,8 +102,8 @@ def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int]) -> str:
     (d / rel).parent.mkdir(parents=True, exist_ok=True)
     text = d / "cards" / "plain" / f"{shot_id}.txt"
     text.write_text(title, encoding="utf-8")
-    draw = (f",drawtext=fontfile='{FONTS / 'NotoSans-Bold.ttf'}':textfile='{text}':fontcolor=white:"
-            f"fontsize={round(h * 0.11)}:x=(w-tw)/2:y=(h-th)/2") if title.strip() else ""
+    draw = (f",drawtext=fontfile={filter_path(FONTS / 'NotoSans-Bold.ttf')}:textfile={filter_path(text.resolve())}:"
+            f"fontcolor=white:fontsize={round(h * 0.11)}:x=(w-tw)/2:y=(h-th)/2") if title.strip() else ""
     ff("-f", "lavfi", "-i", f"color=c=0x111827:s={w}x{h}:d=1{draw}", "-frames:v", "1", d / rel)
     text.unlink(missing_ok=True)
     return rel
@@ -111,8 +111,8 @@ def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int]) -> str:
 
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir)
-    script = Script.model_validate_json((d / "script.json").read_text())
-    assets = Assets.model_validate_json((d / "assets.json").read_text())
+    script = Script.model_validate_json((d / "script.json").read_text(encoding="utf-8"))
+    assets = Assets.model_validate_json((d / "assets.json").read_text(encoding="utf-8"))
     rec_len = duration(d / run.recording) if (d / run.recording).exists() else None
 
     voices: dict[str, tuple[str, float]] = {}
@@ -121,8 +121,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
             voices[v.shot_id] = (v.path, v.duration_s)
     cards = {c.shot_id: c.path for c in assets.cards}
     cpath = d / "candidates.json"
-    segments = ({g.segment_id: (g.start, g.end) for g in Candidates.model_validate_json(cpath.read_text()).segments}
-                if cpath.exists() else {})
+    cands = Candidates.model_validate_json(cpath.read_text(encoding="utf-8")) if cpath.exists() else None
+    segments = {g.segment_id: (g.start, g.end) for g in cands.segments} if cands else {}
     brolls = {b.shot_id: b for b in assets.broll}
 
     spans = [(s.visual.source_start, s.visual.source_end) if s.visual.kind == "footage" else None
@@ -160,7 +160,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
     music = TimelineMusic(path=assets.music.path, gain_db=MUSIC_GAIN_DB, duck=True) if assets.music else None
     w, h = size_for(run.mode)
     tl = Timeline(fps=FPS, width=w, height=h, duration_s=round(t, 3), shots=shots, music=music)
-    (d / "timeline.json").write_text(tl.model_dump_json(indent=2))
+    (d / "timeline.json").write_text(tl.model_dump_json(indent=2), encoding="utf-8")
 
     limit = run.brief.time_limit_s
     events.emit("timeline", f"{len(shots)} shots, {tl.duration_s:.1f} s at {w}x{h}"

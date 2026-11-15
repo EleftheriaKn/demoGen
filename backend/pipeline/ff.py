@@ -40,7 +40,7 @@ def size_for(mode: str) -> tuple[int, int]:
 def ff(*args, cwd: Path | None = None) -> None:
     """Run ffmpeg; on failure raise with ffmpeg's own error text instead of a bare exit code."""
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *map(str, args)]
-    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if p.returncode != 0:
         raise RuntimeError(f"ffmpeg failed ({p.returncode}): {p.stderr.strip()[-1500:]}")
 
@@ -48,7 +48,7 @@ def ff(*args, cwd: Path | None = None) -> None:
 def probe(path: Path) -> dict:
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(path)],
-        capture_output=True, text=True, check=True).stdout
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
     return json.loads(out)
 
 
@@ -92,7 +92,15 @@ def video_info(path: Path) -> VideoInfo:
 
 @lru_cache(maxsize=1)
 def _filters() -> str:
-    return subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True).stdout
+    return subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace").stdout
+
+
+def filter_path(path: str | Path) -> str:
+    """A file path as a filter option value: forward slashes, quoted, the colon escaped. A raw Windows
+    path ('C:\\Users\\...') breaks the filter graph, where ':' separates options."""
+    posix = str(path).replace("\\", "/")
+    return "'" + posix.replace(":", "\\:") + "'"
 
 
 def has_filter(name: str) -> bool:

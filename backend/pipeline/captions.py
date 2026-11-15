@@ -108,8 +108,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir)
-    tl = Timeline.model_validate_json((d / "timeline.json").read_text())
-    assets = Assets.model_validate_json((d / "assets.json").read_text())
+    tl = Timeline.model_validate_json((d / "timeline.json").read_text(encoding="utf-8"))
+    assets = Assets.model_validate_json((d / "assets.json").read_text(encoding="utf-8"))
     cs = cues(tl, {v.path: v.duration_s for v in assets.voice})
     srt = "\n".join(f"{i}\n{srt_time(a)} --> {srt_time(b)}\n{t}\n" for i, (a, b, _, t) in enumerate(cs, 1))
     (d / "captions.srt").write_text(srt, encoding="utf-8")

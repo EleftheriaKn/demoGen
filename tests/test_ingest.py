@@ -83,13 +83,17 @@ def local_repo(tmp_path):
     (src / "docs").mkdir()
     (src / "tests").mkdir()
     (src / "node_modules" / "left-pad").mkdir(parents=True)
+    (src / "bower_components" / "jquery" / "src").mkdir(parents=True)
+    (src / "bower_components" / "jquery" / "src" / "core.js").write_text("var jQuery = 1;\n")
+    (src / "app-spec.md").write_text("# App spec\n\nAdd a todo — press Enter ✔\n", encoding="utf-8")
     subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=red:s=64x48:d=1",
                     "-frames:v", "1", str(src / "docs" / "shot.png")], check=True)
     subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x48:d=0.3",
                     str(src / "docs" / "demo.gif")], check=True)
     (src / "README.md").write_text(
         "# App\n\n![ci](https://img.shields.io/badge/ci-passing-green)\n![shot](./docs/shot.png)\n"
-        "<img src=\"docs/demo.gif\" width=300>\n![logo](docs/logo.svg)\n\n## Features\n- fast\n")
+        "<img src=\"docs/demo.gif\" width=300>\n![logo](docs/logo.svg)\n\n## Features\n- fast — really ✔\n",
+        encoding="utf-8")
     (src / "package.json").write_text('{"name": "app", "scripts": {"start": "node src/main.js"}}\n')
     (src / "package-lock.json").write_text("{}\n" * 50)
     (src / "src" / "main.py").write_text("def main():\n    print('hi')\n")
@@ -116,6 +120,13 @@ def test_collect_from_a_clone(local_repo, tmp_path):
     assert "node_modules/left-pad/index.js" not in files.tree and "src/main.py" in files.tree
     keys = [k.path for k in files.key_files]
     assert keys[0] == "package.json" and "src/main.py" in keys
+    assert "app-spec.md" in keys                                           # top-level docs explain the app
+    assert not any(p.startswith("bower_components/") for p in files.tree + keys)
+    assert "fast — really ✔" in files.readme                               # not garbled
+    assert "press Enter ✔" in next(k.content for k in files.key_files if k.path == "app-spec.md")
+    out = run_dir / "repo_files.json"
+    out.write_text(files.model_dump_json(), encoding="utf-8")
+    assert "✔" in RepoFiles.model_validate_json(out.read_text(encoding="utf-8")).readme
     assert not {"package-lock.json", "src/bundle.min.js", "data.bin", "README.md"} & set(keys)
     assert keys.index("src/main.py") < keys.index("tests/test_main.py") if "tests/test_main.py" in keys else True
     # badge and svg skipped; png copied; gif turned into a png of its first frame
