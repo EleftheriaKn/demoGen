@@ -54,9 +54,15 @@ def append_decision(
 
 
 def drop_stage(run_dir: Path, stage: Stage) -> None:
-    """Remove ``stage``'s decisions so a re-run replaces them instead of adding a second set."""
+    """Remove ``stage``'s decisions so a re-run replaces them instead of adding a second set.
+
+    Always leaves a ``decisions.json`` behind: a stage with nothing to log (e.g. judge_frames on a
+    take with no candidate segments) still has to write the file the orchestrator checks for.
+    """
     path = Path(run_dir) / "decisions.json"
     if path.exists():
         log = Decisions.model_validate_json(path.read_text(encoding="utf-8"))
         log.decisions = [d for d in log.decisions if d.stage != stage]
-        path.write_text(log.model_dump_json(indent=2), encoding="utf-8")
+    else:
+        log = Decisions(decisions=[], rubric=[])
+    path.write_text(log.model_dump_json(indent=2), encoding="utf-8")
