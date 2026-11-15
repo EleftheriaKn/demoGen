@@ -67,6 +67,7 @@ ENTRY_STEMS = {
     "__main__", "manage", "page", "layout", "worker", "bot", "agent", "pipeline", "core", "service",
 }
 CODE_DIRS = {"src", "app", "backend", "api", "server", "lib", "core", "frontend", "web", "mobile", "cmd"}
+HOUSEKEEPING_DOCS = r"(changelog|history|license|contributing|code[-_ ]?of[-_ ]?conduct|codestyle|security|support|funding|authors)"
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 BADGE = re.compile(r"shields\.io|badgen|badge|travis-ci|codecov|circleci|coveralls|/workflows/|"
                    r"buymeacoffee|ko-fi|star-history|contrib\.rocks", re.I)
@@ -168,7 +169,7 @@ def score(path: str) -> float:
         s = 8.0
     elif ext in SOURCE_EXT:
         s = 3.0 + (3.0 if stem in ENTRY_STEMS else 0.0)
-    elif ext in {".md", ".mdx"} and not name.startswith(("changelog", "license", "contributing", "code_of")):
+    elif ext in {".md", ".mdx"} and not re.match(HOUSEKEEPING_DOCS, name):
         s = 7.0 if len(p.parts) == 1 else 2.0  # top-level docs (app-spec.md, ARCHITECTURE.md) explain the app
     else:
         return 0
@@ -177,7 +178,7 @@ def score(path: str) -> float:
     if any(part.lower() in CODE_DIRS for part in p.parts[:-1]):
         s += 1.0
     if re.search(r"(^|/)(tests?|__tests__|spec|e2e|fixtures?|mocks?|examples?|samples?|migrations)(/|$)", low) \
-            or re.search(r"[._-](test|spec)\.", name) or name.startswith("test_") \
+            or (ext in SOURCE_EXT and (re.search(r"[._-](test|spec)\.", name) or name.startswith("test_"))) \
             or re.search(r"e2e|playwright|cypress|storybook|benchmark", low):
         s -= 4.0
     if re.search(r"(eslint|prettier|vitest|jest|babel|karma|stylelint|tsconfig|webpack|rollup)", name) \

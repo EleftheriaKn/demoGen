@@ -50,6 +50,8 @@ def test_score_prefers_app_code():
     assert s("package-lock.json") == 0 and s("dist/app.min.js") == 0 and s(".github/workflows/ci.yml") == 0
     assert s("tests/test_main.py") < s("src/main.py") and s("src/app.test.ts") < s("src/app.ts")
     assert s("vitest.config.ts") < s("src/app.ts")
+    assert s("app-spec.md") >= s("src/main.py")                       # a spec doc, not a test file
+    assert s("code-of-conduct.md") == s("CHANGELOG.md") == s("codestyle.md") == 0
 
 
 @pytest.mark.parametrize("ref,expected", [
