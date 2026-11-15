@@ -96,6 +96,12 @@ def test_cut_panel_on_board():
     assert '"timeline.json"' in page
 
 
+def test_qr_box_on_board():
+    page = TestClient(api.app).get("/").text
+    # B14 serves /qr.svg via backend.serve; the board shows it on laptop screens, hides it when missing
+    assert 'id="qr-img"' in page and 'img.src = "/qr.svg"' in page and "img.onerror" in page
+
+
 def test_decision_files_served(runs):
     d = orchestrator.new_run_from_fixture()
     orchestrator.run_pipeline(d)

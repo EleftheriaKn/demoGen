@@ -102,6 +102,10 @@
     button, .btn { padding: 14px; }
   }
 
+  /* QR for the phone (B14 serves /qr.svg) */
+  section.qr { margin-top: 20px; text-align: center; }
+  section.qr img { display: block; margin: 0 auto 6px; width: 180px; height: 180px; background: #fff; border-radius: 8px; padding: 6px; }
+
   /* the cut (C13) */
   .strip { display: flex; height: 28px; border-radius: 6px; overflow: hidden; margin: 4px 0 8px; gap: 2px; }
   .strip .seg { min-width: 0; font-size: 11px; line-height: 28px; text-align: center; color: #fff; overflow: hidden; white-space: nowrap; }
@@ -224,6 +228,12 @@
             <div class="nav"><button type="button" class="back">Back</button><button id="go" type="submit">Make the video</button></div>
           </fieldset>
         </form>
+      </section>
+
+      <section class="qr" id="qr" hidden>
+        <h2>Open on your phone</h2>
+        <img id="qr-img" alt="QR code that opens DemoCut on a phone" width="180" height="180">
+        <div class="hint">Scan with the phone's camera (same Wi-Fi as this laptop).</div>
       </section>
 
       <section style="margin-top:20px">
@@ -671,6 +681,14 @@ async function initGitHub() {
 $("gh-filter").oninput = renderRepos;
 $("gh-logout").onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
 initGitHub();
+
+// QR code for the phone, on laptop screens only. Exists when started with `python -m backend.serve`.
+if (window.matchMedia("(min-width: 821px)").matches && !window.matchMedia("(pointer: coarse)").matches) {
+  const img = $("qr-img");
+  img.onload = () => { $("qr").hidden = false; };
+  img.onerror = () => { $("qr").hidden = true; };   // plain uvicorn: no /qr.svg, no box
+  img.src = "/qr.svg";
+}
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 

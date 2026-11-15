@@ -39,14 +39,16 @@ then how it decided: which shots are real footage and which are generated (with 
 repo and the final check. `http://127.0.0.1:8000/#<run_id>` opens one run. On a phone, use the
 browser's *Add to Home Screen* / *Install* to get it as an app.
 
-**On your phone (same Wi-Fi as the laptop).** Start the server so other devices can reach it,
-then open the address it prints for your laptop on the phone:
+**On your phone (same Wi-Fi as the laptop).** The easy way:
 
 ```bash
-uvicorn backend.app:app --host 0.0.0.0 --port 8000
-ipconfig getifaddr en0        # macOS: the laptop's address, e.g. 192.168.1.23
-# phone: http://192.168.1.23:8000
+python -m backend.serve          # prints the phone address, checks keys, shows a QR code
+python -m backend.serve --tunnel # https link through cloudflared, if the Wi-Fi keeps devices apart
 ```
+
+Scan the QR code in the terminal, or the one on the board's laptop screen, with the phone's camera.
+The manual way: `uvicorn backend.app:app --host 0.0.0.0 --port 8000`, then open
+`http://<laptop-ip>:8000` on the phone (`ipconfig getifaddr en0` on macOS).
 
 Recordings up to 7:00 and 1 GiB upload in 8 MB parts; if the Wi-Fi drops, the upload carries on
 from where it stopped (even after reloading the page and picking the same file). The server checks
