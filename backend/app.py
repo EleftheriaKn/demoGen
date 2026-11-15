@@ -67,9 +67,11 @@ app.include_router(settings.router)  # keys from the board, laptop only
 _procs: dict[str, subprocess.Popen] = {}
 
 POLL_S = 0.25
-# Runbook limits for a take: 7:00 and 1 GiB, checked on the phone AND here.
+# Runbook limits: every video 7:00 at most; all videos of a run together 5 GiB (C18; was 1 GiB for one take),
+# checked on the phone AND here.
 MAX_TAKE_S = 420
-MAX_TAKE_BYTES = 1024**3
+MAX_TAKE_BYTES = 5 * 1024**3
+MAX_EXTRAS = 10
 CHUNK_BYTES = 4 * 1024**2  # small parts: each request finishes quickly on venue Wi-Fi
 log = logging.getLogger("uvicorn.error")  # prints in the server's terminal
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".3gp", ".avi"}
@@ -140,12 +142,12 @@ def uploads_root() -> Path:
 
 
 def check_take(path: Path) -> None:
-    """Server-side limits: a real, readable video of at most 7:00 and 1 GiB (ffprobe, via B's ff)."""
+    """Server-side limits: a real, readable video of at most 7:00 and 5 GiB (ffprobe, via B's ff)."""
     from backend.pipeline.ff import video_info
 
     size = path.stat().st_size
     if size > MAX_TAKE_BYTES:
-        raise HTTPException(413, f"recording is {size:,} bytes; the limit is 1 GiB ({MAX_TAKE_BYTES:,})")
+        raise HTTPException(413, f"recording is {size:,} bytes; the limit is 5 GiB ({MAX_TAKE_BYTES:,})")
     try:
         dur = video_info(path).duration
     except Exception:
@@ -240,7 +242,7 @@ async def start_upload(request: Request, body: dict = Body(...)) -> dict:
     if not isinstance(size, int) or size <= 0:
         raise HTTPException(422, "size must be the file size in bytes")
     if size > MAX_TAKE_BYTES:
-        raise HTTPException(413, f"recording is {size:,} bytes; the limit is 1 GiB ({MAX_TAKE_BYTES:,})")
+        raise HTTPException(413, f"recording is {size:,} bytes; the limit is 5 GiB ({MAX_TAKE_BYTES:,})")
     upload_id = uuid.uuid4().hex
     uploads_root().mkdir(parents=True, exist_ok=True)
     (uploads_root() / f"{upload_id}.json").write_text(json.dumps({"upload_id": upload_id, "ext": ext, "size": size}), encoding="utf-8")
@@ -311,6 +313,8 @@ async def create_run(
     mode: str = Form("cheap"),
     recording: Optional[UploadFile] = File(None, description="Small recording in one go; omit to use the fixture take."),
     upload_id: Optional[str] = Form(None, description="A finished POST /uploads (big recordings from the phone)."),
+    extra_upload_ids: str = Form("", description="C18: finished uploads of more videos, comma-separated (max 10)."),
+    style: str = Form("", description="B29: 'trend' (default) or 'classic' (hard cuts)."),
 ) -> dict:
     second_language = second_language or None
     if language not in LANGUAGES or second_language not in (None, *LANGUAGES) or second_language == language:
@@ -322,6 +326,23 @@ async def create_run(
         second_language=second_language,
         text=brief_text.strip() or None,  # C14: the pasted brief, for A's understand / script / rubric
     )
+    extra_ids = [x.strip() for x in extra_upload_ids.split(",") if x.strip()]
+    if len(extra_ids) > MAX_EXTRAS:
+        raise HTTPException(422, f"{len(extra_ids)} more videos; at most {MAX_EXTRAS}")
+    if style not in ("", "trend", "classic"):
+        raise HTTPException(422, "style must be trend or classic")
+    if extra_ids and not upload_id and (recording is None or not recording.filename):
+        upload_id = extra_ids.pop(0)  # only "more videos": the first one leads
+    extras = []  # (upload_id, data path, ext): checked before any run folder exists
+    total = 0
+    for xid in extra_ids:
+        st = _upload_state(xid)
+        if not st["complete"]:
+            raise HTTPException(409, {"msg": "upload not finished", "received": st["received"], "size": st["size"]})
+        _, xsrc = _upload_paths(xid)
+        check_take(xsrc)
+        total += xsrc.stat().st_size
+        extras.append((xid, xsrc, st["ext"]))
     run_id = orchestrator.new_run_id()
     with tempfile.TemporaryDirectory() as tmp:
         if upload_id:
@@ -337,7 +358,7 @@ async def create_run(
                 while piece := recording.file.read(CHUNK_BYTES):
                     f.write(piece)
                     if f.tell() > MAX_TAKE_BYTES:
-                        raise HTTPException(413, f"recording is over the 1 GiB limit ({MAX_TAKE_BYTES:,} bytes)")
+                        raise HTTPException(413, f"recording is over the 5 GiB limit ({MAX_TAKE_BYTES:,} bytes)")
         else:
             src = orchestrator.FIXTURE_RUN / orchestrator.load_run(orchestrator.FIXTURE_RUN).recording
             name = src.name
@@ -350,8 +371,13 @@ async def create_run(
                     for f in _upload_paths(upload_id):
                         f.unlink(missing_ok=True)
                 raise
+        if src.parent != orchestrator.FIXTURE_RUN and total + src.stat().st_size > MAX_TAKE_BYTES:
+            raise HTTPException(413, f"all videos together are {(total + src.stat().st_size) / 1024**3:.2f} GiB; "
+                                     "the limit is 5 GiB")
         try:
-            cfg = RunConfig(run_id=run_id, repo_url=repo_url, recording=name, brief=brief, mode=mode)
+            cfg = RunConfig(run_id=run_id, repo_url=repo_url, recording=name, brief=brief, mode=mode,
+                            extra_recordings=[f"extras/{i}{x[2]}" for i, x in enumerate(extras, 1)] or None,
+                            style=style or None)
             run_dir = orchestrator.create_run(cfg, src, move=src.parent != orchestrator.FIXTURE_RUN)
         except ValueError as e:  # pydantic validation
             raise HTTPException(422, str(e))
@@ -362,6 +388,12 @@ async def create_run(
         ulog = uploads_root() / f"{upload_id}.log"
         if ulog.exists():
             shutil.move(ulog, run_dir / "upload.log")
+    for i, (xid, xsrc, ext) in enumerate(extras, 1):  # C18: ingest joins them after the take (B23)
+        (run_dir / "extras").mkdir(exist_ok=True)
+        shutil.move(xsrc, run_dir / "extras" / f"{i}{ext}")
+        upload_log(xid, f"run {run_id} uses it as extras/{i}{ext}")
+        for f in _upload_paths(xid):
+            f.unlink(missing_ok=True)
     if brief_text.strip():
         # Also as brief.txt, for anything that still reads the pre-C14 file.
         (run_dir / "brief.txt").write_text(brief_text.strip() + "\n", encoding="utf-8")

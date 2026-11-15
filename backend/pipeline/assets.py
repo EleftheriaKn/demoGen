@@ -61,7 +61,7 @@ NO_TEXT_Q = CARD_QUESTIONS[0]  # a draft under judge.PASS here can't win
 CHEAP_CARD_RGB = (24, 24, 32)
 NO_FAL_KEY = ("FAL_KEY isn't set, so this video has no voice, generated cards or music. "
               "Add it in the board's Settings and run again.")
-MAX_CLIPS = 2  # panels animated per run; 0 turns animation off
+MAX_CLIPS = 4  # panels animated per run (B30: was 2; $0.15 each); 0 turns animation off
 CLIP_SECONDS = 4.0
 NO_CLIP_BEATS = {"hook", "ask"}  # these stay hero cards (timeline.HERO_BEATS)
 CLIP_PROMPT = ("Gentle motion only: a slow camera push-in and small movements of the UI elements. "

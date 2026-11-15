@@ -129,9 +129,14 @@ class RunConfig(Contract):
         "every later stage sees one longer take. All uploads together: at most 5 GiB."
     )
 
+    style: Optional[Literal["trend", "classic"]] = Field(
+        None, description="Edit style (B29): 'trend' = beat montage of context clips, moving transitions on the "
+        "beat, panels that pan; 'classic' = hard cuts only (the fallback). Null = trend."
+    )
+
     @model_serializer(mode="wrap")
     def _no_extras(self, handler):
-        return _drop_none(handler(self), "extra_recordings")
+        return _drop_none(handler(self), "extra_recordings", "style")
 
 
 # --------------------------------------------------------------------------- #

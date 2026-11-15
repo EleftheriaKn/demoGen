@@ -202,11 +202,16 @@
           </fieldset>
 
           <fieldset data-step="2" hidden>
-            <label for="recording">Screen recording</label>
-            <input id="recording" name="recording" type="file" accept="video/*,.mov,.mp4">
-            <div class="hint">Use your phone's screen recorder, then pick the video here. Up to 7 minutes and 1 GB.
-              Leave empty to try the sample take.</div>
+            <label for="recording">Recording</label>
+            <input id="recording" name="recording" type="file" accept="video/*,.mov,.mp4" multiple>
+            <div class="hint">A screen capture of the app, camera footage, or both. Pick one or several videos
+              (the first is the main take). Up to 7 minutes each. Leave empty to try the sample take.</div>
             <div class="fileinfo" id="fileinfo"></div>
+            <label for="extras">More videos <span class="hint">(optional, up to 10)</span></label>
+            <input id="extras" name="extras" type="file" accept="video/*,.mov,.mp4" multiple>
+            <div class="hint">The team at work, funny moments, rough takes: they open the video and show who built it.
+              All videos together up to 5 GB.</div>
+            <div class="fileinfo" id="extrasinfo"></div>
             <div class="err" id="err-2"></div>
             <div class="nav"><button type="button" class="back">Back</button><button type="button" class="next">Next</button></div>
           </fieldset>
@@ -241,6 +246,10 @@
                 <div>
                   <label for="mode">Mode</label>
                   <select id="mode" name="mode"><option value="cheap">Cheap (fast)</option><option value="full">Full (best)</option></select>
+                </div>
+                <div>
+                  <label for="style">Style</label>
+                  <select id="style" name="style"><option value="trend">Trend (moving)</option><option value="classic">Classic (hard cuts)</option></select>
                 </div>
               </div>
             </details>
@@ -511,7 +520,7 @@ async function loadRuns() {
 }
 
 // ---- the three steps (C10) --------------------------------------------------------
-const MAX_S = 420, MAX_BYTES = 1024 ** 3;          // runbook: 7 min, 1 GiB
+const MAX_S = 420, MAX_BYTES = 5 * 1024 ** 3, MAX_EXTRAS = 10;   // 7 min per video, 5 GiB for all (C18)
 const REPO_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/i;
 let step = 1;
 let takeOk = true;
@@ -533,7 +542,7 @@ function checkStep(n) {
     $("repo_url").value = v;
     return err(REPO_RE.test(v) ? "" : "That doesn't look like a GitHub repo link, e.g. https://github.com/you/app");
   }
-  if (n === 2) return err(takeOk ? "" : "Pick a recording of 7 minutes or less, under 1 GB.");
+  if (n === 2) return err(takeOk ? extrasCheck() : "Pick a recording of 7 minutes or less, under 5 GB.");
   if (n === 3) {
     const c = $("criteria").value.split(",").map(x => x.trim()).filter(Boolean);
     return err(c.length ? "" : "Add at least one judging criterion.");
@@ -552,10 +561,11 @@ const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padSt
 $("recording").onchange = () => {
   const f = $("recording").files[0];
   $("err-2").textContent = "";
+  showExtras();
   if (!f) { $("fileinfo").textContent = ""; takeOk = true; return; }
   takeOk = f.size <= MAX_BYTES;
   $("fileinfo").textContent = `${f.name} · ${fmtSize(f.size)}`;
-  if (!takeOk) { $("err-2").textContent = `Too big (${fmtSize(f.size)}). The limit is 1 GB: record at 1080p or lower.`; return; }
+  if (!takeOk) { $("err-2").textContent = `Too big (${fmtSize(f.size)}). The limit is 5 GB: record at 1080p or lower.`; return; }
   const v = document.createElement("video");
   v.preload = "metadata";
   v.onloadedmetadata = () => {
@@ -565,6 +575,8 @@ $("recording").onchange = () => {
     if (v.duration > MAX_S + 0.5) {
       takeOk = false;
       $("err-2").textContent = `Too long (${fmtTime(v.duration)}). The limit is 7:00.`;
+    } else {
+      $("err-2").textContent = extrasCheck();
     }
   };
   v.src = URL.createObjectURL(f);
@@ -599,10 +611,11 @@ async function apiError(res) {
   return typeof msg === "string" ? msg : (msg.msg || JSON.stringify(msg));
 }
 
+let upWhich = "";  // "video 2 of 4 · " while several videos go up (C18)
 function showUpload(sent, total, note) {
   $("upload").hidden = false;
   $("upbar").style.width = (100 * sent / total) + "%";
-  $("uptext").textContent = `Uploading ${Math.floor(100 * sent / total)}% · ${fmtSize(sent)} of ${fmtSize(total)}` + (note ? ` · ${note}` : "");
+  $("uptext").textContent = `Uploading ${upWhich}${Math.floor(100 * sent / total)}% · ${fmtSize(sent)} of ${fmtSize(total)}` + (note ? ` · ${note}` : "");
 }
 
 // Tell the server what went wrong on the phone: its terminal and runs/_uploads/<id>.log show it.
@@ -612,6 +625,27 @@ function reportUpload(id, info) {
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(info) }).catch(() => {});
   } catch (_) {}
 }
+
+// C18: more videos. Count and total size here; the API checks each one's length again.
+// All picked videos: the first one of the Recording picker is the main take, everything else is an extra.
+const mainFile = () => $("recording").files[0];
+const extraFiles = () => [...[...$("recording").files].slice(1), ...$("extras").files];
+function extrasCheck() {
+  const xs = extraFiles(), main = mainFile();
+  const total = xs.reduce((a, f) => a + f.size, main ? main.size : 0);
+  if (xs.length > MAX_EXTRAS) return `At most ${MAX_EXTRAS} more videos (you picked ${xs.length}).`;
+  if (total > MAX_BYTES) return `All videos together are ${fmtSize(total)}. The limit is 5 GB.`;
+  return "";
+}
+function showExtras() {
+  const xs = extraFiles();
+  $("extrasinfo").innerHTML = xs.length
+    ? `<b>${xs.length} more video${xs.length > 1 ? "s" : ""}</b> · ${fmtSize(xs.reduce((a, f) => a + f.size, 0))}<br>`
+      + xs.map(f => `${esc(f.name)} · ${fmtSize(f.size)}`).join("<br>")
+    : "";
+  $("err-2").textContent = extrasCheck();
+}
+$("extras").onchange = showExtras;
 
 class ReadError extends Error {}
 
@@ -677,13 +711,24 @@ $("form").onsubmit = async (e) => {
   $("err-3").textContent = "";
   const fd = new FormData(e.target);
   fd.delete("recording");
-  const file = $("recording").files[0];
+  fd.delete("extras");
+  const file = mainFile();
+  const extras = extraFiles();
+  const n = (file ? 1 : 0) + extras.length;
   let up = null;
+  const ups = [];
   try {
-    if (file) { up = await uploadTake(file); fd.append("upload_id", up.id); }
+    if (file) { upWhich = n > 1 ? `video 1 of ${n} · ` : ""; up = await uploadTake(file); fd.append("upload_id", up.id); }
+    for (const [i, x] of extras.entries()) {             // one after the other, each resumable
+      upWhich = `video ${(file ? 2 : 1) + i} of ${n} · `;
+      ups.push(await uploadTake(x));
+    }
+    upWhich = "";
+    if (ups.length) fd.append("extra_upload_ids", ups.map(u => u.id).join(","));
     const res = await fetch("/runs", { method: "POST", body: fd });
     if (!res.ok) throw new Error("Could not start: " + await apiError(res));
     if (up) store.del(up.key);
+    ups.forEach(u => store.del(u.key));
     const { run_id } = await res.json();
     $("upload").hidden = true;
     watch(run_id);

@@ -11,11 +11,12 @@ Run alone: python -m backend.pipeline.timeline runs/<run_id>
 from __future__ import annotations
 
 import math
+import os
 import re
 from pathlib import Path
 
 from backend import events
-from backend.contracts import (Assets, BrollAsset, Candidates, Moments, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
+from backend.contracts import (Assets, BrollAsset, Candidates, FrameScores, Moments, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
 from backend.pipeline.beats import bar_loop, beat_times, snap
 from backend.pipeline.cards import best_frames, grab_frame, hero_card, panel_card, rasterize
@@ -35,7 +36,12 @@ ZOOM_EASE_S = 0.8
 MUSIC_GAIN_DB = -18.0
 MAX_BEAT_SHIFT_S = 0.25  # B18: a cut moves at most this far (earlier or later) to land on a beat
 MIN_TAIL_S = 0.1     # ...and never lands sooner than this after the voice ends
-LOOP_FILE = "music_loop.wav"  # the bed cut to whole bars (render loops it)
+LOOP_FILE = "music_loop.wav"
+MONTAGE_MAX = 6       # B28 (trend style): up to this many context clips open the video, cut on the beat
+MONTAGE_MIN = 3       # fewer context clips than this: no montage
+MONTAGE_BEATS = 2     # each montage clip lasts this many beats (1 s at 120 BPM)
+MONTAGE_CLIP_S = 1.0  # ...or this long when the music has no beat
+MONTAGE_SPEEDS = (1.0, 1.3)  # alternate: a little speed ramp feel without leaving the contract limit  # the bed cut to whole bars (render loops it)
 READ_WPS = 2.6       # a shot whose voice take failed stays up as long as its caption takes to read
 MIN_SILENT_S = 2.0
 
@@ -145,6 +151,75 @@ def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int], backgro
     return rel
 
 
+def style_of(run: RunConfig) -> str:
+    """'trend' (default) or 'classic' (B29 fallback: hard cuts, no montage). DEMOCUT_STYLE overrides run.json."""
+    return os.environ.get("DEMOCUT_STYLE") or run.style or "trend"
+
+
+def silence(d: Path, rel: str, seconds: float) -> str:
+    """A silent voice file (montage shots have music only)."""
+    (d / rel).parent.mkdir(parents=True, exist_ok=True)
+    ff("-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", f"{seconds:.3f}", d / rel)
+    return rel
+
+
+def montage(d: Path, run: RunConfig, script: Script, segments: dict, beats: list[float]) -> list[TimelineShot]:
+    """B28: the opening montage of a trend-style video: the best-scored context clips (the team, people, the
+    place: B25's `context` moments, never the app's screen), not used by any script shot, a few beats each,
+    cut on the beat, music only. Nothing when the take has fewer than MONTAGE_MIN context clips."""
+    mp, cp = d / "moments.json", d / "candidates.json"
+    if not (mp.exists() and cp.exists()):
+        return []
+    ctx = [(m.start, m.end) for m in Moments.model_validate_json(mp.read_text(encoding="utf-8")).moments
+           if m.kind == "context"]
+    used = [(s.visual.source_start, s.visual.source_end) for s in script.shots
+            if s.visual.kind == "footage" and s.visual.source_start is not None]
+    inside = lambda a, b, spans: sum(max(0.0, min(b, e) - max(a, s)) for s, e in spans)  # noqa: E731
+    all_segs = Candidates.model_validate_json(cp.read_text(encoding="utf-8")).segments
+    in_ctx = [g for g in all_segs if inside(g.start, g.end, ctx) >= 0.5 * (g.end - g.start)]
+    # scene clips are the short pieces of a context stretch; a whole-moment clip only when it has none inside
+    scenes = [g for g in in_ctx if g.source == "scene"]
+    pool = scenes + [g for g in in_ctx if g.source == "moment"
+                     and not any(g.start <= x.start and x.end <= g.end for x in scenes)]
+    segs = []
+    for g in sorted(pool, key=lambda g: g.start):  # the clip's middle must be footage nothing else plays
+        mid = (g.start + g.end) / 2
+        if not inside(mid - 1.0, mid + 1.0, used) and not any(abs((x.start + x.end) / 2 - mid) < 2.0 for x in segs):
+            segs.append(g)
+    if len(segs) < MONTAGE_MIN:
+        return []
+    fp = d / "frame_scores.json"
+    best: dict[str, float] = {}
+    if fp.exists():
+        for f in FrameScores.model_validate_json(fp.read_text(encoding="utf-8")).scores:
+            best[f.segment_id] = max(best.get(f.segment_id, 0.0), f.total)
+    picks = sorted(sorted(segs, key=lambda g: -best.get(g.segment_id, 0.0))[:MONTAGE_MAX], key=lambda g: g.start)
+    clip = MONTAGE_BEATS * (beats[1] - beats[0]) if len(beats) > 1 else MONTAGE_CLIP_S
+    shots, t = [], 0.0
+    for i, g in enumerate(picks):
+        speed = MONTAGE_SPEEDS[i % len(MONTAGE_SPEEDS)]
+        end_t = beats[min(range(len(beats)), key=lambda k: abs(beats[k] - (t + clip)))] if beats else t + clip
+        dur = frames(max(0.3, end_t - t))
+        length = g.end - g.start
+        if length >= dur * speed:  # the middle of the clip, at the ramp speed
+            span, freeze = dur * speed, 0.0
+        elif length >= dur:  # a bit short: just fast enough to fill the beats
+            span, speed, freeze = length, length / dur, 0.0
+        else:  # shorter than its beats: play it, hold the last frame
+            span, speed, freeze = length, 1.0, dur - length
+        a = round(g.start + (length - span) / 2, 3)
+        sid = f"m{i + 1:02d}"
+        shots.append(TimelineShot(
+            shot_id=sid, start=round(t, 3), duration_s=dur,
+            voice_path=silence(d, f"voice/silent/{sid}.wav", dur),
+            visual=TimelineVisual(kind="footage", path=run.recording, source_start=a, source_end=round(a + span, 3),
+                                  speed=round(speed, 4), freeze_s=round(freeze, 3)),
+            caption=""))
+        t = round(t + dur, 6)
+    events.emit("timeline", f"montage: {len(shots)} context clips, {t:.1f} s, cut on the beat")
+    return shots
+
+
 def take_shows_app(d: Path) -> bool:
     """False when no moment of the take shows the app (all "context" / "dead": a camera video of the team): its
     frames must not sit in a browser mockup as if they were the app. No moments.json: assume it does."""
@@ -214,6 +289,9 @@ def run(run_dir: Path, run: RunConfig) -> None:
     spans = [(s.visual.source_start, s.visual.source_end) if s.visual.kind == "footage" else None
              for s in script.shots]
     shots, t, last_end = [], 0.0, None
+    if take and style_of(run) == "trend":  # B28: open on the team, cut to the music
+        shots = montage(d, run, script, segments, beats)
+        t = round(shots[-1].start + shots[-1].duration_s, 6) if shots else 0.0
     for s, room in zip(script.shots, rooms(spans)):
         if s.shot_id not in voices:  # fal failed for this take (assets leaves it out): silent, captions only
             voices[s.shot_id] = silent_voice(d, s.shot_id, s.voice_line)
