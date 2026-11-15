@@ -5,6 +5,11 @@ Clone the repo, pick what the brains should read, pull README screenshots, extra
 Reads run.json and the recording. Writes repo_files.json, audio.wav (16 kHz mono; silence when the
 take has no sound, so transcribe always has a file), screenshots/.
 
+More videos (run.extra_recordings, optional): joined after the main take into ONE take at `run.recording`
+(main take's shape, 30 fps, SDR, stereo; other shapes over a blurred fill; originals moved to takes/), so
+Gemini, fal and the timeline all get the extra footage with no change of their own. takes/takes.json says
+where each video starts in the joined take.
+
 Private repos: set GITHUB_TOKEN. It goes to git through the environment, never on a command line,
 in run files, events or error messages.
 
@@ -15,6 +20,7 @@ from __future__ import annotations
 
 import base64
 import ipaddress
+import json
 import os
 import re
 import shutil
@@ -28,7 +34,7 @@ from pathlib import Path, PurePosixPath
 
 from backend import events
 from backend.contracts import KeyFile, RepoFiles, RunConfig
-from backend.pipeline.ff import ff, take_path, video_info
+from backend.pipeline.ff import AUDIO, SAMPLE_RATE, ff, hdr_to_sdr, inner_size, place, take_path, video_info
 
 CLONE_TIMEOUT_S = 180
 MAX_TREE = 5000              # paths listed in repo_files.json (vendored/build dirs are skipped first)
@@ -38,6 +44,11 @@ MAX_SAME_NAME = 2            # monorepos: not ten package.json files
 MAX_FILE_CHARS = 8000        # per key file, so 20 files stay well inside one Gemini call
 MAX_README_CHARS = 100_000
 MAX_SCREENSHOTS = 8
+MAX_JOIN_SIDE = 2560         # joined take: the main take's shape, long side at most this (render outputs 1080p)
+MAX_JOINED_S = 40 * 60       # all videos together; Gemini watches the whole joined take
+JOIN_FPS = 30
+JOIN_VIDEO = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "6M", "-bufsize", "12M",
+              "-pix_fmt", "yuv420p"]  # maxrate keeps 40 min under Gemini's 2 GB per uploaded file
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 DOWNLOAD_TIMEOUT_S = 15
 
@@ -367,6 +378,81 @@ def extract_audio(recording: Path, out: Path) -> bool:
     return False
 
 
+# --------------------------------------------------------------------------- more videos
+
+
+def readable_videos(d: Path, run: RunConfig, main: Path | None) -> list[tuple[str, Path, object]]:
+    """(name, path, info) of the main take and each extra video that ffprobe can read, in order, until all
+    together would pass MAX_JOINED_S. Missing / unreadable / too-long ones are skipped with an event."""
+    sources = [("main take", main)] if main else []
+    sources += [(rel, d / rel) for rel in run.extra_recordings or []]
+    out, total = [], 0.0
+    for name, p in sources:
+        try:
+            info = video_info(p)
+            if info.duration <= 0.5:
+                raise ValueError("no length")
+        except Exception as e:
+            events.emit("ingest", f"{name} can't be read ({type(e).__name__}): skipped")
+            continue
+        if total + info.duration > MAX_JOINED_S:
+            events.emit("ingest", f"{name} skipped: all videos together would pass {MAX_JOINED_S // 60} min")
+            continue
+        out.append((name, p, info))
+        total += info.duration
+    return out
+
+
+def join_takes(d: Path, run: RunConfig) -> Path | None:
+    """Main take + extra videos -> one take at run.recording (see the module doc). Re-running ingest joins
+    again from the originals in takes/. Returns the take, or None when there is no readable video at all."""
+    if not run.recording:
+        return None
+    rec, keep = d / run.recording, d / "takes"
+    saved = sorted(keep.glob("main.*")) if keep.is_dir() else []
+    main = saved[0] if saved else (rec if rec.is_file() else None)
+    videos = readable_videos(d, run, main)
+    if not videos:
+        return take_path(d, run.recording)
+    if len(videos) == 1 and videos[0][1] == rec:
+        return rec  # the extras were all unreadable: the main take as it is
+    keep.mkdir(exist_ok=True)
+    if main == rec:  # keep the user's original; the joined take takes its place
+        main = keep / ("main" + rec.suffix)
+        os.replace(rec, main)
+        videos[0] = (videos[0][0], main, videos[0][2])
+
+    w0, h0 = videos[0][2].width, videos[0][2].height
+    k = min(1.0, MAX_JOIN_SIDE / max(w0, h0))
+    W, H = max(2, round(w0 * k / 2) * 2), max(2, round(h0 * k / 2) * 2)
+    args, parts, starts, t = [], [], [], 0.0
+    for i, (name, p, info) in enumerate(videos):
+        args += ["-i", p]
+        iw, ih = inner_size(info.width, info.height, W, H)
+        dur = f"{info.duration:.3f}"
+        parts.append(f"[{i}:v]{hdr_to_sdr(info)}fps={JOIN_FPS},scale={iw}:{ih},setsar=1,"
+                     f"trim=duration={dur},setpts=PTS-STARTPTS[s{i}]")
+        parts.append(place(f"s{i}", f"v{i}", iw, ih, W, H))
+        src = f"[{i}:a]aresample={SAMPLE_RATE},aformat=channel_layouts=stereo,apad," if info.has_audio \
+            else f"anullsrc=r={SAMPLE_RATE}:cl=stereo,"
+        parts.append(f"{src}atrim=duration={dur},asetpts=PTS-STARTPTS[a{i}]")
+        starts.append({"video": name, "start": round(t, 3), "end": round(t + info.duration, 3)})
+        t += info.duration
+    parts.append("".join(f"[v{i}][a{i}]" for i in range(len(videos))) + f"concat=n={len(videos)}:v=1:a=1[v][a]")
+    part = rec.with_name(rec.stem + ".part" + rec.suffix)
+    try:
+        ff(*args, "-filter_complex", ";".join(parts), "-map", "[v]", "-map", "[a]", "-r", JOIN_FPS,
+           *JOIN_VIDEO, *AUDIO, "-movflags", "+faststart", part)
+        os.replace(part, rec)
+    finally:
+        part.unlink(missing_ok=True)
+    video_info.cache_clear()  # cached by path: `rec` held the main take a moment ago
+    (keep / "takes.json").write_text(json.dumps(starts, indent=2), encoding="utf-8")
+    events.emit("ingest", f"joined {len(videos)} videos into one {t / 60:.1f} min take at {W}x{H}: "
+                + ", ".join(f"{x['video']} from {x['start']:.0f} s" for x in starts), data={"takes": starts})
+    return rec
+
+
 # --------------------------------------------------------------------------- stage
 
 
@@ -389,7 +475,6 @@ def collect(repo: Path, repo_url: str, owner: str, name: str, run_dir: Path) -> 
 
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir)
-    recording = take_path(d, run.recording)  # None: repo + brief only (B17)
     url, owner, name = normalize_repo_url(run.repo_url)
 
     with tempfile.TemporaryDirectory(prefix="democut-repo-") as tmp:
@@ -402,6 +487,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
                           f"{len(files.screenshots)} screenshots",
                 data={"sha": sha, "key_files": [k.path for k in files.key_files]})
 
+    # more videos: one joined take (after the clone, so a bad repo URL fails fast); None: no take (B17)
+    recording = join_takes(d, run) if run.extra_recordings else take_path(d, run.recording)
     if recording is None:  # no take: transcribe still needs a file
         ff("-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono", "-t", "1", "-c:a", "pcm_s16le", d / "audio.wav")
         events.emit("ingest", "no recording: the video will be generated from the repo", data={"has_take": False})

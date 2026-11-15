@@ -172,6 +172,24 @@ def test_apply_checks_edits_lines_and_removes_shots_left_empty():
     assert script.apply_checks(shots[3:], mixed)[0].voice_line == "It sees eggs. Then cook."
 
 
+def test_reworded_claims_edit_their_sentence_not_the_whole_line():
+    # Coach Platform A9 v3: claims drafted in other words than the line blanked every demo shot,
+    # taking kept claims with them.
+    line = "Add a player as CB. Schedule a tactical session on Wednesday 11. Then cook."
+    assert script.edit_line(line, "Add Farasia as CB", "") == "Schedule a tactical session on Wednesday 11. Then cook."
+    assert script.edit_line(line, "Schedules your tactical session for Wednesday 11", "Schedules your tactical session") \
+        == "Add a player as CB. Schedules your tactical session. Then cook."
+    assert script.edit_line(line, "makes coffee", "") is None  # under half its words in any sentence
+
+    shots = [_shot("Add a player as CB. Schedule a tactical session.", "Add Farasia as CB", "Schedule a tactical session"),
+             _shot("It is great.", "Displays the weekly calendar")]
+    checked = {"cl1": Claim(claim_id="cl1", text="x", evidence=[], status="dropped"),
+               "cl2": Claim(claim_id="cl2", text="Schedule a tactical session", evidence=[], status="backed")}
+    assert script.apply_checks(shots[:1], checked)[0].voice_line == "Schedule a tactical session."
+    rewritten = {"cl1": Claim(claim_id="cl1", text="Displays the calendar", evidence=[], status="rewritten")}
+    assert script.apply_checks(shots[1:], rewritten)[0].voice_line == "Displays the calendar"  # the checked words
+
+
 def test_unclaimed_sentences_are_facts_with_no_claim():
     line = "Is dinner hard? PantryPal reads your fridge. It suggests three recipes"
     assert script.unclaimed_sentences(line, ["PantryPal reads your fridge"]) == ["It suggests three recipes"]
@@ -313,6 +331,18 @@ def test_add_zoom_one_call_per_chosen_frame(tmp_path, monkeypatch):
     assert box is not None and box[2] >= script.MIN_ZOOM_W and box[0] + box[2] <= 1 and box[1] + box[3] <= 1
     assert out[3].visual.focus_box == box
     Script(language="en", hooks=[{"hook_id": "h1", "text": "x", "score": 0}], chosen_hook_id="h1", shots=out)
+
+
+def test_problem_comeback_is_the_first_sentence_fitted_to_its_clip():
+    drafted = script.build_shots(_draft(), "Hook line", SEGMENTS, REPO)
+    kept = [s for s in drafted if s.beat != "problem"]
+    problem = "Coaches juggle " + " ".join(["tools"] * 20) + ". The app fixes it all in one place."
+    out = script.keep_problem(kept, drafted, problem, SEGMENTS)[1]
+    assert out.voice_line == "Coaches juggle " + " ".join(["tools"] * 20) + "." and out.claims == []
+    seg = next(g for g in SEGMENTS if g.segment_id == out.visual.segment_id)
+    assert seg.start <= out.visual.source_start and out.visual.source_end <= seg.end
+    assert (out.visual.source_end - out.visual.source_start
+            >= min(seg.end - seg.start, 22 / script.WORDS_PER_S - script.HOLD_S) - 0.01)  # grew inside its segment
 
 
 def test_voice_fits_its_clip_plus_hold_by_growing_the_clip_then_dropping_sentences():

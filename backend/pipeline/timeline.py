@@ -17,21 +17,25 @@ from pathlib import Path
 from backend import events
 from backend.contracts import (Assets, BrollAsset, Candidates, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
-from backend.pipeline.beats import beat_times, snap
+from backend.pipeline.beats import bar_loop, beat_times, snap
 from backend.pipeline.cards import best_frames, grab_frame, hero_card, panel_card, rasterize
 from backend.pipeline.ff import duration, ff, size_for, take_path
 
 FPS = 30
 BREATH_S = 0.25      # footage keeps running this long after the voice ends
 MAX_SPEED = 1.5      # contract limit
+MIN_BROLL_SPEED = 0.75  # generated clips may play this slow before their last frame is held
 HERO_BEATS = {"hook", "ask"}  # these cards get the hero look; other generated shots are illustration panels
 MAX_FREEZE_S = 1.5   # longer gaps play more real footage instead of a held frame...
 MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment can contradict the voice line
                      # (B9: "Active filter" line over the Completed view). Render moves held frames instead.
+                     # A shot with no claims (the fact-free problem line) states nothing footage can contradict:
+                     # it plays on past its segment (inside its room) rather than freeze (Coach Platform: 15.7 s hold).
 ZOOM_EASE_S = 0.8
 MUSIC_GAIN_DB = -18.0
-MAX_BEAT_SHIFT_S = 0.35  # B18: a cut may wait this long for the next beat
+MAX_BEAT_SHIFT_S = 0.25  # B18: a cut moves at most this far (earlier or later) to land on a beat
 MIN_TAIL_S = 0.1     # ...and never lands sooner than this after the voice ends
+LOOP_FILE = "music_loop.wav"  # the bed cut to whole bars (render loops it)
 READ_WPS = 2.6       # a shot whose voice take failed stays up as long as its caption takes to read
 MIN_SILENT_S = 2.0
 
@@ -55,6 +59,15 @@ def fit_source(start: float, end: float, target: float, limit: float | None) -> 
     return start, end, 1.0, round(target - length, 3)
 
 
+def fit_broll(length: float, target: float) -> tuple[float, float, float, float]:
+    """A generated clip (A17: 4 s) under a longer voice line plays slower first (gentle motion stays
+    natural down to MIN_BROLL_SPEED), and only holds its last frame for what is still missing."""
+    if length >= target:
+        return fit_source(0.0, length, target, length)
+    speed = max(MIN_BROLL_SPEED, length / target)
+    return 0.0, length, round(speed, 4), round(max(0.0, target - length / speed), 3)
+
+
 def grow(start: float, end: float, need: float, lo: float, hi: float) -> tuple[float, float]:
     """Widen [start, end] by up to `need` seconds inside [lo, hi]: forward first (what happens next), then back."""
     fwd = min(need, max(0.0, hi - end))
@@ -63,10 +76,10 @@ def grow(start: float, end: float, need: float, lo: float, hi: float) -> tuple[f
 
 
 def fit_footage(start: float, end: float, target: float, segment: tuple[float, float] | None,
-                limit: float | None, room: tuple[float, float] = (0.0, float("inf"))
-                ) -> tuple[float, float, float, float]:
+                limit: float | None, room: tuple[float, float] = (0.0, float("inf")),
+                beyond: float = MAX_BEYOND_S) -> tuple[float, float, float, float]:
     """Like fit_source, but a voice line longer than its clip plays more real footage instead of a long
-    freeze: first the rest of the candidate segment (same content), then at most MAX_BEYOND_S of the
+    freeze: first the rest of the candidate segment (same content), then at most ``beyond`` seconds of the
     footage around it (it may already show something the voice line doesn't say), never past `room`
     (where the previous footage shot ended / the next one starts, so nothing plays twice). What is still
     missing is a held last frame: the matching screen stays up while the voice finishes."""
@@ -75,7 +88,7 @@ def fit_footage(start: float, end: float, target: float, segment: tuple[float, f
     if target > end - start and segment is not None:
         start, end = grow(start, end, target - (end - start), max(lo, segment[0]), min(hi, segment[1]))
     if target - (end - start) > MAX_FREEZE_S:  # a little footage from around the segment, never much:
-        need = min(target - (end - start) - MAX_FREEZE_S / 2, MAX_BEYOND_S)  # it may show something else
+        need = min(target - (end - start) - MAX_FREEZE_S / 2, beyond)  # it may show something else
         start, end = grow(start, end, need, lo, hi)
     return fit_source(round(start, 3), round(end, 3), target, limit)
 
@@ -170,9 +183,14 @@ def run(run_dir: Path, run: RunConfig) -> None:
 
     music_file = d / assets.music.path if assets.music else None
     beats, bpm = beat_times(music_file) if music_file and music_file.exists() else ([], 0.0)
-    if beats and assets.music.duration_s > 1:  # render loops the bed: repeat its beat grid for each loop
-        beats = [round(b + k * assets.music.duration_s, 3) for k in range(4) for b in beats]
-    on_beat = 0
+    music_path = assets.music.path if assets.music else None
+    if beats:  # render loops the bed: loop whole bars from the first beat, so the beat never jumps at the seam
+        horizon = 2 * sum(v[1] for v in voices.values()) + 120
+        grid = bar_loop(music_file, d / LOOP_FILE, beats, bpm, horizon)
+        if grid:
+            beats, music_path = grid, LOOP_FILE
+        else:  # bed shorter than a bar: its own beats, music plays once
+            events.emit("timeline", "music bed shorter than one bar: no loop on the beat")
     name = app_name(d) or run.repo_url.rstrip("/").rsplit("/", 1)[-1]
     repo_label = re.sub(r"^https?://(www\.)?", "", run.repo_url).rstrip("/")
     n_card_shots = sum(1 for s in script.shots if s.visual.kind != "footage" or take is None)
@@ -193,24 +211,27 @@ def run(run_dir: Path, run: RunConfig) -> None:
                                     f"({voices[s.shot_id][1]:.1f} s)")
         voice_path, voice_s = voices[s.shot_id]
         dur = frames(voice_s + BREATH_S)
-        if beats:  # B18: end the shot on the music's beat (later only, never before the voice is done)
-            cut = snap(t + dur, t + voice_s + MIN_TAIL_S, beats, MAX_BEAT_SHIFT_S)
+        if beats:  # B18: end the shot on the nearest beat within +-MAX_BEAT_SHIFT_S, never before the voice is done
+            reach = MAX_BEAT_SHIFT_S - 0.5 / FPS  # the cut is then rounded to the nearest frame: stays within reach
+            cut = snap(t + dur, max(t + voice_s + MIN_TAIL_S, t + dur - reach), beats, reach)
             if cut != t + dur:
-                dur, on_beat = frames(cut - t), on_beat + 1
+                dur = round((cut - t) * FPS) / FPS
         vis = s.visual
         if vis.kind == "footage" and take:
             if last_end is not None and room[0] < last_end <= vis.source_start:
                 room = (last_end, room[1])  # the shot before grew: don't replay what it showed
             start, end, speed, freeze = fit_footage(vis.source_start, vis.source_end, dur,
-                                                    segments.get(vis.segment_id), rec_len, room)
+                                                    segments.get(vis.segment_id), rec_len, room,
+                                                    MAX_BEYOND_S if s.claims else float("inf"))
             last_end = end
             zoom = Zoom(box=vis.focus_box, ease_s=ZOOM_EASE_S) if vis.focus_box else None
             visual = TimelineVisual(kind="footage", path=run.recording, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze, zoom=zoom)
         elif vis.kind != "footage" and (b := usable_broll(d, brolls.get(s.shot_id))):
-            # B16: a fal clip (A17) for a generated shot, whatever kind the script gave it: speed up to 1.5x
-            # or hold its last frame (render pushes in on long holds); a missing clip falls to the panel below
-            start, end, speed, freeze = fit_source(0.0, b.duration_s, dur, b.duration_s)
+            # B16: a fal clip (A17) for a generated shot, whatever kind the script gave it: speed up to 1.5x,
+            # or slow down to MIN_BROLL_SPEED and then hold its last frame (render pushes in on long holds);
+            # a missing clip falls to the panel below
+            start, end, speed, freeze = fit_broll(b.duration_s, dur)
             visual = TimelineVisual(kind="broll", path=b.path, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze)
         else:  # a card (or footage with no take)
@@ -233,14 +254,16 @@ def run(run_dir: Path, run: RunConfig) -> None:
                                   callout=(s.callout or "").strip() or None))
         t = round(t + dur, 6)
 
-    music = TimelineMusic(path=assets.music.path, gain_db=MUSIC_GAIN_DB, duck=True) if assets.music else None
+    music = TimelineMusic(path=music_path, gain_db=MUSIC_GAIN_DB, duck=True) if assets.music else None
     w, h = size_for(run.mode)
     tl = Timeline(fps=FPS, width=w, height=h, duration_s=round(t, 3), shots=shots, music=music)
     (d / "timeline.json").write_text(tl.model_dump_json(indent=2), encoding="utf-8")
 
     limit = run.brief.time_limit_s
     if beats:
-        events.emit("timeline", f"music at {bpm:.0f} BPM: {on_beat} of {len(shots)} cuts moved onto the beat")
+        on_beat = sum(1 for x in shots if min(abs(x.start + x.duration_s - b) for b in beats) <= 1.01 / FPS)
+        events.emit("timeline", f"music at {bpm:.0f} BPM: {on_beat} of {len(shots)} cuts on the beat"
+                    + (f", looped in whole bars ({music_path})" if music_path == LOOP_FILE else ""))
     events.emit("timeline", f"{len(shots)} shots, {tl.duration_s:.1f} s at {w}x{h}"
                 + (f" (over the {limit} s limit!)" if tl.duration_s > limit else ""))
 

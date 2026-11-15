@@ -33,7 +33,9 @@ frame before the segment and the first after it, so an action shows as a change 
 A generated shot (no footage on screen) is checked against README and files only. Evidence that can't be shown counts as none, and
 a claim with none is dropped without a call. A rewrite may only cut words from the claim; one
 that adds a word, or that the judge says is still partly unsupported, is dropped. Code then edits the voice line: a rewrite replaces the claim's
-words, a drop cuts the sentence holding it. A shot left with no words is removed, except the problem
+words, a drop cuts the sentence holding it. A claim not worded as in its line stands for the sentence
+sharing at least half its words; with no such sentence, a rewrite becomes the whole line and a drop
+empties it. A shot left with no words is removed, except the problem
 shot: it comes back with ``summary.problem`` as a fact-free line, so a problem is always stated.
 
 Voice fits footage: a footage shot's line may take about WORDS_PER_S words per second of its
@@ -63,7 +65,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from statistics import mean
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Sequence, Union
 
 from pydantic import BaseModel, Field
 
@@ -531,13 +533,27 @@ def _ends_sentence(token: str) -> bool:
     return token.rstrip("\"')»”").endswith((".", "!", "?", "。", "！", "？"))
 
 
+def _sentence_of(tokens: list[str], claim: str) -> Optional[tuple[int, int]]:
+    """Token span of the sentence holding the most of the claim's words, if at least half: where a
+    claim the draft worded differently from its line sits."""
+    want, best, span, start = Counter(words(claim)), 0, None, 0
+    for k, t in enumerate(tokens):
+        if _ends_sentence(t) or k == len(tokens) - 1:
+            got = sum((Counter(words(" ".join(tokens[start:k + 1]))) & want).values())
+            if got > best:
+                best, span = got, (start, k + 1)
+            start = k + 1
+    return span if want and 2 * best >= sum(want.values()) else None
+
+
 def edit_line(line: str, claim: str, new: str) -> Optional[str]:
     """Put ``new`` where ``claim``'s words are in ``line``; an empty ``new`` cuts the claim's sentence.
+    A claim not worded as in the line stands for the sentence sharing at least half its words.
 
-    Returns None if the claim's words aren't in the line.
+    Returns None if no sentence does.
     """
     tokens = line.split()
-    span = _locate(tokens, claim)
+    span = _locate(tokens, claim) or _sentence_of(tokens, claim)
     if span is None:
         return None
     i, j = span
@@ -562,26 +578,42 @@ def apply_checks(shots: list[Shot], checked: dict[str, Claim]) -> list[Shot]:
         for old, new in zip(shot.claims, claims):
             if new.status == "backed":
                 continue
-            edited = edit_line(line, old.text, new.text if new.status == "rewritten" else "")
+            rewrite = new.text if new.status == "rewritten" else ""
+            edited = edit_line(line, old.text, rewrite)
             if edited is not None:
                 line = edited
-            elif _locate(shot.voice_line.split(), old.text) is None:
-                # ponytail: the claim isn't worded as in the line, so its words can't be found and
-                # the whole line goes. Finding it by meaning would need another call.
-                line = ""
+            elif edit_line(shot.voice_line, old.text, rewrite) is None:
+                # ponytail: no sentence shares half the claim's words, so the line can't be trusted:
+                # a rewrite (checked words) becomes the whole line, a drop empties it. Finding the
+                # claim by meaning would need another call.
+                line = rewrite
             # else: already cut with an earlier claim's sentence
         if words(line):
             out.append(shot.model_copy(update={"voice_line": line, "claims": claims}))
     return out
 
 
-def keep_problem(shots: list[Shot], drafted: list[Shot], problem: str) -> list[Shot]:
-    """If the truth check emptied the problem shot, put it back with ``summary.problem`` as a
-    fact-free line (no claim to check) on the same footage, right after the hook."""
+def first_sentence(text: str) -> str:
+    tokens = text.split()
+    end = next((k + 1 for k, t in enumerate(tokens) if _ends_sentence(t)), len(tokens))
+    return " ".join(tokens[:end])
+
+
+def keep_problem(shots: list[Shot], drafted: list[Shot], problem: str,
+                 segments: Sequence[Segment] = ()) -> list[Shot]:
+    """If the truth check emptied the problem shot, put it back with the first sentence of
+    ``summary.problem`` as a fact-free line (no claim to check) on the same footage, right after the hook.
+    Only the first sentence: the rest of summary.problem tends to pitch the app, a claim nobody checked
+    (Coach Platform: 36 words over a 3 s clip, the frame held 15.7 s). It is fitted to its clip like any line."""
     old = next((s for s in drafted if s.beat == "problem"), None)
     if old is None or any(s.beat == "problem" for s in shots):
         return shots
-    shot = old.model_copy(update={"voice_line": problem, "claims": []})
+    line, visual = first_sentence(problem), old.visual
+    seg = next((g for g in segments if g.segment_id == visual.segment_id), None)
+    if seg is not None and visual.source_start is not None:
+        start, end, line = fit_voice(line, seg, visual.source_start, visual.source_end)
+        visual = visual.model_copy(update={"source_start": start, "source_end": end})
+    shot = old.model_copy(update={"voice_line": line, "claims": [], "visual": visual})
     i = next((k + 1 for k, s in enumerate(shots) if s.beat == "hook"), 0)
     return [*shots[:i], shot, *shots[i:]]
 
@@ -849,7 +881,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
         results = list(pool.map(lambda cg: check_claim(cg[0], *evidence_shown(cg[0].evidence, run_dir, by_id, repo, cg[1])),
                                 claims))
     shots = cap_generated(keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted,
-                                       summary.problem))
+                                       summary.problem, segments))
     shots = add_callouts(shots, ties)
     if run.mode != "cheap":
         shots = add_zoom(run_dir, shots)
