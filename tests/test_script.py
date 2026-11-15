@@ -8,7 +8,8 @@ import pytest
 
 from backend import events
 from backend.clients import gemini
-from backend.contracts import Candidates, Claim, Decisions, Evidence, RepoFiles, Script, Shot, ShotVisual
+from backend.contracts import (Candidates, Claim, Decisions, Evidence, FlowStep, Moments, RepoFiles, Script, Shot,
+                               ShotVisual, Summary)
 from backend.pipeline import script
 from backend.run import FIXTURE_RUN, load_run
 
@@ -365,3 +366,87 @@ def test_short_drafts_build_shots_in_beat_order():
                                                                               "impact", "ask"]
     with pytest.raises(ValueError):
         script.DraftShort(**{k: base[k] for k in script.DraftShort.model_fields})  # 2 demos > 1
+
+
+# --------------------------------------------------------------------------- #
+# A14: generated shots fill weak and missing flow steps
+# --------------------------------------------------------------------------- #
+
+FLOW = [FlowStep(step_id="s1", text="Open the camera.", evidence=["frontend/src/Camera.tsx"]),
+        FlowStep(step_id="s2", text="See recipes.", evidence=["backend/recipes.py"]),
+        FlowStep(step_id="s3", text="Shop the list.", evidence=["backend/recipes.py", "ghost.py"])]
+MOMENTS = Moments.model_validate_json((FIXTURE_RUN / "moments.json").read_text())
+MOMENTS = MOMENTS.model_copy(update={"moments": [
+    m.model_copy(update={"m2": {"quality": "weak", "flow_step": "s1"},
+                         "m3": {"quality": "wow", "flow_step": "s2"}}.get(m.moment_id, {}))
+    for m in MOMENTS.moments]})  # c02 = weak s1, c04 = wow s2, s3 missing
+
+
+def _shot_draft(seg="", gen=False, step="", line="It works.", evidence=()):
+    return script.ShotDraft(voice_line=line, segment_id=seg, source_start=0, source_end=0, generated=gen,
+                            flow_step=step, card_prompt="a flat panel" if gen else "",
+                            claims=[script.ClaimDraft(text=line, evidence=list(evidence))])
+
+
+def _gdraft(**over) -> script.DraftG:
+    base = dict(hooks=["a", "b", "c"], hook_card_prompt="t",
+                problem=_shot_draft("c04", line="Dinner is hard.", evidence=[{"type": "file", "ref": "backend/vision.py"}]),
+                demos=[_shot_draft("c04", step="s2"), _shot_draft("c02", step="s1")],
+                how=_shot_draft("c04", gen=True, step="step s3", evidence=[{"type": "footage", "ref": "c04"}]),
+                impact=_shot_draft("c04"),
+                ask=script.CardDraft(voice_line="Try it.", card_prompt="end", claims=[]))
+    return script.DraftG(**{**base, **over})
+
+
+def test_treatment_weak_and_missing_are_generated_wow_stays_footage():
+    shots = script.build_shots(_gdraft(), "h", SEGMENTS, REPO, MOMENTS, FLOW)
+    by = {s.shot_id: s for s in shots}
+    assert by["s03"].visual.kind == "footage"  # wow step s2
+    weak = by["s04"]  # footage asked on a weak moment -> a panel of its own frames
+    assert weak.generated and weak.visual.kind == "card"
+    assert weak.visual.reference_frames == next(g for g in SEGMENTS if g.segment_id == "c02").frames
+    missing = by["s05"]  # s3 never shown: frames of the nearest shown step (s2 -> c04)
+    assert missing.generated and missing.visual.card_prompt == "a flat panel"
+    assert missing.visual.reference_frames == next(g for g in SEGMENTS if g.segment_id == "c04").frames
+    # a generated demo on a step a wow moment shows goes back to footage on that moment
+    back = script.build_shots(_gdraft(demos=[_shot_draft("", gen=True, step="s2"), _shot_draft("c04")]),
+                              "h", SEGMENTS, REPO, MOMENTS, FLOW)[2]
+    assert not back.generated and back.visual.segment_id == "c04"
+
+
+def test_evidence_is_forced_by_shot_type():
+    shots = script.build_shots(_gdraft(), "h", SEGMENTS, REPO, MOMENTS, FLOW)
+    refs = {s.shot_id: [[e.ref for e in c.evidence] for c in s.claims] for s in shots}
+    assert refs["s02"] == [["backend/vision.py"]]  # a repo-backed problem claim isn't judged on frames
+    assert refs["s03"] == [["c04"]]  # an on-screen claim drafted with no evidence carries its own segment
+    readme_demo = _gdraft(demos=[_shot_draft("c04", step="s2", evidence=[{"type": "file", "ref": "backend/vision.py"}]),
+                                 _shot_draft("c04")])
+    demo = script.build_shots(readme_demo, "h", SEGMENTS, REPO, MOMENTS, FLOW)[2]
+    assert [e.ref for e in demo.claims[0].evidence] == ["backend/vision.py", "c04"]  # a demo claim always does
+    assert refs["s05"] == [["backend/recipes.py"]]  # generated: footage stripped, step evidence added
+    assert refs["s04"] == [["frontend/src/Camera.tsx"]]
+
+
+def test_cap_keeps_half_the_runtime_real_footage(monkeypatch):
+    monkeypatch.setattr(events, "emit", lambda *a, **k: None)
+    long = " ".join(["word"] * 20) + "."
+    draft = _gdraft(problem=_shot_draft("c04", line=" ".join(["word"] * 30) + "."),
+                    demos=[_shot_draft("c04", step="s2", line="Short."), _shot_draft("c02", line=long)],
+                    how=_shot_draft("", gen=True, line=long), impact=_shot_draft("", gen=True, line=long))
+    shots = script.build_shots(draft, "Hook.", SEGMENTS, REPO, MOMENTS, FLOW)
+    assert script.real_share(shots) < script.MIN_REAL
+    out = script.cap_generated(shots)
+    assert script.real_share(out) >= script.MIN_REAL
+    assert out[0].beat == "hook" and out[-1].beat == "ask"  # cards stay
+    assert [s.shot_id for s in shots if s not in out] == ["s05", "s06"]  # the last generated middle shots go
+    assert any(s.generated and s.beat == "demo" for s in out)  # the earlier one stays once the cap holds
+    assert script.cap_generated(out) == out
+
+
+def test_old_summary_without_flow_keeps_todays_draft():
+    summary = Summary.model_validate_json((FIXTURE_RUN / "summary.json").read_text(encoding="utf-8"))
+    assert not summary.flow and script.flow_block(summary, MOMENTS) == ""
+    assert script.draft_model(75) is script.Draft and script.draft_model(75, True) is script.DraftG
+    assert script.draft_model(26, True) is script.DraftShortG
+    shots = script.build_shots(_draft(), "h", SEGMENTS, REPO)  # no moments, no flow: all middle shots footage
+    assert [s.generated for s in shots] == [True, False, False, False, False, False, True]
