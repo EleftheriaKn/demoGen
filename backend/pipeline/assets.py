@@ -4,9 +4,10 @@ Voice: one fal TTS take per shot, cached, 6 at a time.
 Cards: for every card shot, 4 FLUX 2 drafts (no text: "fal draws, we write"), judged by
 ``pick_best``, one ``take_pick`` decision each. A draft with
 drawn text can't win; if all 4 have text the card is plain. Cheap mode: one plain colour card, no judge.
-Panels: a card shot with ``reference_frames`` is an illustrated panel instead (Ideogram Vector):
-one frame is redrawn flat (image-to-vector, 1 draft), several frames guide a scene (text-to-vector,
-4 drafts in one call). fal returns SVG; we rasterize to PNG at the output size, then judge as cards.
+Panels: a card shot with ``reference_frames`` is an illustrated panel instead: Ideogram Vector
+text-to-vector with the frames as references, 4 drafts in one call. (image-to-vector redraws a
+frame's text as garbled shapes, which the no-text check then rejects, so even one frame goes
+through text-to-vector.) fal returns SVG; we rasterize to PNG at the output size, then judge as cards.
 Music: one instrumental bed about as long as the voice track (silence in cheap mode).
 
 fal failures still give a video: after ``cache.retry`` gives up, a voice take is left out of
@@ -111,18 +112,13 @@ def _rasterize(svg: str, out: Path) -> None:
 
 def _panel(run_dir: Path, shot: Shot, frames: list[Path]) -> list[str]:
     """PNG drafts of an illustrated panel from real frames; [] (with an event) if fal or the SVG failed."""
-    redraw = len(frames) == 1
-    n, prompt = (1, None) if redraw else (DRAFTS, panel_prompt(shot.visual.card_prompt or ""))
-    endpoint = fal.VECTOR_REDRAW_ENDPOINT if redraw else fal.VECTOR_SCENE_ENDPOINT
-    request = {"endpoint": endpoint, "frames": frames, "prompt": prompt, "n": n, "seed": PANEL_SEED}
+    prompt = panel_prompt(shot.visual.card_prompt or "")
+    request = {"endpoint": fal.VECTOR_SCENE_ENDPOINT, "frames": frames, "prompt": prompt, "n": DRAFTS, "seed": PANEL_SEED}
 
     def make(tmp: Path) -> None:  # one fal call, its SVGs stored together as one JSON list
-        svgs = [tmp.with_name(f"{tmp.stem}_{i}.svg") for i in range(n)]
+        svgs = [tmp.with_name(f"{tmp.stem}_{i}.svg") for i in range(DRAFTS)]
         try:
-            if redraw:
-                cache.retry(lambda: fal.vector_redraw(frames[0], svgs[0]))
-            else:
-                cache.retry(lambda: fal.vector_scene(prompt, frames, svgs, PANEL_SEED))
+            cache.retry(lambda: fal.vector_scene(prompt, frames, svgs, PANEL_SEED))
             tmp.write_text(json.dumps([p.read_text(encoding="utf-8") for p in svgs if p.exists()]), encoding="utf-8")
         finally:
             for p in svgs:

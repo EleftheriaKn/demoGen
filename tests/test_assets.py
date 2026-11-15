@@ -263,15 +263,14 @@ def panel(fake, monkeypatch):
 FULL = {"mode": "full"}
 
 
-def test_one_frame_is_redrawn_as_one_panel(panel):
+def test_one_frame_also_makes_a_scene_not_a_redraw(panel):
     run_dir, calls, set_frames = panel
     set_frames(["frames/f0.png"])
-    calls["verdict"] = _rows((0.9, 0.9, 0.9))  # one draft, judged like any card
     assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
     _, out, picks = _load(run_dir)
     card = out.cards[0]
-    assert calls["redraw"] == ["f0.png"] and calls["scene"] == [] and calls["card"] == []
-    assert card.drafts == ["cards/drafts/s01_0.png"] and card.chosen_index == 0
+    assert [c[1] for c in calls["scene"]] == [["f0.png"]] and calls["redraw"] == [] and calls["card"] == []
+    assert len(card.drafts) == 4 and card.chosen_index == 2
     from PIL import Image
     assert Image.open(run_dir / card.path).size == ff.size_for("full")  # render reads a full-size PNG
     assert [d.subject for d in picks] == ["s01"]
