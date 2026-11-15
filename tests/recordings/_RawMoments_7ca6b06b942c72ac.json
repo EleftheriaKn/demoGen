@@ -1,0 +1,147 @@
+{
+  "moments": [
+    {
+      "start": "00:00.0",
+      "end": "00:04.0",
+      "description": "A black screen is displayed before the web application loads.",
+      "feature_id": null,
+      "kind": "dead",
+      "settled_at": null,
+      "confidence": 0.95,
+      "quality": "weak",
+      "flow_step": null
+    },
+    {
+      "start": "00:04.0",
+      "end": "00:12.5",
+      "description": "The TodoMVC JavaScript ES6 application is open showing an empty todo input with placeholder text \"What needs to be done?\".",
+      "feature_id": null,
+      "kind": "dead",
+      "settled_at": null,
+      "confidence": 0.9,
+      "quality": "ok",
+      "flow_step": null
+    },
+    {
+      "start": "00:12.5",
+      "end": "00:14.8",
+      "description": "\"Buy milk\" is added to the list with \"1 item left\" shown in the footer and the \"All\" filter active.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:14.5",
+      "confidence": 0.95,
+      "quality": "wow",
+      "flow_step": null
+    },
+    {
+      "start": "00:14.8",
+      "end": "00:22.5",
+      "description": "\"Finish the hackathon demo video\" is added to the list, showing \"2 items left\" under the \"All\" filter.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:22.2",
+      "confidence": 0.95,
+      "quality": "ok",
+      "flow_step": null
+    },
+    {
+      "start": "00:22.5",
+      "end": "00:24.8",
+      "description": "\"Call mom\" is added to the list, showing \"3 items left\" under the \"All\" filter.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:24.5",
+      "confidence": 0.95,
+      "quality": "wow",
+      "flow_step": null
+    },
+    {
+      "start": "00:24.8",
+      "end": "00:31.5",
+      "description": "\"fix login bug\" is added to the list, displaying \"4 items left\" in the footer under the \"All\" filter.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:31.2",
+      "confidence": 0.95,
+      "quality": "ok",
+      "flow_step": null
+    },
+    {
+      "start": "00:31.5",
+      "end": "00:42.5",
+      "description": "The list displays four active todos with the counter reading \"4 items left\" and the cursor hovering idly across the page.",
+      "feature_id": null,
+      "kind": "dead",
+      "settled_at": null,
+      "confidence": 0.9,
+      "quality": "weak",
+      "flow_step": null
+    },
+    {
+      "start": "00:42.5",
+      "end": "00:44.5",
+      "description": "\"fix login bug\" is checked off, displaying a checkmark and strikethrough, with \"3 items left\" and a \"Clear completed\" button visible.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:44.0",
+      "confidence": 0.95,
+      "quality": "wow",
+      "flow_step": null
+    },
+    {
+      "start": "00:44.5",
+      "end": "00:46.5",
+      "description": "\"Finish the hackathon demo video\" is checked off, leaving \"2 items left\" indicated in the footer.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:46.0",
+      "confidence": 0.95,
+      "quality": "wow",
+      "flow_step": null
+    },
+    {
+      "start": "00:46.5",
+      "end": "00:51.5",
+      "description": "The \"Active\" filter is selected, displaying active tasks \"Call mom\" and \"Buy milk\", with \"2 items left\" in the footer.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:51.0",
+      "confidence": 0.95,
+      "quality": "wow",
+      "flow_step": null
+    },
+    {
+      "start": "00:51.5",
+      "end": "00:54.8",
+      "description": "The \"Completed\" filter is selected, showing checked tasks \"fix login bug\" and \"Finish the hackathon demo video\" with \"2 items left\" in the footer.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:54.5",
+      "confidence": 0.95,
+      "quality": "wow",
+      "flow_step": null
+    },
+    {
+      "start": "00:54.8",
+      "end": "00:57.5",
+      "description": "The \"All\" filter is selected, showing all four items with \"2 items left\" and the \"Clear completed\" button.",
+      "feature_id": null,
+      "kind": "result",
+      "settled_at": "00:57.2",
+      "confidence": 0.95,
+      "quality": "wow",
+      "flow_step": null
+    },
+    {
+      "start": "00:57.5",
+      "end": "01:00.0",
+      "description": "The list remains on the \"All\" filter view with four items listed and the cursor hovering over the \"Completed\" button.",
+      "feature_id": null,
+      "kind": "dead",
+      "settled_at": null,
+      "confidence": 0.9,
+      "quality": "ok",
+      "flow_step": null
+    }
+  ]
+}

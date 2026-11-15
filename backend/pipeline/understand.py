@@ -143,8 +143,48 @@ class _RawMoment(BaseModel):
     flow_step: Optional[str] = Field(description="Flow step shown (step_id), or null.")
 
 
+class _WireMoment(BaseModel):
+    """A moment exactly as Gemini writes it. Times are MM:SS strings: asked for seconds as a number,
+    Gemini wrote video time 1:13 as 113 (Coach Platform take, Nov 15), so every moment past the first
+    minute landed late and the ones past ~3:00 fell off the end. ``raw()`` turns it into a _RawMoment."""
+
+    start: str = Field(description='Start as MM:SS.s from the start of the recording, e.g. "01:13.5".')
+    end: str = Field(description='End as MM:SS.s from the start of the recording, e.g. "01:20.0".')
+    description: str = Field(description="What is on screen at the end time; on-screen text copied word for word.")
+    feature_id: Optional[str] = Field(description="Feature shown, or null.")
+    kind: Literal["result", "action", "setup", "dead"]
+    settled_at: Optional[str] = Field(
+        description="result only: MM:SS.s when the outcome is fully on screen and settled; null otherwise.")
+    confidence: float = Field(description="0-1.")
+    quality: Literal["wow", "ok", "weak"] = Field(
+        description="wow = the payoff is clear on screen and settled; ok; weak = too fast, messy or cut off.")
+    flow_step: Optional[str] = Field(description="Flow step shown (step_id), or null.")
+
+    def raw(self) -> Optional[_RawMoment]:
+        """Times in seconds; None if a time can't be read."""
+        try:
+            times = {k: seconds(getattr(self, k)) for k in ("start", "end")}
+            times["settled_at"] = seconds(self.settled_at) if self.settled_at else None
+        except ValueError:
+            return None
+        return _RawMoment(**{**self.model_dump(), **times})
+
+
 class _RawMoments(BaseModel):
-    moments: list[_RawMoment]
+    moments: list[_WireMoment]
+
+
+def seconds(stamp: str) -> float:
+    """'MM:SS(.s)' or 'H:MM:SS(.s)' -> seconds. A bare number is read as seconds. Bad input raises ValueError."""
+    parts = stamp.strip().split(":")
+    if len(parts) > 3 or not all(p.strip() for p in parts):
+        raise ValueError(f"not a time: {stamp!r}")
+    return sum(float(p) * 60 ** k for k, p in enumerate(reversed(parts)))
+
+
+def mmss(t: float) -> str:
+    """Seconds -> 'MM:SS.s' (how the moments prompt states times)."""
+    return f"{int(t // 60):02d}:{t % 60:04.1f}"
 
 
 def merge_results(raw: list[_RawMoment]) -> list[_RawMoment]:
@@ -213,15 +253,18 @@ def find_moments(video: Path, summary: Summary) -> Moments:
     text = gemini.prompt(
         "understand_moments",
         app=summary.name,
-        duration=f"{duration:.2f}",
+        duration=mmss(duration),
         features="\n".join(f"- {f.feature_id}: {f.name}. {f.description}" for f in summary.features),
         flow="\n".join(f"- {s.step_id}: {s.text}" for s in summary.flow) or "(none)",
     )
-    raw = gemini.generate(text, _RawMoments, video=video)
-    moments = fix_moments(raw.moments, duration, {f.feature_id for f in summary.features},
+    wire = gemini.generate(text, _RawMoments, video=video).moments
+    raw = [r for r in (w.raw() for w in wire) if r is not None]
+    if len(raw) < len(wire):
+        events.emit("understand", f"Dropped {len(wire) - len(raw)} moment(s) with a time that isn't MM:SS")
+    moments = fix_moments(raw, duration, {f.feature_id for f in summary.features},
                           {s.step_id for s in summary.flow})
-    if len(moments.moments) < len(raw.moments):
-        events.emit("understand", f"Dropped {len(raw.moments) - len(moments.moments)} moment(s) outside the recording or too short")
+    if len(moments.moments) < len(raw):
+        events.emit("understand", f"Dropped {len(raw) - len(moments.moments)} moment(s) outside the recording or too short")
     if missing := missing_steps(summary, moments):
         events.emit("understand", "Flow steps the take never shows: "
                                   + "; ".join(f"{s.step_id} {s.text}" for s in missing))
