@@ -8,6 +8,8 @@ Panels: a card shot with ``reference_frames`` is an illustrated panel instead: I
 text-to-vector with the frames as references, 4 drafts in one call. (image-to-vector redraws a
 frame's text as garbled shapes, which the no-text check then rejects, so even one frame goes
 through text-to-vector.) fal returns SVG; we rasterize to PNG at the output size, then judge as cards.
+Clips: up to MAX_CLIPS panel shots (never hook or ask) are animated by Wan image-to-video from the
+chosen panel into a silent broll/<shot>.mp4; the card stays, so the timeline falls back to it.
 Music: one instrumental bed about as long as the voice track (silence in cheap mode).
 
 fal failures still give a video: after ``cache.retry`` gives up, a voice take is left out of
@@ -33,7 +35,7 @@ from PIL import Image
 
 from backend import cache, events
 from backend.clients import fal
-from backend.contracts import Assets, CardAsset, MusicAsset, RunConfig, Script, Shot, VoiceAsset
+from backend.contracts import Assets, BrollAsset, CardAsset, MusicAsset, RunConfig, Script, Shot, VoiceAsset
 from backend.decisions import append_decision, drop_stage
 from backend.pipeline import ff, judge
 
@@ -59,6 +61,11 @@ NO_TEXT_Q = CARD_QUESTIONS[0]  # a draft under judge.PASS here can't win
 CHEAP_CARD_RGB = (24, 24, 32)
 NO_FAL_KEY = ("FAL_KEY isn't set, so this video has no voice, generated cards or music. "
               "Add it in the board's Settings and run again.")
+MAX_CLIPS = 2  # panels animated per run; 0 turns animation off
+CLIP_SECONDS = 4.0
+NO_CLIP_BEATS = {"hook", "ask"}  # these stay hero cards (timeline.HERO_BEATS)
+CLIP_PROMPT = ("Gentle motion only: a slow camera push-in and small movements of the UI elements. "
+               "Keep the art style and colours. No new text, letters or logos; no cuts.")
 MUSIC_PROMPT = "Calm, upbeat instrumental background music for a short tech product demo; light and unobtrusive under a voice-over."
 
 
@@ -202,6 +209,32 @@ def _cards(run_dir: Path, shots: list[Shot]) -> list[CardAsset]:
     return cards
 
 
+def _clip(run_dir: Path, card: CardAsset) -> Optional[BrollAsset]:
+    rel = f"broll/{card.shot_id}.mp4"
+    image = run_dir / card.path
+    request = {"endpoint": fal.VIDEO_ENDPOINT, "image": image, "prompt": CLIP_PROMPT, "seconds": CLIP_SECONDS, "seed": PANEL_SEED}
+    try:
+        cache.file_call("clip", request, run_dir / rel,
+                        lambda tmp: cache.retry(lambda: fal.animate(CLIP_PROMPT, image, tmp, CLIP_SECONDS, PANEL_SEED)))
+        b = BrollAsset(shot_id=card.shot_id, path=rel, duration_s=ff.duration(run_dir / rel))
+    except Exception as e:
+        (run_dir / rel).unlink(missing_ok=True)
+        events.emit("assets", f"Clip {card.shot_id}: fal failed, the panel stays ({e})", data={"shot_id": card.shot_id})
+        return None
+    events.emit("assets", f"Clip {card.shot_id}: {b.duration_s:.1f}s", data={"path": rel})
+    return b
+
+
+def _clips(run_dir: Path, shots: list[Shot], cards: list[CardAsset]) -> list[BrollAsset]:
+    """Animate the first MAX_CLIPS panels that survived judging (a plain fallback card is never animated)."""
+    by_id = {c.shot_id: c for c in cards}
+    picked = [by_id[s.shot_id] for s in shots
+              if s.beat not in NO_CLIP_BEATS and s.visual.reference_frames and s.shot_id in by_id
+              and not by_id[s.shot_id].drafts[by_id[s.shot_id].chosen_index].endswith("_plain.png")][:MAX_CLIPS]
+    with ThreadPoolExecutor(PARALLEL) as pool:
+        return [b for b in pool.map(lambda c: _clip(run_dir, c), picked) if b]
+
+
 def _music(run_dir: Path, seconds: float) -> MusicAsset:
     seconds = round(min(max(seconds, 3.0), 600.0))  # endpoint accepts 3..600 s
 
@@ -243,16 +276,19 @@ def run(run_dir: Path, run: RunConfig) -> None:
 
     card_shots = [s for s in script.shots if s.visual.kind == "card"]
     drop_stage(run_dir, "assets")
-    shutil.rmtree(run_dir / "cards", ignore_errors=True)  # a re-run (or mode switch) leaves no stale drafts
+    for d in ("cards", "broll"):  # a re-run (or mode switch) leaves no stale drafts or clips
+        shutil.rmtree(run_dir / d, ignore_errors=True)
+    broll: list[BrollAsset] = []
     if run.mode == "cheap" or not has_fal:
         why = "cheap" if run.mode == "cheap" else "no FAL_KEY"
         cards = [_cheap_card(run_dir, s, run.mode, why) for s in card_shots]
         music = _silent_music(run_dir, sum(v.duration_s for v in voice), why)
     else:
         cards = _cards(run_dir, card_shots)
+        broll = _clips(run_dir, card_shots, cards)
         music = _music(run_dir, sum(v.duration_s for v in voice))
 
-    assets = Assets(voice=voice, music=music, cards=cards, broll=[])
+    assets = Assets(voice=voice, music=music, cards=cards, broll=broll)
     (run_dir / "assets.json").write_text(assets.model_dump_json(indent=2), encoding="utf-8")
 
 

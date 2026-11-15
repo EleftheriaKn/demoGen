@@ -338,3 +338,72 @@ def test_missing_resvg_makes_the_panel_plain_and_spares_other_cards(panel, monke
     log = _events(run_dir)
     assert any("s01: panel failed" in e and "resvg-py is not installed" in e and "pip install -r requirements/a.txt" in e
                for e in log)
+
+
+# --- A17: up to MAX_CLIPS panels animated into broll clips (fal image-to-video, faked) ---
+
+
+@pytest.fixture
+def clips(panel, monkeypatch):
+    """Shots: s01 hook, s04..s06 demo panels, s07 ask; every one has frames. fal.animate writes a 1 s clip."""
+    run_dir, calls, set_frames = panel
+    set_frames(["frames/f0.png"])
+    script = Script.model_validate_json((run_dir / "script.json").read_text(encoding="utf-8"))
+    for sid, beat in (("s04", "demo"), ("s05", "how"), ("s06", "impact"), ("s07", "ask")):
+        script.shots.append(script.shots[0].model_copy(deep=True, update={"shot_id": sid, "beat": beat}))
+    (run_dir / "script.json").write_text(script.model_dump_json(indent=2), encoding="utf-8")
+    calls["animate"] = []
+
+    def fake_animate(prompt, image, out_path, seconds, seed):
+        calls["animate"].append(Path(image).name)
+        ff.ff("-f", "lavfi", "-i", "testsrc=size=64x36:rate=24", "-t", "1", "-pix_fmt", "yuv420p", "-f", "mp4", out_path)
+
+    monkeypatch.setattr(fal, "animate", fake_animate)
+    return run_dir, calls
+
+
+def test_two_panels_get_clips_never_hook_or_ask_and_cards_stay(clips):
+    run_dir, calls = clips
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
+    _, out, _ = _load(run_dir)
+    assert sorted(calls["animate"]) == ["s04.png", "s05.png"]  # the cap of 2, in shot order, hook skipped
+    assert [b.shot_id for b in out.broll] == ["s04", "s05"]
+    for b in out.broll:
+        assert b.path == f"broll/{b.shot_id}.mp4" and (run_dir / b.path).is_file() and abs(b.duration_s - 1.0) < 0.1
+    assert [c.shot_id for c in out.cards] == ["s01", "s04", "s05", "s06", "s07"]
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))  # second run: clips come from the cache
+    assert len(calls["animate"]) == 2
+
+
+def test_max_clips_zero_turns_animation_off(clips, monkeypatch):
+    run_dir, calls = clips
+    monkeypatch.setattr(assets, "MAX_CLIPS", 0)
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
+    assert calls["animate"] == [] and _load(run_dir)[1].broll == []
+
+
+def test_failed_clip_leaves_the_panel(clips, monkeypatch, no_sleep):
+    run_dir, calls = clips
+    _fail(monkeypatch, "animate", when=lambda prompt, image, *a: Path(image).name == "s04.png")
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
+    _, out, _ = _load(run_dir)
+    assert [b.shot_id for b in out.broll] == ["s05"] and not (run_dir / "broll/s04.mp4").exists()
+    assert "s04" in [c.shot_id for c in out.cards]
+    assert sum("Clip s04: fal failed, the panel stays" in e for e in _events(run_dir)) == 1
+
+
+def test_plain_fallback_card_is_never_animated(clips, monkeypatch, no_sleep):
+    run_dir, calls = clips
+    _fail(monkeypatch, "vector_scene")  # every panel is the plain card
+    assets.run(run_dir, load_run(run_dir).model_copy(update=FULL))
+    assert calls["animate"] == [] and _load(run_dir)[1].broll == []
+
+
+@pytest.mark.parametrize("why", ["cheap", "no FAL_KEY"])
+def test_clips_never_call_fal_in_cheap_mode_or_without_key(clips, monkeypatch, why):
+    run_dir, calls = clips
+    if why == "no FAL_KEY":
+        monkeypatch.delenv("FAL_KEY")
+    cfg = load_run(run_dir) if why == "cheap" else load_run(run_dir).model_copy(update=FULL)
+    assets.run(run_dir, cfg)
+    assert calls["animate"] == [] and _load(run_dir)[1].broll == []
