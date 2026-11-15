@@ -73,6 +73,27 @@ MAX_TAKE_BYTES = 1024**3
 CHUNK_BYTES = 4 * 1024**2  # small parts: each request finishes quickly on venue Wi-Fi
 log = logging.getLogger("uvicorn.error")  # prints in the server's terminal
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".3gp", ".avi"}
+# Android often names a picked video "1000012345" (no extension): use its type instead.
+MIME_EXTS = {"video/mp4": ".mp4", "video/quicktime": ".mov", "video/x-m4v": ".m4v", "video/webm": ".webm",
+             "video/x-matroska": ".mkv", "video/3gpp": ".3gp", "video/3gpp2": ".3gp", "video/avi": ".avi",
+             "video/x-msvideo": ".avi"}
+
+
+def video_ext(filename: str, mime: str = "") -> Optional[str]:
+    """The extension to store a take under, or None if it is clearly not a video.
+
+    A video extension wins; no extension falls back to the browser's type, then .mp4 (ffprobe
+    checks the real content before any run). Another extension (.txt, .jpg) is not a video.
+    """
+    ext = Path(filename).suffix.lower()
+    if ext in VIDEO_EXTS:
+        return ext
+    mime = (mime or "").split(";")[0].strip().lower()
+    if mime in MIME_EXTS:
+        return MIME_EXTS[mime]
+    if not ext or not ext[1:].isalpha():  # "1000012345", "video:123"
+        return ".mp4" if not mime or mime.startswith("video/") else None
+    return None
 LANGUAGES = ("en", "el")  # runbook: English and Greek only, for now
 
 
@@ -213,8 +234,8 @@ app.mount("/web", StaticFiles(directory=ROOT / "web"), name="web")
 async def start_upload(request: Request, body: dict = Body(...)) -> dict:
     """Start a resumable upload. The phone then PUTs parts (CHUNK_BYTES) in order."""
     filename, size = str(body.get("filename", "")), body.get("size")
-    ext = Path(filename).suffix.lower()
-    if ext not in VIDEO_EXTS:
+    ext = video_ext(filename, str(body.get("type", "")))
+    if ext is None:
         raise HTTPException(422, f"not a video file: {filename!r}")
     if not isinstance(size, int) or size <= 0:
         raise HTTPException(422, "size must be the file size in bytes")
@@ -309,7 +330,7 @@ async def create_run(
             _, src = _upload_paths(upload_id)
             name = "recording" + state["ext"]
         elif recording is not None and recording.filename:
-            name = "recording" + (Path(recording.filename).suffix.lower() or ".mp4")
+            name = "recording" + (video_ext(recording.filename, recording.content_type or "") or ".mp4")
             src = Path(tmp) / name
             with open(src, "wb") as f:
                 while piece := recording.file.read(CHUNK_BYTES):

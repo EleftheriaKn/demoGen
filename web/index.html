@@ -625,7 +625,7 @@ async function uploadTake(file) {
   }
   if (!id) {
     const r = await fetch("/uploads", { method: "POST", headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ filename: file.name, size: file.size }) });
+                                        body: JSON.stringify({ filename: file.name, size: file.size, type: file.type }) });
     if (!r.ok) throw new Error(await apiError(r));
     ({ upload_id: id, chunk_size: size } = await r.json());
     store.set(key, id);
@@ -792,7 +792,10 @@ $("settings-save").onclick = async () => {
     : "Nothing changed.";
   initGitHub();                                          // the GitHub button appears/disappears at once
 };
-loadSettings().then(cfg => { if (cfg) $("settings-btn").hidden = false; });
+// Only the laptop itself can use Settings: phones don't even ask (no 403 noise in the server log).
+if (["localhost", "127.0.0.1", "[::1]", "::1"].includes(location.hostname)) {
+  loadSettings().then(cfg => { if (cfg) $("settings-btn").hidden = false; });
+}
 
 // QR code for the phone, on laptop screens only. Exists when started with `python -m backend.serve`.
 if (window.matchMedia("(min-width: 821px)").matches && !window.matchMedia("(pointer: coarse)").matches) {
