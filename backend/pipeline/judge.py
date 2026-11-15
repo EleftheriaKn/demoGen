@@ -9,9 +9,10 @@ Two stages plus one function other tracks call:
   total = 80% mean judge score + 20% sharpness. Cheap mode judges only the 2 sharpest frames
   of each segment. Re-running replaces this stage's earlier decisions.
 - ``run_rubric``  stage ``rubric``: reads timeline.json, script.json, brief; writes the
-  rubric (and an optional ``recut``) into decisions.json. Six fixed checks: time limit,
-  "problem by 0:20", at least 60% of the script's target length and at least half real footage in code, claims backed and core result shown by Gemini (skipped in cheap
-  mode). A recut is asked only when a failure is pinned on one shot that is in the timeline.
+  rubric (and an optional ``recut``) into decisions.json. Seven fixed checks: time limit,
+  "problem by 0:20", at least 60% of the script's target length, at least half real footage and every
+  generated middle shot backed by README/files in code; claims backed and core result shown by Gemini
+  (skipped in cheap mode). A recut is asked only when a failure is pinned on one shot that is in the timeline.
 - ``pick_best``   called by the assets stage to choose among N generated drafts (images judged; audio/video stubbed).
 
 Run alone: python -m backend.pipeline.judge {frames|rubric} runs/<run_id>
@@ -212,6 +213,8 @@ PROBLEM_BY_S = 20.0
 MIN_LENGTH_SHARE = 0.6  # of the script's target length
 MIN_FOOTAGE_SHARE = 0.5  # of the runtime
 Q_PROBLEM = "Problem stated by 0:20?"
+Q_GENERATED = "Does every generated middle shot rest on a claim backed by the repo?"
+MIDDLE_BEATS = ("problem", "demo", "how", "impact")  # hook and ask cards state no facts
 Q_CLAIMS = "Is every remaining claim backed by footage or the repo?"
 Q_RESULT = "Is the app's core result shown on screen?"
 GEMINI_QUESTIONS = [Q_CLAIMS, Q_RESULT]
@@ -246,6 +249,21 @@ def check_footage_share(timeline: Timeline) -> Check:
     ok = share >= MIN_FOOTAGE_SHARE
     return RubricItem(question=f"At least {MIN_FOOTAGE_SHARE:.0%} real footage?", passed=ok,
                       reason=f"Real footage is {int(share * 100)}% of the runtime."), None
+
+
+def check_generated_backed(timeline: Timeline, script: Script) -> Check:
+    """Every generated middle shot in the cut has a kept claim backed by README or a file. One fails: recut it."""
+    in_cut = {s.shot_id for s in timeline.shots}
+    bad = [
+        s.shot_id for s in script.shots
+        if s.generated and s.beat in MIDDLE_BEATS and s.shot_id in in_cut
+        and not any(c.status in ("backed", "rewritten") and any(e.type in ("readme", "file") for e in c.evidence)
+                    for c in s.claims)
+    ]
+    if not bad:
+        return RubricItem(question=Q_GENERATED, passed=True, reason="Every generated middle shot has a claim backed by the repo."), None
+    return RubricItem(question=Q_GENERATED, passed=False,
+                      reason=f"No claim backed by README or a file in {', '.join(bad)}."), (bad[0] if len(bad) == 1 else None)
 
 
 def check_problem_by_20(timeline: Timeline, script: Script) -> Check:
@@ -302,7 +320,7 @@ def run_rubric(run_dir: Path, run: RunConfig) -> None:
     timeline = Timeline.model_validate_json((run_dir / "timeline.json").read_text(encoding="utf-8"))
     limit = run.brief.time_limit_s
     checks = [check_problem_by_20(timeline, script), check_time_limit(timeline, limit),
-              check_min_length(timeline, limit), check_footage_share(timeline)]
+              check_min_length(timeline, limit), check_footage_share(timeline), check_generated_backed(timeline, script)]
     if run.mode == "cheap":
         # The contract has no "skipped" flag: a skipped check passes (it can't block or recut) and says so.
         checks += [(RubricItem(question=q, passed=True, reason=SKIPPED), None) for q in GEMINI_QUESTIONS]
