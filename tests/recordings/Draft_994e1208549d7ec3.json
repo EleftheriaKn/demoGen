@@ -1,0 +1,152 @@
+{
+  "hooks": [
+    "Wondering what dinner you can make with whatever is in your fridge?",
+    "Tired of letting leftover groceries go to waste every single week?",
+    "Staring at a half-empty fridge with no idea what to cook?"
+  ],
+  "hook_card_prompt": "A bright, clean kitchen counter with colorful fresh vegetables, soft natural morning sunlight, and an earthy warm aesthetic.",
+  "problem": {
+    "voice_line": "People waste food and time because they do not know what to cook with what they already have.",
+    "segment_id": "c01",
+    "source_start": 0.0,
+    "source_end": 4.0,
+    "claims": [
+      {
+        "text": "People waste food and time because they do not know what to cook with what they already have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ]
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Snap a photo of your open fridge to detect ingredients from one photo. The camera display shows the camera button and the open fridge.",
+      "segment_id": "c02",
+      "source_start": 5.0,
+      "source_end": 10.0,
+      "claims": [
+        {
+          "text": "Snap a photo of your open fridge to detect ingredients from one photo.",
+          "evidence": [
+            {
+              "type": "readme",
+              "ref": "README#How it works"
+            },
+            {
+              "type": "file",
+              "ref": "frontend/src/Camera.tsx"
+            }
+          ]
+        },
+        {
+          "text": "The camera display shows the camera button and the open fridge.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "voice_line": "Choose from three recipes ranked by how many of your ingredients they use. Three recipe cards appear on screen. The recipe cards show matched ingredients highlighted.",
+      "segment_id": "c04",
+      "source_start": 12.0,
+      "source_end": 16.0,
+      "claims": [
+        {
+          "text": "Choose from three recipes ranked by how many of your ingredients they use.",
+          "evidence": [
+            {
+              "type": "readme",
+              "ref": "README#Features"
+            },
+            {
+              "type": "file",
+              "ref": "backend/recipes.py"
+            }
+          ]
+        },
+        {
+          "text": "Three recipe cards appear on screen.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ]
+        },
+        {
+          "text": "The recipe cards show matched ingredients highlighted.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "Under the hood, vision code detects ingredients from one photo of the open fridge. The backend ranks three recipes by your matched ingredients.",
+    "segment_id": "c02",
+    "source_start": 5.0,
+    "source_end": 9.0,
+    "claims": [
+      {
+        "text": "Vision code detects ingredients from one photo of the open fridge.",
+        "evidence": [
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          },
+          {
+            "type": "readme",
+            "ref": "README#How it works"
+          }
+        ]
+      },
+      {
+        "text": "The backend ranks three recipes by your matched ingredients.",
+        "evidence": [
+          {
+            "type": "file",
+            "ref": "backend/recipes.py"
+          },
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          }
+        ]
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Busy home cooks stop wasting food and time by cooking with ingredients already at home.",
+    "segment_id": "c04",
+    "source_start": 15.0,
+    "source_end": 19.0,
+    "claims": [
+      {
+        "text": "Busy home cooks stop wasting food and time by cooking with ingredients already at home.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ]
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and vote for us in the hackathon!",
+    "card_prompt": "A modern rustic dining table set with a delicious warm dinner and fresh herbs, soft bokeh lighting, cozy atmosphere.",
+    "claims": []
+  }
+}

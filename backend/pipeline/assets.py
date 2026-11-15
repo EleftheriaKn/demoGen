@@ -2,7 +2,8 @@
 
 Voice: one fal TTS take per shot, cached, 6 at a time.
 Cards: for every card shot, 4 FLUX 2 drafts (no text: "fal draws, we write"), judged by
-``pick_best``, one ``take_pick`` decision each. Cheap mode: one plain colour card, no judge.
+``pick_best``, one ``take_pick`` decision each. A draft with
+drawn text can't win; if all 4 have text the card is plain. Cheap mode: one plain colour card, no judge.
 Music: one instrumental bed about as long as the voice track (silence in cheap mode).
 
 Reads script.json. Writes assets.json, voice/, music.wav, cards/, and this stage's decisions.
@@ -36,6 +37,7 @@ CARD_QUESTIONS = [
     "Would a title written on top of it stay easy to read?",
     "Does it look polished and fit the app's style?",
 ]
+NO_TEXT_Q = CARD_QUESTIONS[0]  # a draft under judge.PASS here can't win
 CHEAP_CARD_RGB = (24, 24, 32)
 MUSIC_PROMPT = "Calm, upbeat instrumental background music for a short tech product demo; light and unobtrusive under a voice-over."
 
@@ -60,10 +62,14 @@ def card_prompt(prompt: str) -> str:
     return f"Background for a video title card, in this style: {look} {NO_TEXT}"
 
 
+def _plain(run_dir: Path, rel: str, mode: str) -> None:
+    (run_dir / rel).parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", ff.size_for(mode), CHEAP_CARD_RGB).save(run_dir / rel)
+
+
 def _cheap_card(run_dir: Path, shot: Shot, mode: str) -> CardAsset:
     rel, draft = f"cards/{shot.shot_id}.png", f"cards/drafts/{shot.shot_id}_0.png"
-    (run_dir / draft).parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", ff.size_for(mode), CHEAP_CARD_RGB).save(run_dir / draft)
+    _plain(run_dir, draft, mode)
     shutil.copyfile(run_dir / draft, run_dir / rel)
     events.emit("assets", f"Card {shot.shot_id}: plain card (cheap)", data={"path": rel})
     return CardAsset(shot_id=shot.shot_id, path=rel, drafts=[draft], chosen_index=0)
@@ -72,8 +78,8 @@ def _cheap_card(run_dir: Path, shot: Shot, mode: str) -> CardAsset:
 def _judge(run_dir: Path, shot: Shot, drafts: list[str]) -> judge.PickResult:
     context = f"a title card for a product demo video, generated from: {shot.visual.card_prompt}"
     paths = [run_dir / d for d in drafts]
-    request = {"drafts": paths, "questions": CARD_QUESTIONS, "context": context}
-    return cache.json_call("pick", request, lambda: judge.pick_best(paths, CARD_QUESTIONS, context))
+    request = {"drafts": paths, "questions": CARD_QUESTIONS, "context": context, "must_pass": NO_TEXT_Q}
+    return cache.json_call("pick", request, lambda: judge.pick_best(paths, CARD_QUESTIONS, context, NO_TEXT_Q))
 
 
 def _cards(run_dir: Path, shots: list[Shot]) -> list[CardAsset]:
@@ -85,15 +91,20 @@ def _cards(run_dir: Path, shots: list[Shot]) -> list[CardAsset]:
 
     cards = []
     for shot, pick in zip(shots, picks):  # decisions.json is written one card at a time, in shot order
-        options, rel = drafts[shot.shot_id], f"cards/{shot.shot_id}.png"
-        shutil.copyfile(run_dir / options[pick["index"]], run_dir / rel)
+        options, rel, index, reason = drafts[shot.shot_id], f"cards/{shot.shot_id}.png", pick["index"], pick["reason"]
+        if pick["answers"][0]["score"] < judge.PASS:  # even the winner has drawn text, so all 4 do
+            options = [*options, f"cards/drafts/{shot.shot_id}_plain.png"]
+            index = len(options) - 1
+            _plain(run_dir, options[index], "full")
+            reason = f"All {DRAFTS} drafts show text (best: {pick['answers'][0]['reason']}), so a plain card instead"
+        shutil.copyfile(run_dir / options[index], run_dir / rel)
         append_decision(
             run_dir, stage="assets", kind="take_pick", subject=shot.shot_id, options=options,
-            chosen=options[pick["index"]], questions=CARD_QUESTIONS, answers=pick["answers"],
-            judge_score=pick["judge_score"], reason=pick["reason"],
+            chosen=options[index], questions=CARD_QUESTIONS, answers=pick["answers"],
+            judge_score=pick["judge_score"], reason=reason,
         )
-        events.emit("assets", f"Card {shot.shot_id}: draft {pick['index']} of {len(options)}", data={"path": rel})
-        cards.append(CardAsset(shot_id=shot.shot_id, path=rel, drafts=options, chosen_index=pick["index"]))
+        events.emit("assets", f"Card {shot.shot_id}: {Path(options[index]).stem} of {len(options)}", data={"path": rel})
+        cards.append(CardAsset(shot_id=shot.shot_id, path=rel, drafts=options, chosen_index=index))
     return cards
 
 

@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "backend/recipes.py and README confirm the backend ranks three recipes based on ingredient overlap.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}
