@@ -1,0 +1,7 @@
+{
+  "score": 0.0,
+  "reason": "The evidence lists ingredient detection, recipe ranking, and shopping lists, but does not mention saving time or stopping grocery waste.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

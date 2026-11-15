@@ -73,8 +73,10 @@ def recording_path(
     return RECORDINGS / f"{schema.__name__}_{hashlib.sha256(key.encode()).hexdigest()[:16]}.json"
 
 
-def generate(text: str, schema: type[T], images: Sequence[Path] = (), video: Optional[Path] = None) -> T:
-    """``images`` are image files (JPEG, PNG...) sent after the text, in order; ``video`` goes before the text."""
+def generate(text: str, schema: type[T], images: Sequence[Path] = (), video: Optional[Path] = None,
+             thinking: Optional[str] = None) -> T:
+    """``images`` are image files (JPEG, PNG...) sent after the text, in order; ``video`` goes before the text.
+    ``thinking`` sets the model's thinking level ("low", "high"...); None keeps its default."""
     path = recording_path(text, schema, images, video) if RECORDINGS is not None else None
     if not LIVE:
         if path is None or not path.exists():
@@ -84,7 +86,7 @@ def generate(text: str, schema: type[T], images: Sequence[Path] = (), video: Opt
     model = os.environ["GEMINI_MODEL"]  # config errors raise once, not after retries
     for attempt in range(RETRIES + 1):
         try:
-            raw = _call(model, text, schema, images, video)
+            raw = _call(model, text, schema, images, video, thinking)
             result = schema.model_validate_json(raw)
             break
         except Exception:
@@ -126,7 +128,8 @@ def upload(video: Path) -> tuple[str, str]:
 
 
 def _call(
-    model: str, text: str, schema: type[BaseModel], images: Sequence[Path] = (), video: Optional[Path] = None
+    model: str, text: str, schema: type[BaseModel], images: Sequence[Path] = (), video: Optional[Path] = None,
+    thinking: Optional[str] = None,
 ) -> str:
     from google import genai
     from google.genai import types
@@ -143,6 +146,7 @@ def _call(
             temperature=0,
             response_mime_type="application/json",
             response_json_schema=schema.model_json_schema(),
+            thinking_config=types.ThinkingConfig(thinking_level=thinking) if thinking else None,
         ),
     )
     return resp.text or ""

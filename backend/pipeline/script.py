@@ -21,9 +21,10 @@ words, a drop cuts the sentence holding it. A shot left with no words is removed
 shot: it comes back with ``summary.problem`` as a fact-free line, so a problem is always stated.
 
 Voice fits footage: a footage shot's line may take about WORDS_PER_S words per second of its
-clip. A longer line first gets a longer clip inside the same segment; what still doesn't fit
-is trimmed (whole sentences from the end, then words) before claims are built, so the truth
-check runs on what remains. Each trim is logged.
+clip plus HOLD_S (the timeline holds the last frame that long). A longer line first gets a longer
+clip inside the same segment; what still doesn't fit loses whole sentences from the end (never
+below the first sentence, never mid-sentence) before claims are built, so the truth check runs on
+what remains. Each trim is logged.
 
 Zoom boxes (full mode only): each demo and impact shot takes its segment's ``frame_pick``
 winner from decisions.json; Gemini is asked once per chosen frame for the region to zoom into.
@@ -87,7 +88,8 @@ WORKERS = 6  # parallel claim checks
 CHECKED_BEATS = {"problem", "demo", "how", "impact"}  # every factual sentence here must be a claim
 ZOOM_BEATS = {"demo", "impact"}
 MIN_ZOOM_W = 0.2  # narrower boxes zoom in too far to read
-WORDS_PER_S = 2.5  # calm voice-over pace; a footage shot's line may not outrun its clip
+WORDS_PER_S = 3.0  # voice-over pace; a footage shot's line may not outrun its clip (+ HOLD_S)
+HOLD_S = 2.0  # the timeline holds a clip's last frame (slow push-in) up to this long past its end
 
 
 # --------------------------------------------------------------------------- #
@@ -174,22 +176,19 @@ def _span(d: FootageDraft, seg: Segment) -> tuple[float, float]:
 
 
 def fit_voice(line: str, seg: Segment, start: float, end: float) -> tuple[float, float, str]:
-    """Make ``line`` fit its clip at WORDS_PER_S: first grow the clip inside ``seg`` (end, then
-    start), then trim the line to the cap, dropping whole sentences from the end and cutting
-    words only if the first sentence alone is too long."""
+    """Make ``line`` fit its clip: WORDS_PER_S words per second of clip plus HOLD_S. First grow
+    the clip inside ``seg`` (end, then start), then drop whole sentences from the end down to
+    the cap. Never cuts mid-sentence and always keeps the first full sentence."""
     tokens = line.split()
-    need = len(tokens) / WORDS_PER_S
+    need = len(tokens) / WORDS_PER_S - HOLD_S
     if need > end - start:
         end = min(seg.end, start + need)
         start = max(seg.start, end - need)
-    cap = max(1, round(WORDS_PER_S * (end - start)))
+    cap = round(WORDS_PER_S * (end - start + HOLD_S))
     if len(tokens) <= cap:
         return start, end, line
-    cut = max((k + 1 for k in range(cap) if _ends_sentence(tokens[k])), default=0)
-    if cut == 0:  # the first sentence alone is too long: keep its first ``cap`` words
-        kept = tokens[:cap]
-        kept[-1] = kept[-1].rstrip(",;:—-") + ("" if _ends_sentence(kept[-1]) else ".")
-        return start, end, " ".join(kept)
+    ends = [k + 1 for k, t in enumerate(tokens) if _ends_sentence(t)] or [len(tokens)]
+    cut = max((k for k in ends if k <= cap), default=ends[0])
     return start, end, " ".join(tokens[:cut])
 
 
@@ -496,7 +495,9 @@ def _segment_lines(segments: list[Segment], moments: Moments, scores: FrameScore
     for s in segments:
         m = kinds.get(s.moment_id or "")
         what = f"{m.kind}: {m.description}" if m else "scene cut"
-        lines.append(f"{s.segment_id} {s.start:g}-{s.end:g}s, {what}, score {best.get(s.segment_id, 0):.2f}")
+        cap = round(WORDS_PER_S * (s.end - s.start + HOLD_S))  # what fit_voice keeps at most
+        lines.append(f"{s.segment_id} {s.start:g}-{s.end:g}s, {what}, score {best.get(s.segment_id, 0):.2f}, "
+                     f"voice up to {cap} words")
     return "\n".join(lines)
 
 
@@ -512,7 +513,7 @@ def draft_script(run: RunConfig, summary: Summary, segment_lines: str, repo: Rep
         headings=json.dumps(sorted(readme_headings(repo.readme))),
         tree=json.dumps([k.path for k in repo.key_files]),  # only files the truth check can read
     )
-    return gemini.generate(text, Draft)
+    return gemini.generate(text, Draft, thinking="low")  # default or medium thinking took 130-160 s on a 1-min take
 
 
 def judge_hooks(summary: Summary, texts: list[str]) -> HookJudgement:

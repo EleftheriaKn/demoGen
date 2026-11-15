@@ -1,0 +1,104 @@
+{
+  "hooks": [
+    "Tired of wondering what to cook tonight?",
+    "Staring at random ingredients in your fridge?",
+    "Do you waste food because you lack dinner ideas?"
+  ],
+  "hook_card_prompt": "Clean minimalist kitchen counter aesthetic with fresh vegetables and warm ambient morning lighting, soft focus depth of field.",
+  "problem": {
+    "voice_line": "People waste food and time because they do not know what to cook with what they already have.",
+    "segment_id": "c01",
+    "source_start": 0.5,
+    "source_end": 3.8,
+    "claims": [
+      {
+        "text": "People waste food and time because they do not know what to cook with what they already have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ]
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Snap a clear picture of your open fridge shelves to automatically capture all your available groceries.",
+      "segment_id": "c02",
+      "source_start": 5.2,
+      "source_end": 9.8,
+      "claims": [
+        {
+          "text": "Snap a clear picture of your open fridge shelves to automatically capture all your available groceries.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "voice_line": "Review three recipe suggestions that instantly appear with your matched pantry ingredients highlighted.",
+      "segment_id": "c04",
+      "source_start": 12.2,
+      "source_end": 18.8,
+      "claims": [
+        {
+          "text": "Review three recipe suggestions that instantly appear with your matched pantry ingredients highlighted.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "Computer vision detects every grocery item and ranks recipes using your available ingredients.",
+    "segment_id": "c03",
+    "source_start": 10.0,
+    "source_end": 12.0,
+    "claims": [
+      {
+        "text": "Computer vision detects every grocery item and ranks recipes using your available ingredients.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#How it works"
+          },
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          }
+        ]
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "You save time and stop wasting groceries every single week.",
+    "segment_id": "c05",
+    "source_start": 19.2,
+    "source_end": 21.8,
+    "claims": [
+      {
+        "text": "You save time and stop wasting groceries every single week.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          }
+        ]
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and vote for our project!",
+    "card_prompt": "Warm modern kitchen flat-lay with cutting board, fresh herbs, and soft evening ambient glow.",
+    "claims": []
+  }
+}

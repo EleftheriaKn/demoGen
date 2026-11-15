@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.4,
+          "reason": "It is an overused, generic rhetorical question that barely piques curiosity."
+        },
+        {
+          "score": 0.2,
+          "reason": "It applies to almost any cooking or meal delivery service rather than this specific photo-to-recipe app."
+        },
+        {
+          "score": 0.4,
+          "reason": "It focuses on a general user frustration rather than communicating what the app actually does."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "It paints an immediate, relatable visual dilemma within seconds."
+        },
+        {
+          "score": 0.6,
+          "reason": "It zeroes in on the fridge ingredient context central to PantryPal."
+        },
+        {
+          "score": 0.5,
+          "reason": "It captures the user problem clearly, though it does not explain the app's photo solution."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It introduces a relatable consequence but feels like a routine pitch opening."
+        },
+        {
+          "score": 0.3,
+          "reason": "It fits broad food-waste reduction apps rather than this specific fridge-photo scanner."
+        },
+        {
+          "score": 0.4,
+          "reason": "It addresses user guilt over food waste instead of the app's specific functional benefit."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}
