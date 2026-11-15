@@ -49,7 +49,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from statistics import mean
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Sequence, Union
 
 from pydantic import BaseModel, Field
 
@@ -411,12 +411,27 @@ def apply_checks(shots: list[Shot], checked: dict[str, Claim]) -> list[Shot]:
     return out
 
 
-def keep_problem(shots: list[Shot], drafted: list[Shot], problem: str) -> list[Shot]:
-    """If the truth check emptied the problem shot, put it back with ``summary.problem`` as a
-    fact-free line (no claim to check) on the same footage, right after the hook."""
+def first_sentence(text: str) -> str:
+    tokens = text.split()
+    end = next((k + 1 for k, t in enumerate(tokens) if _ends_sentence(t)), len(tokens))
+    return " ".join(tokens[:end])
+
+
+def keep_problem(shots: list[Shot], drafted: list[Shot], problem: str,
+                 segments: Sequence[Segment] = ()) -> list[Shot]:
+    """If the truth check emptied the problem shot, put it back with the first sentence of
+    ``summary.problem`` as a fact-free line (no claim to check) on the same footage, right after the hook.
+    Only the first sentence: the rest of summary.problem tends to pitch the app, a claim nobody checked
+    (Coach Platform: 36 words over a 3 s clip, the frame held 15.7 s). It is fitted to its clip like any line."""
     if any(s.beat == "problem" for s in shots):
         return shots
-    shot = next(s for s in drafted if s.beat == "problem").model_copy(update={"voice_line": problem, "claims": []})
+    shot = next(s for s in drafted if s.beat == "problem")
+    line, visual = first_sentence(problem), shot.visual
+    seg = next((g for g in segments if g.segment_id == visual.segment_id), None)
+    if seg is not None and visual.source_start is not None:
+        start, end, line = fit_voice(line, seg, visual.source_start, visual.source_end)
+        visual = visual.model_copy(update={"source_start": start, "source_end": end})
+    shot = shot.model_copy(update={"voice_line": line, "claims": [], "visual": visual})
     i = next((k + 1 for k, s in enumerate(shots) if s.beat == "hook"), 0)
     return [*shots[:i], shot, *shots[i:]]
 
@@ -639,7 +654,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         results = list(pool.map(lambda cg: check_claim(cg[0], *evidence_shown(cg[0].evidence, run_dir, by_id, repo, cg[1])),
                                 claims))
-    shots = keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted, summary.problem)
+    shots = keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted, summary.problem,
+                         segments)
     if run.mode != "cheap":
         shots = add_zoom(run_dir, shots)
     script = Script(language=run.brief.language, hooks=hooks, chosen_hook_id=chosen.hook_id, shots=shots)

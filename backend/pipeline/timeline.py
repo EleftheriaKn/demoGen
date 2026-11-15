@@ -28,6 +28,8 @@ HERO_BEATS = {"hook", "ask"}  # these cards get the hero look; other generated s
 MAX_FREEZE_S = 1.5   # longer gaps play more real footage instead of a held frame...
 MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment can contradict the voice line
                      # (B9: "Active filter" line over the Completed view). Render moves held frames instead.
+                     # A shot with no claims (the fact-free problem line) states nothing footage can contradict:
+                     # it plays on past its segment (inside its room) rather than freeze (Coach Platform: 15.7 s hold).
 ZOOM_EASE_S = 0.8
 MUSIC_GAIN_DB = -18.0
 MAX_BEAT_SHIFT_S = 0.35  # B18: a cut may wait this long for the next beat
@@ -63,10 +65,10 @@ def grow(start: float, end: float, need: float, lo: float, hi: float) -> tuple[f
 
 
 def fit_footage(start: float, end: float, target: float, segment: tuple[float, float] | None,
-                limit: float | None, room: tuple[float, float] = (0.0, float("inf"))
-                ) -> tuple[float, float, float, float]:
+                limit: float | None, room: tuple[float, float] = (0.0, float("inf")),
+                beyond: float = MAX_BEYOND_S) -> tuple[float, float, float, float]:
     """Like fit_source, but a voice line longer than its clip plays more real footage instead of a long
-    freeze: first the rest of the candidate segment (same content), then at most MAX_BEYOND_S of the
+    freeze: first the rest of the candidate segment (same content), then at most ``beyond`` seconds of the
     footage around it (it may already show something the voice line doesn't say), never past `room`
     (where the previous footage shot ended / the next one starts, so nothing plays twice). What is still
     missing is a held last frame: the matching screen stays up while the voice finishes."""
@@ -75,7 +77,7 @@ def fit_footage(start: float, end: float, target: float, segment: tuple[float, f
     if target > end - start and segment is not None:
         start, end = grow(start, end, target - (end - start), max(lo, segment[0]), min(hi, segment[1]))
     if target - (end - start) > MAX_FREEZE_S:  # a little footage from around the segment, never much:
-        need = min(target - (end - start) - MAX_FREEZE_S / 2, MAX_BEYOND_S)  # it may show something else
+        need = min(target - (end - start) - MAX_FREEZE_S / 2, beyond)  # it may show something else
         start, end = grow(start, end, need, lo, hi)
     return fit_source(round(start, 3), round(end, 3), target, limit)
 
@@ -202,7 +204,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
             if last_end is not None and room[0] < last_end <= vis.source_start:
                 room = (last_end, room[1])  # the shot before grew: don't replay what it showed
             start, end, speed, freeze = fit_footage(vis.source_start, vis.source_end, dur,
-                                                    segments.get(vis.segment_id), rec_len, room)
+                                                    segments.get(vis.segment_id), rec_len, room,
+                                                    MAX_BEYOND_S if s.claims else float("inf"))
             last_end = end
             zoom = Zoom(box=vis.focus_box, ease_s=ZOOM_EASE_S) if vis.focus_box else None
             visual = TimelineVisual(kind="footage", path=run.recording, source_start=start, source_end=end,

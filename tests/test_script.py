@@ -314,6 +314,18 @@ def test_add_zoom_one_call_per_chosen_frame(tmp_path, monkeypatch):
     Script(language="en", hooks=[{"hook_id": "h1", "text": "x", "score": 0}], chosen_hook_id="h1", shots=out)
 
 
+def test_problem_comeback_is_the_first_sentence_fitted_to_its_clip():
+    drafted = script.build_shots(_draft(), "Hook line", SEGMENTS, REPO)
+    kept = [s for s in drafted if s.beat != "problem"]
+    problem = "Coaches juggle " + " ".join(["tools"] * 20) + ". The app fixes it all in one place."
+    out = script.keep_problem(kept, drafted, problem, SEGMENTS)[1]
+    assert out.voice_line == "Coaches juggle " + " ".join(["tools"] * 20) + "." and out.claims == []
+    seg = next(g for g in SEGMENTS if g.segment_id == out.visual.segment_id)
+    assert seg.start <= out.visual.source_start and out.visual.source_end <= seg.end
+    assert (out.visual.source_end - out.visual.source_start
+            >= min(seg.end - seg.start, 22 / script.WORDS_PER_S - script.HOLD_S) - 0.01)  # grew inside its segment
+
+
 def test_voice_fits_its_clip_plus_hold_by_growing_the_clip_then_dropping_sentences():
     seg = next(g for g in SEGMENTS if g.segment_id == "c02")  # 5-10 s
     assert script.fit_voice("Add todos.", seg, 6.0, 7.0) == (6.0, 7.0, "Add todos.")  # cap 9 (3 x (1 + 2 s))
