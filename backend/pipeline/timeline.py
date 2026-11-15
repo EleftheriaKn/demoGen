@@ -17,7 +17,7 @@ from pathlib import Path
 from backend import events
 from backend.contracts import (Assets, BrollAsset, Candidates, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
-from backend.pipeline.beats import beat_times, snap
+from backend.pipeline.beats import bar_loop, beat_times, snap
 from backend.pipeline.cards import best_frames, grab_frame, hero_card, panel_card, rasterize
 from backend.pipeline.ff import duration, ff, size_for, take_path
 
@@ -32,8 +32,9 @@ MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment ca
                      # it plays on past its segment (inside its room) rather than freeze (Coach Platform: 15.7 s hold).
 ZOOM_EASE_S = 0.8
 MUSIC_GAIN_DB = -18.0
-MAX_BEAT_SHIFT_S = 0.35  # B18: a cut may wait this long for the next beat
+MAX_BEAT_SHIFT_S = 0.25  # B18: a cut moves at most this far (earlier or later) to land on a beat
 MIN_TAIL_S = 0.1     # ...and never lands sooner than this after the voice ends
+LOOP_FILE = "music_loop.wav"  # the bed cut to whole bars (render loops it)
 READ_WPS = 2.6       # a shot whose voice take failed stays up as long as its caption takes to read
 MIN_SILENT_S = 2.0
 
@@ -172,9 +173,14 @@ def run(run_dir: Path, run: RunConfig) -> None:
 
     music_file = d / assets.music.path if assets.music else None
     beats, bpm = beat_times(music_file) if music_file and music_file.exists() else ([], 0.0)
-    if beats and assets.music.duration_s > 1:  # render loops the bed: repeat its beat grid for each loop
-        beats = [round(b + k * assets.music.duration_s, 3) for k in range(4) for b in beats]
-    on_beat = 0
+    music_path = assets.music.path if assets.music else None
+    if beats:  # render loops the bed: loop whole bars from the first beat, so the beat never jumps at the seam
+        horizon = 2 * sum(v[1] for v in voices.values()) + 120
+        grid = bar_loop(music_file, d / LOOP_FILE, beats, bpm, horizon)
+        if grid:
+            beats, music_path = grid, LOOP_FILE
+        else:  # bed shorter than a bar: its own beats, music plays once
+            events.emit("timeline", "music bed shorter than one bar: no loop on the beat")
     name = app_name(d) or run.repo_url.rstrip("/").rsplit("/", 1)[-1]
     repo_label = re.sub(r"^https?://(www\.)?", "", run.repo_url).rstrip("/")
     n_card_shots = sum(1 for s in script.shots if s.visual.kind != "footage" or take is None)
@@ -195,10 +201,11 @@ def run(run_dir: Path, run: RunConfig) -> None:
                                     f"({voices[s.shot_id][1]:.1f} s)")
         voice_path, voice_s = voices[s.shot_id]
         dur = frames(voice_s + BREATH_S)
-        if beats:  # B18: end the shot on the music's beat (later only, never before the voice is done)
-            cut = snap(t + dur, t + voice_s + MIN_TAIL_S, beats, MAX_BEAT_SHIFT_S)
+        if beats:  # B18: end the shot on the nearest beat within +-MAX_BEAT_SHIFT_S, never before the voice is done
+            reach = MAX_BEAT_SHIFT_S - 0.5 / FPS  # the cut is then rounded to the nearest frame: stays within reach
+            cut = snap(t + dur, max(t + voice_s + MIN_TAIL_S, t + dur - reach), beats, reach)
             if cut != t + dur:
-                dur, on_beat = frames(cut - t), on_beat + 1
+                dur = round((cut - t) * FPS) / FPS
         vis = s.visual
         if vis.kind == "footage" and take:
             if last_end is not None and room[0] < last_end <= vis.source_start:
@@ -236,14 +243,16 @@ def run(run_dir: Path, run: RunConfig) -> None:
                                   callout=(s.callout or "").strip() or None))
         t = round(t + dur, 6)
 
-    music = TimelineMusic(path=assets.music.path, gain_db=MUSIC_GAIN_DB, duck=True) if assets.music else None
+    music = TimelineMusic(path=music_path, gain_db=MUSIC_GAIN_DB, duck=True) if assets.music else None
     w, h = size_for(run.mode)
     tl = Timeline(fps=FPS, width=w, height=h, duration_s=round(t, 3), shots=shots, music=music)
     (d / "timeline.json").write_text(tl.model_dump_json(indent=2), encoding="utf-8")
 
     limit = run.brief.time_limit_s
     if beats:
-        events.emit("timeline", f"music at {bpm:.0f} BPM: {on_beat} of {len(shots)} cuts moved onto the beat")
+        on_beat = sum(1 for x in shots if min(abs(x.start + x.duration_s - b) for b in beats) <= 1.01 / FPS)
+        events.emit("timeline", f"music at {bpm:.0f} BPM: {on_beat} of {len(shots)} cuts on the beat"
+                    + (f", looped in whole bars ({music_path})" if music_path == LOOP_FILE else ""))
     events.emit("timeline", f"{len(shots)} shots, {tl.duration_s:.1f} s at {w}x{h}"
                 + (f" (over the {limit} s limit!)" if tl.duration_s > limit else ""))
 
