@@ -7,7 +7,10 @@ Reads repo_files.json, recording, transcript.json. Writes summary.json, moments.
 summary.json is real: Gemini reads the README, key files and transcript, then code keeps only
 evidence that names a real README heading or repo file; features left with none are
 dropped (logged as an event) and a summary with no features left raises.
-moments.json is still copied from fixtures/run/ until ticket 2.
+
+moments.json is real: Gemini watches the recording (uploaded once per run, see
+``gemini.upload``), then code clamps times to the recording length, sorts the moments, trims
+overlaps, drops slivers, nulls unknown feature ids and numbers them m1, m2, ...
 
 Run alone: python -m backend.pipeline.understand runs/<run_id>
 """
@@ -15,14 +18,17 @@ Run alone: python -m backend.pipeline.understand runs/<run_id>
 from __future__ import annotations
 
 import re
-import shutil
 from pathlib import Path
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field
 
 from backend import events
 from backend.clients import gemini
-from backend.contracts import Feature, RepoFiles, RunConfig, Summary, Transcript
+from backend.contracts import Feature, Moment, Moments, RepoFiles, RunConfig, Summary, Transcript
+from backend.pipeline import ff
 
-FIXTURE_RUN = Path(__file__).resolve().parents[2] / "fixtures" / "run"
+MIN_MOMENT_S = 0.5  # shorter after clamping/trimming = dropped
 
 HEADING = re.compile(r"^#+\s+(.+?)(?:\s+#+)?\s*$")
 
@@ -73,6 +79,56 @@ def summarize(repo: RepoFiles, transcript: Transcript) -> Summary:
     return summary
 
 
+class _RawMoment(BaseModel):
+    """What Gemini returns; code checks it into a Moment (ids, spans) in fix_moments."""
+
+    start: float = Field(description="Start, seconds from the start of the recording.")
+    end: float = Field(description="End, seconds from the start of the recording.")
+    description: str = Field(description="What happens on screen; on-screen text copied word for word.")
+    feature_id: Optional[str] = Field(description="Feature shown, or null.")
+    kind: Literal["result", "action", "setup", "dead"]
+    confidence: float = Field(description="0-1.")
+
+
+class _RawMoments(BaseModel):
+    moments: list[_RawMoment]
+
+
+def fix_moments(raw: list[_RawMoment], duration: float, feature_ids: set[str]) -> Moments:
+    """Clamp to [0, duration], sort, trim each start to the previous end, drop slivers, renumber."""
+    out: list[Moment] = []
+    prev_end = 0.0
+    for r in sorted(raw, key=lambda r: (r.start, r.end)):
+        start = round(max(r.start, prev_end, 0.0), 2)
+        end = round(min(r.end, duration), 2)
+        if end - start < MIN_MOMENT_S:
+            continue
+        out.append(Moment(
+            moment_id=f"m{len(out) + 1}", start=start, end=end, description=r.description,
+            feature_id=r.feature_id if r.feature_id in feature_ids else None,
+            kind=r.kind, confidence=min(max(r.confidence, 0.0), 1.0),
+        ))
+        prev_end = end
+    if not out:
+        raise ValueError("understand: Gemini returned no usable moments")
+    return Moments(moments=out)
+
+
+def find_moments(video: Path, summary: Summary) -> Moments:
+    duration = ff.duration(video)
+    text = gemini.prompt(
+        "understand_moments",
+        app=summary.name,
+        duration=f"{duration:.2f}",
+        features="\n".join(f"- {f.feature_id}: {f.name}. {f.description}" for f in summary.features),
+    )
+    raw = gemini.generate(text, _RawMoments, video=video)
+    moments = fix_moments(raw.moments, duration, {f.feature_id for f in summary.features})
+    if len(moments.moments) < len(raw.moments):
+        events.emit("understand", f"Dropped {len(raw.moments) - len(moments.moments)} moment(s) outside the recording or too short")
+    return moments
+
+
 def run(run_dir: Path, run: RunConfig) -> None:
     repo = RepoFiles.model_validate_json((run_dir / "repo_files.json").read_text(encoding="utf-8"))
     transcript = Transcript.model_validate_json((run_dir / "transcript.json").read_text(encoding="utf-8"))
@@ -80,9 +136,10 @@ def run(run_dir: Path, run: RunConfig) -> None:
     (run_dir / "summary.json").write_text(summary.model_dump_json(indent=2), encoding="utf-8")
     events.emit("understand", f"Summary: {summary.name}, {len(summary.features)} features")
 
-    # ponytail: fixture moments until ticket 2 watches the recording.
-    shutil.copy2(FIXTURE_RUN / "moments.json", run_dir / "moments.json")
-    events.emit("understand", "moments.json copied from fixtures (not built yet)")
+    moments = find_moments(run_dir / run.recording, summary)
+    (run_dir / "moments.json").write_text(moments.model_dump_json(indent=2), encoding="utf-8")
+    kinds = [m.kind for m in moments.moments]
+    events.emit("understand", f"Moments: {len(kinds)} ({kinds.count('result')} result, {kinds.count('dead')} dead)")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,46 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It highlights a relatable pain point quickly, but is a very common opening question."
+        },
+        {
+          "score": 0.3,
+          "reason": "It could apply to any generic recipe generator or cooking website rather than this specific photo-based app."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "The vivid image of staring into the fridge catches attention fast and establishes the context."
+        },
+        {
+          "score": 0.4,
+          "reason": "Connecting to the fridge is closer to the app concept, though it omits the photo and recipe features."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It raises a relatable problem about food waste, though it lacks an immediate compelling punch."
+        },
+        {
+          "score": 0.3,
+          "reason": "It focuses broadly on forgotten groceries and food waste rather than PantryPal's instant photo-to-recipe feature."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

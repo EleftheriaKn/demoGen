@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from backend.contracts import Decisions
-from backend.decisions import append_decision
+from backend.decisions import append_decision, drop_stage
 
 FIXTURE = Path(__file__).resolve().parent.parent / "fixtures" / "run" / "decisions.json"
 QS = ["Is it sharp?", "Is it on-brief?"]
@@ -83,3 +83,14 @@ def test_failed_append_leaves_file_untouched(tmp_path):
     with pytest.raises(ValueError):
         append_decision(tmp_path, **_args(judge_score=1.5))
     assert (tmp_path / "decisions.json").read_text() == before
+
+
+def test_drop_stage_removes_only_that_stage(tmp_path):
+    drop_stage(tmp_path, "script")  # no file: nothing to do
+    assert not (tmp_path / "decisions.json").exists()
+    shutil.copy2(FIXTURE, tmp_path / "decisions.json")
+    before = _read(tmp_path)
+    drop_stage(tmp_path, "script")
+    after = _read(tmp_path)
+    assert after.decisions == [d for d in before.decisions if d.stage != "script"]
+    assert after.rubric == before.rubric and after.recut == before.recut

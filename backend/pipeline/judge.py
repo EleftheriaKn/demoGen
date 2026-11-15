@@ -27,8 +27,8 @@ from pydantic import BaseModel, Field
 
 from backend import events
 from backend.clients import gemini
-from backend.contracts import Candidates, Decisions, FrameScore, FrameScores, JudgeAnswer, RunConfig, Summary
-from backend.decisions import append_decision
+from backend.contracts import Candidates, FrameScore, FrameScores, JudgeAnswer, RunConfig, Summary
+from backend.decisions import append_decision, drop_stage
 
 # Judge questions: fixed per criterion, asked every run (CONTEXT.md "Judge question").
 QUESTIONS = {
@@ -140,13 +140,7 @@ def run_frames(run_dir: Path, run: RunConfig) -> None:
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         verdicts = list(pool.map(lambda fs: judge_segment(run_dir, fs, questions, app), to_judge))
 
-    # Drop this stage's decisions from an earlier attempt so a re-run doesn't duplicate them.
-    # ponytail: second writer of decisions.json beside append_decision; move into decisions.py if it grows.
-    log_path = run_dir / "decisions.json"
-    if log_path.exists():
-        log = Decisions.model_validate_json(log_path.read_text(encoding="utf-8"))
-        log.decisions = [d for d in log.decisions if d.stage != "judge_frames"]
-        log_path.write_text(log.model_dump_json(indent=2), encoding="utf-8")
+    drop_stage(run_dir, "judge_frames")
 
     scores: list[FrameScore] = []
     for seg, frames, verdict in zip(cands.segments, to_judge, verdicts):

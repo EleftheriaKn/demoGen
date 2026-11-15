@@ -1,3 +1,4 @@
 -r common.txt
 google-genai>=3.3  # response_json_schema
 pillow>=10  # judge_frames sharpness
+fal-client>=0.5  # voice TTS (assets)

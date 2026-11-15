@@ -7,7 +7,7 @@ Return:
 - one_liner: a one-sentence pitch.
 - problem: the problem it solves, in one or two sentences.
 - audience: who it is for.
-- features: the app's features, most important first. For each:
+- features: what a user does in the running app, most important first. Each feature is one thing the user can see and do on screen (for a todo app: add a todo, complete it, filter the list, clear completed). Do not list facts about the repository itself (tests, docs, examples, build tooling, CI, framework choice, contributor guides) as features; if the README is mostly about the project, read the app's behaviour from the spec, source files and transcript. For each:
   - feature_id: "f1", "f2", ... in order.
   - name: a short name.
   - description: one or two sentences on what it does for the user.

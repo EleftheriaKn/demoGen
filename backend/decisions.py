@@ -28,7 +28,7 @@ def append_decision(
     follow ``questions`` in order, or the result breaks the contract.
     """
     path = Path(run_dir) / "decisions.json"
-    log = Decisions.model_validate_json(path.read_text()) if path.exists() else Decisions(decisions=[], rubric=[])
+    log = Decisions.model_validate_json(path.read_text(encoding="utf-8")) if path.exists() else Decisions(decisions=[], rubric=[])
 
     answers = [JudgeAnswer.model_validate(a) for a in answers]
     if [a.question for a in answers] != questions:
@@ -49,5 +49,14 @@ def append_decision(
         reason=reason,
     )
     log = Decisions.model_validate({**log.model_dump(), "decisions": [*log.decisions, decision]})
-    path.write_text(log.model_dump_json(indent=2))
+    path.write_text(log.model_dump_json(indent=2), encoding="utf-8")
     return decision
+
+
+def drop_stage(run_dir: Path, stage: Stage) -> None:
+    """Remove ``stage``'s decisions so a re-run replaces them instead of adding a second set."""
+    path = Path(run_dir) / "decisions.json"
+    if path.exists():
+        log = Decisions.model_validate_json(path.read_text(encoding="utf-8"))
+        log.decisions = [d for d in log.decisions if d.stage != stage]
+        path.write_text(log.model_dump_json(indent=2), encoding="utf-8")
