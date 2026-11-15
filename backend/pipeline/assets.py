@@ -6,6 +6,10 @@ Cards: for every card shot, 4 FLUX 2 drafts (no text: "fal draws, we write"), ju
 drawn text can't win; if all 4 have text the card is plain. Cheap mode: one plain colour card, no judge.
 Music: one instrumental bed about as long as the voice track (silence in cheap mode).
 
+fal failures still give a video: after ``cache.retry`` gives up, a voice take is left out of
+assets.voice, a card whose drafts all failed is the plain card (no take_pick: nothing was
+judged), and failed music is silence. Each fallback emits an event; none raises.
+
 Reads script.json. Writes assets.json, voice/, music.wav, cards/, and this stage's decisions.
 
 Run alone: python -m backend.pipeline.assets runs/<run_id>
@@ -17,6 +21,8 @@ import re
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Optional
+
 from PIL import Image
 
 from backend import cache, events
@@ -42,18 +48,28 @@ CHEAP_CARD_RGB = (24, 24, 32)
 MUSIC_PROMPT = "Calm, upbeat instrumental background music for a short tech product demo; light and unobtrusive under a voice-over."
 
 
-def _voice(run_dir: Path, shot_id: str, text: str, lang: str) -> VoiceAsset:
+def _voice(run_dir: Path, shot_id: str, text: str, lang: str) -> Optional[VoiceAsset]:
     rel = f"voice/{shot_id}.mp3"
     request = {"text": text, "lang": lang, "endpoint": fal.TTS_ENDPOINT}
-    cache.file_call("voice", request, run_dir / rel, lambda tmp: cache.retry(lambda: fal.tts(text, lang, tmp)))
+    try:
+        cache.file_call("voice", request, run_dir / rel, lambda tmp: cache.retry(lambda: fal.tts(text, lang, tmp)))
+    except Exception as e:
+        events.emit("assets", f"Voice {shot_id}: fal failed, shot has no voice ({e})", data={"shot_id": shot_id})
+        return None
     v = VoiceAsset(shot_id=shot_id, path=rel, duration_s=ff.duration(run_dir / rel), language=lang)
     events.emit("assets", f"Voice {shot_id}: {v.duration_s:.2f}s", data={"path": rel})
     return v
 
 
-def _draft(run_dir: Path, rel: str, prompt: str, n: int) -> None:
+def _draft(run_dir: Path, rel: str, prompt: str, n: int) -> bool:
+    """True if the draft was made; False (with an event) if fal failed after its retries."""
     request = {"prompt": prompt, "n": n, "endpoint": fal.CARD_ENDPOINT}
-    cache.file_call("card", request, run_dir / rel, lambda tmp: cache.retry(lambda: fal.card_image(prompt, tmp)))
+    try:
+        cache.file_call("card", request, run_dir / rel, lambda tmp: cache.retry(lambda: fal.card_image(prompt, tmp)))
+        return True
+    except Exception as e:
+        events.emit("assets", f"Card draft {rel}: fal failed ({e})", data={"path": rel})
+        return False
 
 
 def card_prompt(prompt: str) -> str:
@@ -86,17 +102,28 @@ def _cards(run_dir: Path, shots: list[Shot]) -> list[CardAsset]:
     drafts = {s.shot_id: [f"cards/drafts/{s.shot_id}_{n}.png" for n in range(DRAFTS)] for s in shots}
     jobs = [(rel, card_prompt(s.visual.card_prompt), n) for s in shots for n, rel in enumerate(drafts[s.shot_id])]
     with ThreadPoolExecutor(PARALLEL) as pool:
-        list(pool.map(lambda j: _draft(run_dir, *j), jobs))
-        picks = list(pool.map(lambda s: _judge(run_dir, s, drafts[s.shot_id]), shots))
+        made = {j[0] for j, ok in zip(jobs, pool.map(lambda j: _draft(run_dir, *j), jobs)) if ok}
+        drafts = {k: [d for d in v if d in made] for k, v in drafts.items()}  # judge only the drafts fal made
+        judged = [s for s in shots if drafts[s.shot_id]]
+        picks = dict(zip([s.shot_id for s in judged], pool.map(lambda s: _judge(run_dir, s, drafts[s.shot_id]), judged)))
 
     cards = []
-    for shot, pick in zip(shots, picks):  # decisions.json is written one card at a time, in shot order
+    for shot in shots:  # decisions.json is written one card at a time, in shot order
+        if shot.shot_id not in picks:
+            rel = f"cards/{shot.shot_id}.png"
+            plain = f"cards/drafts/{shot.shot_id}_plain.png"
+            _plain(run_dir, plain, "full")
+            shutil.copyfile(run_dir / plain, run_dir / rel)
+            events.emit("assets", f"Card {shot.shot_id}: every fal draft failed, plain card", data={"path": rel})
+            cards.append(CardAsset(shot_id=shot.shot_id, path=rel, drafts=[plain], chosen_index=0))
+            continue
+        pick = picks[shot.shot_id]
         options, rel, index, reason = drafts[shot.shot_id], f"cards/{shot.shot_id}.png", pick["index"], pick["reason"]
         if pick["answers"][0]["score"] < judge.PASS:  # even the winner has drawn text, so all 4 do
             options = [*options, f"cards/drafts/{shot.shot_id}_plain.png"]
             index = len(options) - 1
             _plain(run_dir, options[index], "full")
-            reason = f"All {DRAFTS} drafts show text (best: {pick['answers'][0]['reason']}), so a plain card instead"
+            reason = f"All {len(options) - 1} drafts show text (best: {pick['answers'][0]['reason']}), so a plain card instead"
         shutil.copyfile(run_dir / options[index], run_dir / rel)
         append_decision(
             run_dir, stage="assets", kind="take_pick", subject=shot.shot_id, options=options,
@@ -120,24 +147,27 @@ def _music(run_dir: Path, seconds: float) -> MusicAsset:
             mp3.unlink(missing_ok=True)
 
     request = {"prompt": MUSIC_PROMPT, "seconds": seconds, "endpoint": fal.MUSIC_ENDPOINT}
-    cache.file_call("music", request, run_dir / "music.wav", make)
+    try:
+        cache.file_call("music", request, run_dir / "music.wav", make)
+    except Exception as e:
+        return _silent_music(run_dir, seconds, f"fal failed ({e})")
     m = MusicAsset(path="music.wav", duration_s=ff.duration(run_dir / "music.wav"))
     events.emit("assets", f"Music: {m.duration_s:.1f}s", data={"path": m.path})
     return m
 
 
-def _silent_music(run_dir: Path, seconds: float) -> MusicAsset:
+def _silent_music(run_dir: Path, seconds: float, why: str = "cheap") -> MusicAsset:
     # ponytail: STAGE_OUTPUTS requires music.wav, so cheap mode writes silence instead of music=null.
     ff.ff("-f", "lavfi", "-i", f"anullsrc=r={ff.SAMPLE_RATE}:cl=stereo", "-t", f"{max(seconds, 1.0):.3f}", run_dir / "music.wav")
     m = MusicAsset(path="music.wav", duration_s=ff.duration(run_dir / "music.wav"))
-    events.emit("assets", f"Music: {m.duration_s:.1f}s of silence (cheap)", data={"path": m.path})
+    events.emit("assets", f"Music: {m.duration_s:.1f}s of silence ({why})", data={"path": m.path})
     return m
 
 
 def run(run_dir: Path, run: RunConfig) -> None:
     script = Script.model_validate_json((run_dir / "script.json").read_text(encoding="utf-8"))
     with ThreadPoolExecutor(PARALLEL) as pool:
-        voice = list(pool.map(lambda s: _voice(run_dir, s.shot_id, s.voice_line, script.language), script.shots))
+        voice = [v for v in pool.map(lambda s: _voice(run_dir, s.shot_id, s.voice_line, script.language), script.shots) if v]
 
     card_shots = [s for s in script.shots if s.visual.kind == "card"]
     drop_stage(run_dir, "assets")

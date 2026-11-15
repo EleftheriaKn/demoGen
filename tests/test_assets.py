@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import shutil
+import threading
+from pathlib import Path
 
 import pytest
-from PIL import Image
 
 from backend import events
 from backend.clients import fal, gemini
@@ -13,7 +14,8 @@ from backend.contracts import Assets, Decisions, Script
 from backend.pipeline import assets, ff, judge
 from backend.run import FIXTURE_RUN, load_run
 
-COLOURS = [(200, 40, 40), (40, 200, 40), (40, 40, 200), (200, 200, 40)]
+DATA = Path(__file__).resolve().parent / "data"
+DRAFTS = [DATA / f"s01_{i}.png" for i in range(4)]  # committed, so recording keys match on every machine
 
 
 def _verdict(n_drafts, n_questions, best):
@@ -32,7 +34,7 @@ def fake(tmp_path, monkeypatch):
 
     def fake_card(prompt, out_path):
         calls["card"].append(prompt)
-        Image.new("RGB", (64, 36), COLOURS[len(calls["card"]) % 4]).save(out_path, format="PNG")
+        shutil.copyfile(DRAFTS[len(calls["card"]) % 4], out_path)
 
     def fake_music(prompt, seconds, out_path):
         calls["music"].append(seconds)
@@ -98,20 +100,9 @@ def test_cheap_mode_plain_cards_silent_music(fake):
     assert calls["card"] == [] and calls["music"] == [] and calls["gemini"] == 0
 
 
-def test_pick_best_judges_image_drafts(tmp_path):
-    """Replays tests/recordings/ (record with `pytest --live`). Drafts are drawn, so the key is stable."""
-    from PIL import ImageDraw
-
-    drafts = []
-    for i, colour in enumerate([(230, 230, 230), (20, 30, 60), (180, 60, 40), (90, 90, 90)]):
-        img = Image.new("RGB", (640, 360), colour)
-        if i == 0:  # the one with text in it should lose
-            ImageDraw.Draw(img).text((40, 150), "LOREM IPSUM TITLE 123", fill=(0, 0, 0))
-        if i == 1:  # soft gradient-ish band: a clean background
-            ImageDraw.Draw(img).ellipse((380, 60, 760, 440), fill=(40, 70, 130))
-        p = tmp_path / f"s01_{i}.png"
-        img.save(p)
-        drafts.append(p)
+def test_pick_best_judges_image_drafts():
+    """Replays tests/recordings/ (record with `pytest --live`). Draft 0 has text in it and should lose."""
+    drafts = DRAFTS
     r = judge.pick_best(drafts, assets.CARD_QUESTIONS, "a title card for a todo-list app demo")
     assert 0 <= r["index"] < 4 and len(r["scores"]) == 4
     assert r["judge_score"] == r["scores"][r["index"]] == max(r["scores"])
@@ -150,3 +141,72 @@ def test_all_drafts_with_text_fall_back_to_plain_card(fake):
         assert (run_dir / c.path).read_bytes() == (run_dir / c.drafts[4]).read_bytes()
         assert d.chosen == c.drafts[4] and d.options == c.drafts and "plain card" in d.reason
     assert len(picks) == len(out.cards)
+
+
+def _events(run_dir):
+    return [l for l in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+
+
+def _fail(monkeypatch, name, when=lambda *a: True):
+    real = getattr(fal, name)
+
+    def flaky(*args):
+        if when(*args):
+            raise TimeoutError("fal down")
+        return real(*args)
+
+    monkeypatch.setattr(fal, name, flaky)
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    from backend import cache
+    monkeypatch.setattr(cache.time, "sleep", lambda s: None)
+
+
+def test_failed_voice_take_is_left_out_with_an_event(fake, monkeypatch, no_sleep):
+    run_dir, _ = fake
+    first = Script.model_validate_json((run_dir / "script.json").read_text(encoding="utf-8")).shots[0]
+    _fail(monkeypatch, "tts", lambda text, lang, out: text == first.voice_line)
+    assets.run(run_dir, load_run(run_dir))
+    shots, out, _ = _load(run_dir)
+    assert [v.shot_id for v in out.voice] == [s.shot_id for s in shots[1:]]
+    assert any(f"Voice {first.shot_id}: fal failed" in e for e in _events(run_dir))
+
+
+def test_failed_card_falls_back_to_plain_card(fake, monkeypatch, no_sleep):
+    run_dir, _ = fake
+    _fail(monkeypatch, "card_image")
+    assets.run(run_dir, load_run(run_dir).model_copy(update={"mode": "full"}))
+    shots, out, picks = _load(run_dir)
+    assert [c.shot_id for c in out.cards] == [s.shot_id for s in shots if s.visual.kind == "card"]
+    for c in out.cards:
+        assert c.drafts == [f"cards/drafts/{c.shot_id}_plain.png"] and (run_dir / c.path).exists()
+        assert any(f"Card {c.shot_id}: every fal draft failed" in e for e in _events(run_dir))
+    assert picks == []  # nothing was judged
+
+
+def test_some_failed_drafts_judge_only_the_rest(fake, monkeypatch, no_sleep):
+    run_dir, calls = fake
+    doomed, lock = set(), threading.Lock()  # the first two drafts asked for fail on every retry
+
+    def two_fail(prompt, out):
+        with lock:
+            if len(doomed) < 2:
+                doomed.add(out)
+            return out in doomed
+
+    _fail(monkeypatch, "card_image", two_fail)
+    calls["verdict"] = _rows((0.9, 0.9, 0.9), (0.6, 0.6, 0.6))
+    assets.run(run_dir, load_run(run_dir).model_copy(update={"mode": "full"}))
+    _, out, picks = _load(run_dir)
+    assert all(len(c.drafts) == 2 and c.chosen_index == 0 for c in out.cards) and len(picks) == len(out.cards)
+
+
+def test_failed_music_falls_back_to_silence(fake, monkeypatch, no_sleep):
+    run_dir, _ = fake
+    _fail(monkeypatch, "music")
+    assets.run(run_dir, load_run(run_dir).model_copy(update={"mode": "full"}))
+    _, out, _ = _load(run_dir)
+    assert out.music is not None and out.music.duration_s > 0 and (run_dir / "music.wav").exists()
+    assert any("of silence (fal failed" in e for e in _events(run_dir))

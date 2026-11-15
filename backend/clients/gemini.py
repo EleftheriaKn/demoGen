@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import mimetypes
 import os
 import time
 from pathlib import Path
@@ -33,6 +32,10 @@ RETRIES = 2
 
 T = TypeVar("T", bound=BaseModel)
 
+# Fixed tables, not the mimetypes module: its answers depend on the machine (Windows registry).
+VIDEO_MIME = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm"}
+IMAGE_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+
 
 class MissingRecording(RuntimeError):
     pass
@@ -41,6 +44,14 @@ class MissingRecording(RuntimeError):
 def prompt(name: str, **values: str) -> str:
     """Fill ``backend/prompts/<name>.md``; ``{key}`` placeholders take ``values``."""
     return (PROMPTS / f"{name}.md").read_text(encoding="utf-8").format(**values)
+
+
+def mime_type(path: Path, table: dict[str, str]) -> str:
+    """``path``'s MIME type from ``table`` by suffix; an unknown suffix raises."""
+    suffix = Path(path).suffix.lower()
+    if suffix not in table:
+        raise ValueError(f"Gemini: can't send {Path(path).name}; supported types are {', '.join(table)}")
+    return table[suffix]
 
 
 def _sha(path: Path) -> str:
@@ -90,6 +101,7 @@ def upload(video: Path) -> tuple[str, str]:
     from google import genai
 
     video = Path(video)
+    mime = mime_type(video, VIDEO_MIME)
     memo = video.with_name(video.name + ".gemini.json")
     sha = _sha(video)
     client = genai.Client()
@@ -100,7 +112,7 @@ def upload(video: Path) -> tuple[str, str]:
                 return m["uri"], m["mime_type"]
         except Exception:
             pass  # expired or deleted: upload again
-    f = client.files.upload(file=video)
+    f = client.files.upload(file=video, config={"mime_type": mime})
     deadline = time.monotonic() + 600
     while f.state == "PROCESSING":
         if time.monotonic() > deadline:
@@ -119,7 +131,7 @@ def _call(
     from google import genai
     from google.genai import types
 
-    contents: list[Any] = [text, *(types.Part.from_bytes(data=Path(i).read_bytes(), mime_type=mimetypes.guess_type(str(i))[0] or "image/jpeg") for i in images)]
+    contents: list[Any] = [text, *(types.Part.from_bytes(data=Path(i).read_bytes(), mime_type=mime_type(i, IMAGE_MIME)) for i in images)]
     if video is not None:
         uri, mime = upload(video)
         contents.insert(0, types.Part.from_uri(file_uri=uri, mime_type=mime))

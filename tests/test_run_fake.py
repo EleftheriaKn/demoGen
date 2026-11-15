@@ -31,6 +31,10 @@ def test_fake_all_end_to_end(run_dir, monkeypatch):
 
 def test_unfaked_stub_fails_loudly(run_dir, monkeypatch):
     monkeypatch.setenv("DEMOCUT_FAKE", "ingest")  # ingest is real now (B4) and would clone; the next stub must fail
+    def stub(run_dir, run):
+        raise NotImplementedError("stage transcribe is not built yet; add it to DEMOCUT_FAKE")
+
+    monkeypatch.setattr("backend.pipeline.transcribe.run", stub)  # every stage is real now; fake a stub
     with pytest.raises(NotImplementedError, match="DEMOCUT_FAKE"):
         orchestrator.run_pipeline(run_dir)
 
