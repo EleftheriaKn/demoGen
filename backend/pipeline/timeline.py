@@ -2,7 +2,8 @@
 
 Fit footage to voice durations: one shot per script shot, as long as its voice line plus a breath.
 
-Reads script.json, assets.json, the recording. Writes timeline.json.
+Reads script.json, assets.json, candidates.json (segment bounds), summary.json (app name for plain
+cards), the recording. Writes timeline.json.
 
 Run alone: python -m backend.pipeline.timeline runs/<run_id>
 """
@@ -13,13 +14,15 @@ import math
 from pathlib import Path
 
 from backend import events
-from backend.contracts import (Assets, RunConfig, Script, Timeline, TimelineMusic, TimelineShot,
-                               TimelineVisual, Zoom)
-from backend.pipeline.ff import duration, size_for
+from backend.contracts import (Assets, Candidates, RunConfig, Script, Summary, Timeline, TimelineMusic,
+                               TimelineShot, TimelineVisual, Zoom)
+from backend.pipeline.ff import FONTS, duration, ff, size_for
 
 FPS = 30
 BREATH_S = 0.25      # footage keeps running this long after the voice ends
 MAX_SPEED = 1.5      # contract limit
+MAX_FREEZE_S = 1.5   # longer gaps play more real footage instead of a held frame...
+MAX_BEYOND_S = 2.0   # ...but only this much from outside the segment (it may contradict the voice line)
 ZOOM_EASE_S = 0.8
 MUSIC_GAIN_DB = -18.0
 
@@ -43,6 +46,69 @@ def fit_source(start: float, end: float, target: float, limit: float | None) -> 
     return start, end, 1.0, round(target - length, 3)
 
 
+def grow(start: float, end: float, need: float, lo: float, hi: float) -> tuple[float, float]:
+    """Widen [start, end] by up to `need` seconds inside [lo, hi]: forward first (what happens next), then back."""
+    fwd = min(need, max(0.0, hi - end))
+    back = min(need - fwd, max(0.0, start - lo))
+    return start - back, end + fwd
+
+
+def fit_footage(start: float, end: float, target: float, segment: tuple[float, float] | None,
+                limit: float | None, room: tuple[float, float] = (0.0, float("inf"))
+                ) -> tuple[float, float, float, float]:
+    """Like fit_source, but a voice line longer than its clip plays more real footage instead of a long
+    freeze: first the rest of the candidate segment (same content), then at most MAX_BEYOND_S of the
+    footage around it (it may already show something the voice line doesn't say), never past `room`
+    (where the previous footage shot ended / the next one starts, so nothing plays twice). What is still
+    missing is a held last frame: the matching screen stays up while the voice finishes."""
+    lo, hi = max(0.0, room[0]), min(limit if limit is not None else float("inf"), room[1])
+    end = min(end, limit) if limit is not None else end
+    if target > end - start and segment is not None:
+        start, end = grow(start, end, target - (end - start), max(lo, segment[0]), min(hi, segment[1]))
+    if target - (end - start) > MAX_FREEZE_S:  # a little footage from around the segment, never much:
+        need = min(target - (end - start) - MAX_FREEZE_S / 2, MAX_BEYOND_S)  # it may show something else
+        start, end = grow(start, end, need, lo, hi)
+    return fit_source(round(start, 3), round(end, 3), target, limit)
+
+
+def rooms(spans: list[tuple[float, float] | None]) -> list[tuple[float, float]]:
+    """For each footage span (None = not footage): how far it may grow without reaching the original span
+    of the footage shot played just before or after it. Overlaps the script already has are left alone."""
+    out = []
+    for i, sp in enumerate(spans):
+        if sp is None:
+            out.append((0.0, float("inf")))
+            continue
+        prev = next((spans[j] for j in range(i - 1, -1, -1) if spans[j]), None)
+        nxt = next((spans[j] for j in range(i + 1, len(spans)) if spans[j]), None)
+        lo = prev[1] if prev and prev[1] <= sp[0] else 0.0
+        hi = nxt[0] if nxt and nxt[0] >= sp[1] else float("inf")
+        out.append((lo, hi))
+    return out
+
+
+def app_name(d: Path) -> str:
+    """The app's name for a plain card, from summary.json; empty when understand hasn't run."""
+    try:
+        return Summary.model_validate_json((d / "summary.json").read_text()).name
+    except (OSError, ValueError):
+        return ""
+
+
+def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int]) -> str:
+    """Dark card with the app name in the middle (no claims on it: the voice line is in the captions)."""
+    w, h = size
+    rel = f"cards/plain/{shot_id}.png"
+    (d / rel).parent.mkdir(parents=True, exist_ok=True)
+    text = d / "cards" / "plain" / f"{shot_id}.txt"
+    text.write_text(title, encoding="utf-8")
+    draw = (f",drawtext=fontfile='{FONTS / 'NotoSans-Bold.ttf'}':textfile='{text}':fontcolor=white:"
+            f"fontsize={round(h * 0.11)}:x=(w-tw)/2:y=(h-th)/2") if title.strip() else ""
+    ff("-f", "lavfi", "-i", f"color=c=0x111827:s={w}x{h}:d=1{draw}", "-frames:v", "1", d / rel)
+    text.unlink(missing_ok=True)
+    return rel
+
+
 def run(run_dir: Path, run: RunConfig) -> None:
     d = Path(run_dir)
     script = Script.model_validate_json((d / "script.json").read_text())
@@ -54,17 +120,26 @@ def run(run_dir: Path, run: RunConfig) -> None:
         if v.shot_id not in voices or v.language == script.language:
             voices[v.shot_id] = (v.path, v.duration_s)
     cards = {c.shot_id: c.path for c in assets.cards}
+    cpath = d / "candidates.json"
+    segments = ({g.segment_id: (g.start, g.end) for g in Candidates.model_validate_json(cpath.read_text()).segments}
+                if cpath.exists() else {})
     brolls = {b.shot_id: b for b in assets.broll}
 
-    shots, t = [], 0.0
-    for s in script.shots:
+    spans = [(s.visual.source_start, s.visual.source_end) if s.visual.kind == "footage" else None
+             for s in script.shots]
+    shots, t, last_end = [], 0.0, None
+    for s, room in zip(script.shots, rooms(spans)):
         if s.shot_id not in voices:
             raise RuntimeError(f"timeline: no voice take for shot {s.shot_id} in assets.json")
         voice_path, voice_s = voices[s.shot_id]
         dur = frames(voice_s + BREATH_S)
         vis = s.visual
         if vis.kind == "footage":
-            start, end, speed, freeze = fit_source(vis.source_start, vis.source_end, dur, rec_len)
+            if last_end is not None and room[0] < last_end <= vis.source_start:
+                room = (last_end, room[1])  # the shot before grew: don't replay what it showed
+            start, end, speed, freeze = fit_footage(vis.source_start, vis.source_end, dur,
+                                                    segments.get(vis.segment_id), rec_len, room)
+            last_end = end
             zoom = Zoom(box=vis.focus_box, ease_s=ZOOM_EASE_S) if vis.focus_box else None
             visual = TimelineVisual(kind="footage", path=run.recording, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze, zoom=zoom)
@@ -73,10 +148,11 @@ def run(run_dir: Path, run: RunConfig) -> None:
             start, end, speed, freeze = fit_source(0.0, b.duration_s, dur, b.duration_s)
             visual = TimelineVisual(kind="broll", path=b.path, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze)
-        elif s.shot_id in cards:
+        elif s.shot_id in cards and (d / cards[s.shot_id]).exists():
             visual = TimelineVisual(kind="card", path=cards[s.shot_id])
-        else:
-            raise RuntimeError(f"timeline: shot {s.shot_id} is a {vis.kind} but assets.json has no file for it")
+        else:  # no card / b-roll file (no fal, cheap mode, a failed call): the video still renders
+            visual = TimelineVisual(kind="card", path=plain_card(d, s.shot_id, app_name(d), size_for(run.mode)))
+            events.emit("timeline", f"{s.shot_id}: no {vis.kind} file in assets.json, using a plain card")
         shots.append(TimelineShot(shot_id=s.shot_id, start=round(t, 3), duration_s=dur,
                                   voice_path=voice_path, visual=visual, caption=s.voice_line))
         t = round(t + dur, 6)
