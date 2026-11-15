@@ -20,6 +20,7 @@ from pathlib import Path
 from backend import events
 from backend.contracts import RunConfig, Script, Timeline, TimelineMusic, TimelineShot
 from backend.pipeline.cards import font_safe, tag_overlay
+from backend.pipeline.ff import FONT_FILE, screen_text
 from backend.pipeline.timeline import style_of
 from backend.pipeline.ff import (AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, filter_path, hdr_to_sdr, inner_size,
                                  place, video_info)
@@ -75,15 +76,15 @@ def zoom_filter(s: TimelineShot, iw: int, ih: int, fps: int, pan: float = 0.0, t
 def callout_filter(d: Path, s: TimelineShot, w: int, h: int) -> str:
     """Kinetic callout (B15): the shot's <= 5 words in a dark pill near the top, fading and sliding in at
     CALLOUT_IN_S. Text comes from a file with expansion off, so any characters (Greek, %) are drawn as written."""
-    if not s.callout:
+    if not s.callout or not screen_text(s.callout):
         return ""
     txt = d / "shots" / f"{s.shot_id}.callout.txt"
     txt.parent.mkdir(parents=True, exist_ok=True)
-    txt.write_text(font_safe(s.callout.strip()), encoding="utf-8")
+    txt.write_text(font_safe(screen_text(s.callout)), encoding="utf-8")
     t0, ramp = CALLOUT_IN_S, 0.25
     alpha = f"if(lt(t\\,{t0})\\,0\\,min(1\\,(t-{t0})/{ramp}))"
     y = f"h*0.07+{h // 60}*max(0\\,1-(t-{t0})/{ramp})"
-    return (f"drawtext=fontfile={filter_path(FONTS / 'NotoSans-Bold.ttf')}:textfile={filter_path(txt.resolve())}:"
+    return (f"drawtext=fontfile={filter_path(FONT_FILE)}:textfile={filter_path(txt.resolve())}:"
             f"expansion=none:fontsize={round(h * 0.045)}:fontcolor=white:box=1:boxcolor=0x111827@0.85:"
             f"boxborderw={round(h * 0.014)}:x=(w-tw)/2:y='{y}':alpha='{alpha}',")
 

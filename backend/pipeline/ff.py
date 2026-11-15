@@ -8,13 +8,24 @@ from __future__ import annotations
 
 import json
 import subprocess
+import re
+import unicodedata
 from functools import lru_cache
 from pathlib import Path
 from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[2]
 FONTS = ROOT / "fonts"
-FONT_NAME = "Noto Sans"
+FONT_NAME = "Inter"   # all on-screen text: Inter Bold, upper case, slightly tight (fonts/Inter-Bold.ttf, OFL)
+FONT_FILE = FONTS / "Inter-Bold.ttf"
+TRACKING = -0.02      # letter spacing, share of the font size
+URL_RE = re.compile(r"(https?://\S+|www\.\S+|\b[\w-]+(\.[\w-]+)*\.(com|io|dev|app|org|net|ai|co)(/\S*)?)", re.I)
+
+
+def screen_text(text: str) -> str:
+    """Text as it is drawn on the video: no links (never show a repo URL), upper case, single spaces."""
+    up = " ".join(URL_RE.sub("", text).split()).upper()
+    return unicodedata.normalize("NFC", unicodedata.normalize("NFD", up).replace("\u0301", ""))  # Greek caps: no tonos
 
 SAMPLE_RATE = 48000
 VIDEO = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]

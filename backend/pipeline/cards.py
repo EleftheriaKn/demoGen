@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from backend.contracts import frame_time
 from backend.pipeline.ff import FONTS, ff, hdr_to_sdr, video_info
 
-FONT = FONTS / "NotoSans-Bold.ttf"
+from backend.pipeline.ff import FONT_FILE as FONT, TRACKING, screen_text  # Inter Bold
 BG_PLAIN = (17, 24, 39)
 SUBSTITUTE = {"→": "›", "⇒": "›", "➜": "›", "⟶": "›", "➔": "›", "←": "‹", "⇐": "‹", "↔": "‹›",
               "✓": "•", "✔": "•", "✅": "•", "★": "•", "☆": "•"}
@@ -92,6 +92,17 @@ def _font(px: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(FONT), px)
 
 
+def _tracked(draw: ImageDraw.ImageDraw, xy: tuple[float, float], text: str, font: ImageFont.FreeTypeFont,
+             **kw) -> None:
+    """Text centred on xy, letters TRACKING closer than normal (PIL has no letter spacing of its own)."""
+    track = TRACKING * font.size
+    widths = [draw.textlength(ch, font=font) for ch in text]
+    x = xy[0] - (sum(widths) + track * (len(text) - 1)) / 2
+    for ch, wd in zip(text, widths):
+        draw.text((x, xy[1]), ch, font=font, anchor="lm", **kw)
+        x += wd + track
+
+
 def _fit_text(draw: ImageDraw.ImageDraw, text: str, max_w: int, px: int) -> ImageFont.FreeTypeFont:
     while px > 12 and draw.textlength(text, font=_font(px)) > max_w:
         px -= 2
@@ -147,7 +158,7 @@ def hero_card(out: Path, size: tuple[int, int], title: str, background: Path | N
               frame: Path | None = None, subtitle: str = "") -> Path:
     """Compose one card PNG: background, title, optional framed real screen, optional subtitle."""
     w, h = size
-    title, subtitle = font_safe(title), font_safe(subtitle)
+    title, subtitle = font_safe(screen_text(title)), font_safe(screen_text(subtitle))
     if background and background.exists():
         bg = Image.open(background).convert("RGB")
         k = max(w / bg.width, h / bg.height)
@@ -162,13 +173,12 @@ def hero_card(out: Path, size: tuple[int, int], title: str, background: Path | N
 
     if frame is None:  # title alone, centred
         f = _fit_text(draw, title, w - 2 * pad, round(h * 0.11))
-        draw.text((w / 2, h / 2), title, font=f, fill="white", anchor="mm", stroke_width=max(1, h // 400),
-                  stroke_fill=(0, 0, 0, 90))
+        _tracked(draw, (w / 2, h / 2), title, f, fill="white", stroke_width=max(1, h // 400), stroke_fill=(0, 0, 0, 90))
     else:
         title_px = round(h * 0.075)
         f = _fit_text(draw, title, w - 2 * pad, title_px)
-        draw.text((w / 2, pad + title_px / 2), title, font=f, fill="white", anchor="mm",
-                  stroke_width=max(1, h // 400), stroke_fill=(0, 0, 0, 90))
+        _tracked(draw, (w / 2, pad + title_px / 2), title, f, fill="white",
+                 stroke_width=max(1, h // 400), stroke_fill=(0, 0, 0, 90))
         sub_h = round(h * 0.07) if subtitle else 0
         top = pad + title_px + pad // 2
         box_h = h - top - pad - sub_h - round(h * 0.12)  # leave room for the captions at the bottom
@@ -216,7 +226,7 @@ def _halftone(size: tuple[int, int], step: int, alpha: int) -> Image.Image:
     return layer
 
 
-def panel_card(out: Path, size: tuple[int, int], art: Path | None, tag: str = "Illustration") -> Path:
+def panel_card(out: Path, size: tuple[int, int], art: Path | None, tag: str = "ILLUSTRATION") -> Path:
     """A generated shot (fal panel / infographic) as a designed panel: the art fitted in a rounded frame with a
     white border and shadow, over a blurred, darkened copy of itself with a faint halftone, and a small tag
     so viewers know it is an illustration, not footage (honesty rule)."""
@@ -262,7 +272,7 @@ def _draw_tag(img: Image.Image, tag: str) -> None:
     d.text((tx + ph_ / 2, ty + ph_ / 2), tag, font=f, fill=(255, 255, 255, 230), anchor="lm")
 
 
-def tag_overlay(out: Path, size: tuple[int, int], tag: str = "Illustration") -> Path:
+def tag_overlay(out: Path, size: tuple[int, int], tag: str = "ILLUSTRATION") -> Path:
     """A transparent w x h PNG with only the tag on it, for render to lay over generated video (B16)."""
     img = Image.new("RGBA", size, (0, 0, 0, 0))
     _draw_tag(img, tag)

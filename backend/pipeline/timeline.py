@@ -331,7 +331,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
                 bg = str(rasterize(d / bg, d / "cards" / "raster" / f"{s.shot_id}.png", size).relative_to(d))
             if s.beat in HERO_BEATS or not bg:  # hook / ask, or nothing generated: our hero card
                 frame = hero[n_cards % len(hero)] if hero else None
-                subtitle = repo_label if s.beat == "ask" else ""
+                subtitle = ""  # never the repo URL on the video (user, Nov 15)
                 path = plain_card(d, s.shot_id, name, size, bg, frame, subtitle)
                 n_cards += 1
             else:  # a generated panel for a weak / missing step (v2): the illustration look

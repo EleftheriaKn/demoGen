@@ -15,7 +15,7 @@ from pathlib import Path
 
 from backend.contracts import Assets, RunConfig, Timeline
 from backend.pipeline.cards import font_safe
-from backend.pipeline.ff import FONT_NAME
+from backend.pipeline.ff import FONT_NAME, TRACKING, URL_RE, screen_text
 
 MAX_CHARS = 42       # one comfortable caption line
 MIN_BREAK = 18       # break early at punctuation once a cue is this long
@@ -53,7 +53,7 @@ def cues(tl: Timeline, voice_s: dict[str, float]) -> list[tuple[float, float, st
     """(start, end, shot_id, text) for every cue, in order."""
     res = []
     for s in tl.shots:
-        parts = chunks(s.caption)
+        parts = chunks(" ".join(URL_RE.sub("", s.caption).split()))  # never a link on screen
         if not parts:
             continue
         speak = min(voice_s.get(s.voice_path, s.duration_s), s.duration_s)
@@ -100,12 +100,13 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{FONT_NAME},{size},&H00FFFFFF,&H000000FF,&H59000000,&H59000000,1,0,0,0,100,100,0,0,3,{pad},0,2,{margin},{margin},{margin},1
+Style: Default,{FONT_NAME},{size},&H00FFFFFF,&H000000FF,&H59000000,&H59000000,1,0,0,0,100,100,{round(TRACKING * size, 1)},0,3,{pad},0,2,{margin},{margin},{margin},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    lines = [f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Default,{sid},0,0,0,,{ass_text(t)}" for a, b, sid, t in cs]
+    lines = [f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Default,{sid},0,0,0,,{ass_text(screen_text(t))}"
+             for a, b, sid, t in cs if screen_text(t)]
     return head + "\n".join(lines) + "\n"
 
 
