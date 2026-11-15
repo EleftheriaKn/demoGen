@@ -66,6 +66,32 @@ def beat_times(path: Path) -> tuple[list[float], float]:
     return beats, round(60 * fps / lag, 1)
 
 
+BAR = 4              # beats per bar
+SEAM_FADE_S = 0.02   # tiny fades at the loop seam, so the join never clicks
+
+
+def bar_loop(bed: Path, out: Path, beats: list[float], bpm: float, horizon_s: float) -> list[float] | None:
+    """Cut the bed to whole bars, starting on its first beat, and write it to `out`. Render loops that file,
+    so a video longer than the bed keeps one steady beat: no jump at the seam. Returns the beat grid of the
+    looped music up to `horizon_s` (beat i at i * period), or None when the bed is shorter than one bar."""
+    if not beats or bpm <= 0:
+        return None
+    period = 60.0 / bpm
+    bars = int((_length(bed) - beats[0]) / (BAR * period))
+    if bars < 1:
+        return None
+    start, length = beats[0], bars * BAR * period
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(bed), "-af",
+                    f"atrim=start={start:.4f}:duration={length:.4f},asetpts=PTS-STARTPTS,"
+                    f"afade=t=in:d={SEAM_FADE_S},afade=t=out:st={length - SEAM_FADE_S:.4f}:d={SEAM_FADE_S}",
+                    "-c:a", "pcm_s16le", str(out)], check=True, capture_output=True)
+    return [round(i * period, 3) for i in range(int(horizon_s / period) + 1)]
+
+
+def _length(path: Path) -> float:
+    return len(_samples(path)) / SR
+
+
 def snap(boundary: float, earliest: float, beats: list[float], max_shift: float) -> float:
     """The beat closest to `boundary` that is not before `earliest` (the voice must finish) and at most
     `max_shift` after `boundary`; the boundary itself when no beat qualifies."""
