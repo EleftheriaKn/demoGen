@@ -6,8 +6,13 @@ Reads summary.json, moments.json, candidates.json, frame_scores.json, repo_files
 frames/, run.brief. Writes script.json, a ``hook_pick`` decision and one ``claim_check``
 decision per claim.
 
-Gemini fills a ``Draft`` whose shape fixes the beat order (hook, problem, 2-4 demo, how,
-impact, ask), so only hook and ask can be cards. Code then keeps footage inside real
+Length follows the brief: the script aims for TARGET_SHARE of ``time_limit_s`` (at most TARGET_S)
+at TARGET_RATE words per second, and the per-beat BUDGET scales to that. A short target drops
+beats: up to 30 s it is hook, problem, 1 demo, ask; up to 45 s hook, problem, 1-2 demo, impact,
+ask; longer, the full hook, problem, 2-4 demo, how, impact, ask.
+
+Gemini fills a ``Draft`` (``DraftMid``, ``DraftShort`` for short targets) whose shape fixes the
+beat order, so only hook and ask can be cards. Code then keeps footage inside real
 segments, drops evidence that doesn't exist, turns any unlisted factual sentence of a problem,
 demo, how or impact line into a claim (evidence: the shot's footage) and numbers shots and claims. A second call
 scores the three hooks on HOOK_QUESTIONS and flags hooks that state a fact; the best mean
@@ -69,9 +74,11 @@ from backend.contracts import (
 from backend.decisions import append_decision, drop_stage
 from backend.pipeline.understand import readme_headings
 
-TARGET_S = 75
+TARGET_S = 75  # the longest script, whatever the limit
 TARGET_WORDS = 190
-# Word budget per beat; "demo" is shared by all demo shots. Sums to TARGET_WORDS.
+TARGET_SHARE = 0.85  # of the brief's time limit, so cards and holds still fit under it
+TARGET_RATE = 2.5  # spoken words per second a shorter target aims for
+# Word budget per beat at TARGET_WORDS; "demo" is shared by all demo shots. Scaled for shorter targets.
 BUDGET = {"hook": 12, "problem": 28, "demo": 100, "how": 25, "impact": 15, "ask": 10}
 assert sum(BUDGET.values()) == TARGET_WORDS
 
@@ -124,6 +131,55 @@ class Draft(BaseModel):
     how: FootageDraft
     impact: FootageDraft
     ask: CardDraft
+
+
+class DraftMid(BaseModel):  # target up to 45 s: no how
+    hooks: list[str] = Field(min_length=3, max_length=3, description="Three candidate opening lines.")
+    hook_card_prompt: str
+    problem: FootageDraft
+    demos: list[FootageDraft] = Field(min_length=1, max_length=2)
+    impact: FootageDraft
+    ask: CardDraft
+
+
+class DraftShort(BaseModel):  # target up to 30 s: no how, no impact
+    hooks: list[str] = Field(min_length=3, max_length=3, description="Three candidate opening lines.")
+    hook_card_prompt: str
+    problem: FootageDraft
+    demos: list[FootageDraft] = Field(min_length=1, max_length=1)
+    ask: CardDraft
+
+
+AnyDraft = Union[Draft, DraftMid, DraftShort]
+DEMO_BEAT = {Draft: "2 to 4 demo shots", DraftMid: "1 to 2 demo shots", DraftShort: "1 demo shot"}
+DEMO_COUNT = {Draft: "3 to 4 shots (2 only if the recording has fewer usable moments)",
+              DraftMid: "1 to 2 shots (2 only if the take has two strong moments)",
+              DraftShort: "exactly 1 shot, the take's strongest moment"}
+BEAT_LINES = {"how": "- how: one shot on how it works under the hood.\n",
+              "impact": "- impact: one shot on what changes for the user.\n"}
+
+
+def target(time_limit_s: int) -> tuple[int, int]:
+    """Seconds and spoken words the script aims for under the brief's time limit."""
+    s = min(TARGET_S, round(TARGET_SHARE * time_limit_s))
+    return s, TARGET_WORDS if s == TARGET_S else round(TARGET_RATE * s)  # the longest keeps its 190 words
+
+
+def draft_model(target_s: int) -> type[AnyDraft]:
+    return DraftShort if target_s <= 30 else DraftMid if target_s <= 45 else Draft
+
+
+def beats_of(model: type[AnyDraft]) -> list[str]:
+    """The beats a draft model holds, in BUDGET order (``hooks`` -> hook, ``demos`` -> demo)."""
+    return [b for b in BUDGET if b in model.model_fields or f"{b}s" in model.model_fields]
+
+
+def budget(beats: list[str], total: int) -> dict[str, int]:
+    """BUDGET for ``beats`` scaled to ``total`` words in the same proportions; rounding goes to demo."""
+    kept = sum(BUDGET[b] for b in beats)
+    out = {b: round(BUDGET[b] * total / kept) for b in beats}
+    out["demo"] += total - sum(out.values())
+    return out
 
 
 class Answer(BaseModel):
@@ -207,7 +263,7 @@ def unclaimed_sentences(line: str, claims: list[str]) -> list[str]:
     return out
 
 
-def build_shots(draft: Draft, hook_line: str, segments: list[Segment], repo: RepoFiles) -> list[Shot]:
+def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: RepoFiles) -> list[Shot]:
     """Draft -> shots in beat order, footage inside real segments, claims ``pending``."""
     by_id = {s.segment_id: s for s in segments}
     real = {
@@ -219,8 +275,7 @@ def build_shots(draft: Draft, hook_line: str, segments: list[Segment], repo: Rep
         ("hook", CardDraft(voice_line=hook_line, card_prompt=draft.hook_card_prompt, claims=[])),
         ("problem", draft.problem),
         *(("demo", d) for d in draft.demos),
-        ("how", draft.how),
-        ("impact", draft.impact),
+        *((b, getattr(draft, b)) for b in ("how", "impact") if hasattr(draft, b)),
         ("ask", draft.ask),
     ]
     shots, n_claims = [], 0
@@ -501,19 +556,29 @@ def _segment_lines(segments: list[Segment], moments: Moments, scores: FrameScore
     return "\n".join(lines)
 
 
-def draft_script(run: RunConfig, summary: Summary, segment_lines: str, repo: RepoFiles) -> Draft:
+def draft_script(run: RunConfig, summary: Summary, segment_lines: str, repo: RepoFiles) -> AnyDraft:
+    target_s, total = target(run.brief.time_limit_s)
+    model = draft_model(target_s)
+    beats = beats_of(model)
+    footage = [b for b in beats if b not in ("hook", "ask")]
     text = gemini.prompt(
         "script_draft",
         language=run.brief.language,
+        beats=", ".join(DEMO_BEAT[model] if b == "demo" else b for b in beats),
+        target_s=str(target_s),
+        words=str(total),
+        footage=", ".join("demos" if b == "demo" else b for b in footage),
+        demo_count=DEMO_COUNT[model],
+        beat_lines="".join(BEAT_LINES.get(b, "") for b in footage),
         budget="\n".join(f"- {b}: {w} words" + (" across all demo shots" if b == "demo" else "")
-                         for b, w in BUDGET.items()),
+                         for b, w in budget(beats, total).items()),
         criteria=", ".join(run.brief.criteria),
         summary=summary.model_dump_json(indent=2),
         segments=segment_lines,
         headings=json.dumps(sorted(readme_headings(repo.readme))),
         tree=json.dumps([k.path for k in repo.key_files]),  # only files the truth check can read
     )
-    return gemini.generate(text, Draft, thinking="low")  # default or medium thinking took 130-160 s on a 1-min take
+    return gemini.generate(text, model, thinking="low")  # default or medium thinking took 130-160 s on a 1-min take
 
 
 def judge_hooks(summary: Summary, texts: list[str]) -> HookJudgement:
@@ -592,9 +657,11 @@ def run(run_dir: Path, run: RunConfig) -> None:
     tally = Counter(c.status for c, _ in results)
     events.emit("script", f"Truth check: {tally['backed']} backed, {tally['rewritten']} rewritten, "
                 f"{tally['dropped']} dropped; {len(drafted) - len(shots)} shots left with no words removed")
-    words_per = {b: sum(len(s.voice_line.split()) for s in shots if s.beat == b) for b in BUDGET}
-    over = [f"{b} {w}/{BUDGET[b]}" for b, w in words_per.items() if w > BUDGET[b]]
-    events.emit("script", f"Script: {len(shots)} shots, {sum(words_per.values())}/{TARGET_WORDS} words (~{TARGET_S} s)"
+    target_s, total = target(run.brief.time_limit_s)
+    plan = budget(beats_of(draft_model(target_s)), total)
+    words_per = {b: sum(len(s.voice_line.split()) for s in shots if s.beat == b) for b in plan}
+    over = [f"{b} {w}/{plan[b]}" for b, w in words_per.items() if w > plan[b]]
+    events.emit("script", f"Script: {len(shots)} shots, {sum(words_per.values())}/{total} words (~{target_s} s)"
                 + (f"; over budget: {', '.join(over)}" if over else ""), data={"words": words_per})
 
 

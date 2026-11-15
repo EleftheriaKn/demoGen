@@ -308,3 +308,33 @@ def test_trimmed_claim_goes_and_the_rest_is_still_checked():
     shot = script.build_shots(_draft(impact=impact), "x", SEGMENTS, REPO)[5]
     assert shot.voice_line == "It syncs your pantry across devices."
     assert [(c.text, [e.ref for e in c.evidence]) for c in shot.claims] == [("It syncs your pantry across devices.", ["c03"])]
+
+
+@pytest.mark.parametrize("limit,target_s,total,model,beats", [
+    (30, 26, 65, script.DraftShort, ["hook", "problem", "demo", "ask"]),
+    (45, 38, 95, script.DraftMid, ["hook", "problem", "demo", "impact", "ask"]),
+    (180, 75, 190, script.Draft, ["hook", "problem", "demo", "how", "impact", "ask"]),
+])
+def test_target_words_and_beats_follow_the_time_limit(limit, target_s, total, model, beats):
+    assert script.target(limit) == (target_s, total)
+    assert script.draft_model(target_s) is model
+    assert script.beats_of(model) == beats
+    plan = script.budget(beats, total)
+    assert list(plan) == beats and sum(plan.values()) == total
+
+
+def test_180_s_keeps_todays_budget_and_shots():
+    assert script.budget(script.beats_of(script.Draft), 190) == script.BUDGET
+    assert script.budget(["hook", "problem", "demo", "impact", "ask"], 95) == {
+        "hook": 7, "problem": 16, "demo": 57, "impact": 9, "ask": 6}  # same proportions as BUDGET
+
+
+def test_short_drafts_build_shots_in_beat_order():
+    base = _draft().model_dump()
+    short = script.DraftShort(**{k: base[k] for k in script.DraftShort.model_fields} | {"demos": base["demos"][:1]})
+    assert [s.beat for s in script.build_shots(short, "h", SEGMENTS, REPO)] == ["hook", "problem", "demo", "ask"]
+    mid = script.DraftMid(**{k: base[k] for k in script.DraftMid.model_fields})
+    assert [s.beat for s in script.build_shots(mid, "h", SEGMENTS, REPO)] == ["hook", "problem", "demo", "demo",
+                                                                              "impact", "ask"]
+    with pytest.raises(ValueError):
+        script.DraftShort(**{k: base[k] for k in script.DraftShort.model_fields})  # 2 demos > 1
