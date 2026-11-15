@@ -96,7 +96,8 @@ async def make_demo_video(
         recording_path: Absolute path of the screen recording on this machine.
             Omit to use the built-in fixture take.
         criteria: Judging criteria, verbatim from the hackathon brief.
-        time_limit_s: Maximum length of the video, in seconds.
+        time_limit_s: Maximum length of the video, in seconds: 30 or 45 for a short clip,
+            up to 180 for a full hackathon demo.
         language: Voice and caption language: "en" or "el".
         second_language: Optional second caption language: "en", "el" or null.
         mode: "cheap" (fast, for testing) or "full" (best quality).

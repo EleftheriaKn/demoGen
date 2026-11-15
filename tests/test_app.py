@@ -89,6 +89,15 @@ def test_brief_text_saved(runs):
     assert not (runs / r.json()["run_id"] / "brief.txt").exists()
 
 
+def test_short_video_lengths(runs):
+    client = TestClient(api.app)
+    page = client.get("/").text
+    assert '<option value="30">' in page and '<option value="45">' in page
+    for secs in (30, 45):
+        rid = client.post("/runs", data={"repo_url": "https://github.com/x/y", "time_limit_s": secs}).json()["run_id"]
+        assert json.loads((runs / rid / "run.json").read_text(encoding="utf-8"))["brief"]["time_limit_s"] == secs
+
+
 def test_cut_panel_on_board():
     page = TestClient(api.app).get("/").text
     # C13: generated-shot badges and the real-footage share (>= 70%) read from timeline.json
