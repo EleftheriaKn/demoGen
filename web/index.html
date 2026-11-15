@@ -102,6 +102,17 @@
     button, .btn { padding: 14px; }
   }
 
+  /* settings (laptop only) */
+  .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .settings { margin-bottom: 20px; }
+  .settings h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 0; }
+  .settings .state { font-size: 12px; margin-left: 6px; } .settings .state.on { color: var(--ok); } .settings .state.off { color: var(--muted); }
+  .settings .row3 { display: flex; gap: 8px; align-items: center; } .settings .row3 input { flex: 1; }
+  .settings .row3 button { width: auto; margin: 0; padding: 8px 10px; background: transparent; color: var(--bad); border: 1px solid var(--line); font-size: 13px; }
+  .settings code { font-size: 12px; }
+  .settings a { color: var(--accent); overflow-wrap: anywhere; }
+  #settings-msg.ok { color: var(--ok); }
+
   /* QR for the phone (B14 serves /qr.svg) */
   section.qr { margin-top: 20px; text-align: center; }
   section.qr img { display: block; margin: 0 auto 6px; width: 180px; height: 180px; background: #fff; border-radius: 8px; padding: 6px; }
@@ -150,8 +161,18 @@
 </head>
 <body>
 <main>
-  <h1>DemoCut</h1>
+  <div class="top"><h1>DemoCut</h1><button type="button" class="link" id="settings-btn" hidden>⚙ Settings</button></div>
   <p class="sub">Repo + one rough take + the brief → a demo video cut from real footage.</p>
+
+  <section id="settings" class="settings" hidden>
+    <h2>Settings · keys</h2>
+    <p class="hint">Only on this laptop. Saved to <code>.env</code> and used right away, no restart.
+      Saved keys are never shown again: leave a field empty to keep it.</p>
+    <form id="settings-form" autocomplete="off"></form>
+    <div class="hint" id="cb-hint"></div>
+    <div class="nav"><button type="button" class="back" id="settings-close">Close</button><button type="button" id="settings-save">Save</button></div>
+    <div class="err" id="settings-msg"></div>
+  </section>
 
   <div class="grid">
     <div>
@@ -669,8 +690,8 @@ function renderRepos() {
 async function initGitHub() {
   let me;
   try { me = await (await fetch("/auth/me")).json(); } catch (_) { return; }
+  $("gh").hidden = !me.enabled;
   if (!me.enabled) return;                               // no OAuth keys: paste-a-link only
-  $("gh").hidden = false;
   const err = new URLSearchParams(location.search).get("login_error");
   if (err) { $("err-1").textContent = "GitHub login didn't work. Try again, or paste the link."; history.replaceState(null, "", "/" + location.hash); }
   if (!me.logged_in) return;
@@ -688,6 +709,63 @@ async function initGitHub() {
 $("gh-filter").oninput = renderRepos;
 $("gh-logout").onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
 initGitHub();
+
+// ---- Settings: keys from the board, laptop only (the server refuses other devices) -------
+let toClear = new Set();
+
+async function loadSettings() {
+  let r;
+  try { r = await fetch("/settings"); } catch (_) { return null; }
+  return r.ok ? r.json() : null;
+}
+
+function renderSettings(cfg) {
+  toClear = new Set();
+  let html = "", group = "";
+  for (const f of cfg.fields) {
+    if (f.group !== group) { group = f.group; html += `<h3>${esc(group)}</h3>`; }
+    const state = f.set ? `<span class="state on">${f.secret ? "set " + esc(f.hint) : "set"}</span>` : `<span class="state off">not set</span>`;
+    const val = f.secret ? "" : esc(f.value || "");
+    const ph = f.secret ? (f.set ? "leave empty to keep" : "paste the key") : "";
+    html += `<label for="set-${f.key}">${esc(f.label)} ${state}</label>`
+      + `<div class="row3"><input id="set-${f.key}" name="${f.key}" type="${f.secret ? "password" : "text"}" value="${val}" placeholder="${ph}" spellcheck="false">`
+      + (f.set ? `<button type="button" data-clear="${f.key}">Clear</button>` : "") + `</div>`
+      + `<div class="hint">${f.help.startsWith("http") ? `<a href="${esc(f.help)}" target="_blank" rel="noopener">${esc(f.help)}</a>` : esc(f.help)}</div>`;
+  }
+  $("settings-form").innerHTML = html;
+  $("cb-hint").innerHTML = `GitHub OAuth app callback URL for the address you open the board on, e.g. <code>${esc(cfg.this_address)}${esc(cfg.github_callback_hint)}</code>`
+    + ` (for the phone, use the laptop's Wi-Fi address instead of localhost).`;
+  $("settings-form").querySelectorAll("button[data-clear]").forEach(b => b.onclick = () => {
+    toClear.add(b.dataset.clear);
+    const inp = $("set-" + b.dataset.clear); inp.value = ""; inp.placeholder = "will be cleared on Save";
+    b.disabled = true;
+  });
+}
+
+$("settings-btn").onclick = async () => {
+  const cfg = await loadSettings();
+  if (!cfg) return;
+  renderSettings(cfg);
+  $("settings-msg").textContent = ""; $("settings-msg").className = "err";
+  $("settings").hidden = false;
+  $("settings").scrollIntoView({ behavior: "smooth" });
+};
+$("settings-close").onclick = () => { $("settings").hidden = true; };
+$("settings-save").onclick = async () => {
+  const values = {};
+  new FormData($("settings-form")).forEach((v, k) => { if (String(v).trim()) values[k] = String(v).trim(); });
+  const res = await fetch("/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+                                         body: JSON.stringify({ values, clear: [...toClear] }) });
+  if (!res.ok) { $("settings-msg").textContent = await apiError(res); return; }
+  const out = await res.json();
+  renderSettings(await loadSettings());
+  $("settings-msg").className = "err ok";
+  $("settings-msg").textContent = (out.saved.length || out.cleared.length)
+    ? `Saved${out.saved.length ? ": " + out.saved.join(", ") : ""}${out.cleared.length ? " · cleared: " + out.cleared.join(", ") : ""}. Used from the next run.`
+    : "Nothing changed.";
+  initGitHub();                                          // the GitHub button appears/disappears at once
+};
+loadSettings().then(cfg => { if (cfg) $("settings-btn").hidden = false; });
 
 // QR code for the phone, on laptop screens only. Exists when started with `python -m backend.serve`.
 if (window.matchMedia("(min-width: 821px)").matches && !window.matchMedia("(pointer: coarse)").matches) {
