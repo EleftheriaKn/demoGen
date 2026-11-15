@@ -32,9 +32,8 @@ def live(monkeypatch):
 
 
 def test_no_usable_moments():
-    with pytest.raises(ValueError) as e:
-        understand.fix_moments([], 10.0, set())
-    assert str(e.value).startswith("The recording doesn't show clear steps in the app. Record a 1–4 minute take")
+    # B24: not an error any more; the take stays as context footage and the flow is generated
+    assert understand.fix_moments([], 10.0, set()).moments == []
 
 
 def test_no_feature_has_evidence():
@@ -93,12 +92,21 @@ def test_script_with_no_footage(tmp_path, monkeypatch):
     for name in ("run.json", "repo_files.json", "summary.json", "moments.json", "candidates.json", "frame_scores.json"):
         shutil.copy2(FIXTURE_RUN / name, tmp_path / name)
     (tmp_path / "candidates.json").write_text(Candidates(segments=[]).model_dump_json(), encoding="utf-8")
-    monkeypatch.setattr(script, "draft_script", lambda *a: pytest.fail("drafted with no footage"))
+    seen = {}
+
+    class Drafted(Exception):
+        pass
+
+    def draft(run, summary, lines, repo, flow=""):
+        seen["flow"] = flow
+        raise Drafted
+
+    monkeypatch.setattr(script, "draft_script", draft)
     cfg = load_run(tmp_path)
     events.bind(tmp_path, cfg.run_id)
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(Drafted):  # B24: no footage still drafts a script, every shot generated
         script.run(tmp_path, cfg)
-    assert str(e.value).startswith("Nothing in the recording could be used as footage. Record a longer take")
+    assert "There are no usable segments: every middle shot is generated" in seen["flow"]
 
 
 def test_gemini_rate_limit_after_retries(live, monkeypatch):

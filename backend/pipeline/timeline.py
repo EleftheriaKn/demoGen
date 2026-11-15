@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 from backend import events
-from backend.contracts import (Assets, BrollAsset, Candidates, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
+from backend.contracts import (Assets, BrollAsset, Candidates, Moments, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
 from backend.pipeline.beats import bar_loop, beat_times, snap
 from backend.pipeline.cards import best_frames, grab_frame, hero_card, panel_card, rasterize
@@ -145,6 +145,16 @@ def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int], backgro
     return rel
 
 
+def take_shows_app(d: Path) -> bool:
+    """False when every moment of the take is "dead" (a camera video of the team, no app on screen): its
+    frames must not sit in a browser mockup as if they were the app. No moments.json: assume it does."""
+    mp = d / "moments.json"
+    if not mp.exists():
+        return True
+    moments = Moments.model_validate_json(mp.read_text(encoding="utf-8")).moments
+    return any(m.kind != "dead" for m in moments)
+
+
 def repo_screenshots(d: Path) -> list[Path]:
     """README screenshots ingest downloaded: the real screen when there is no take."""
     rp = d / "repo_files.json"
@@ -196,9 +206,9 @@ def run(run_dir: Path, run: RunConfig) -> None:
     n_card_shots = sum(1 for s in script.shots if s.visual.kind != "footage" or take is None)
     if not n_card_shots:
         hero = []
-    elif take:  # the judge's best frames of the take
+    elif take and take_shows_app(d):  # the judge's best frames of the take
         hero = card_frames(d, take, min(n_card_shots, 2))
-    else:  # no take: the repo's own screenshots stand in for the real screen
+    else:  # no take, or a take that never shows the app: the repo's own screenshots stand in for the screen
         hero = repo_screenshots(d)
     n_cards = 0
     spans = [(s.visual.source_start, s.visual.source_end) if s.visual.kind == "footage" else None

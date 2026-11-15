@@ -403,6 +403,9 @@ def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: 
         own: list[Evidence] = []  # evidence every claim of this shot carries
         if isinstance(d, FootageDraft):
             gen, seg = treatment(d, beat, by_id, by_moment)
+            if not gen and seg is None:  # footage on a segment that isn't there: illustrate it instead
+                events.emit("script", f"s{i:02d} ({beat}): segment {d.segment_id!r} doesn't exist, generated instead")
+                gen = True
             step = steps.get(_step_id(getattr(d, "flow_step", "")))
             if gen:
                 frames = reference_frames(seg, step.step_id if step else "", segments, by_moment, flow)
@@ -410,8 +413,6 @@ def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: 
                 visual = ShotVisual(kind="card", card_prompt=prompt, reference_frames=frames)
                 own = _step_evidence(step)
             else:
-                if seg is None:
-                    raise ValueError(f"{gemini.INCOMPLETE} [script: {beat} shot uses unknown segment {d.segment_id!r}]")
                 if seg.segment_id != d.segment_id:  # moved onto the wow / ok moment of its step
                     d = d.model_copy(update={"segment_id": seg.segment_id, "source_start": seg.start,
                                              "source_end": seg.end})
@@ -463,17 +464,18 @@ def real_share(shots: list[Shot]) -> float:
     return sum(planned_s(s) for s in shots if not s.generated) / total if total else 1.0
 
 
-def cap_generated(shots: list[Shot]) -> list[Shot]:
-    """Drop generated middle shots, last first, until real footage is at least MIN_REAL of the
-    planned runtime. Hook and ask cards stay (they count as generated)."""
+def cap_generated(shots: list[Shot], min_real: float = MIN_REAL) -> list[Shot]:
+    """Drop generated middle shots, last first, until real footage is at least ``min_real`` of the
+    planned runtime. Hook and ask cards stay (they count as generated). A take that never shows the
+    app passes 0: its generated flow is the video."""
     out = list(shots)
-    while real_share(out) < MIN_REAL:
+    while real_share(out) < min_real:
         k = next((k for k in range(len(out) - 1, -1, -1)
                   if out[k].generated and out[k].beat not in ("hook", "ask")), None)
         if k is None:
             break
         events.emit("script", f"Dropped generated {out[k].shot_id} ({out[k].beat}): real footage "
-                              f"{real_share(out):.0%} < {MIN_REAL:.0%}")
+                              f"{real_share(out):.0%} < {min_real:.0%}")
         out.pop(k)
     return out
 
@@ -642,6 +644,31 @@ def add_callouts(shots: list[Shot], ties: dict[str, tuple[str, str]]) -> list[Sh
     return out
 
 
+def demo_steps(draft: AnyDraft) -> dict[str, str]:
+    """shot_id -> flow step id of each demo shot (build_shots numbers hook s01, problem s02, demos s03...)."""
+    return {f"s{k + 3:02d}": _step_id(getattr(d, "flow_step", "")) for k, d in enumerate(draft.demos)}
+
+
+def keep_flow_steps(shots: list[Shot], drafted: list[Shot], flow: Sequence[FlowStep],
+                    step_of: dict[str, str]) -> list[Shot]:
+    """A generated demo shot the truth check emptied comes back with its flow step's own sentence (what
+    understand read from the repo, with that step's evidence) as a fact-free line, so the walkthrough keeps
+    every step instead of skipping it. The picture is labelled an illustration anyway."""
+    steps = {f.step_id: f for f in flow}
+    kept = {s.shot_id for s in shots}
+    order = [s.shot_id for s in drafted]
+    out = list(shots)
+    for old in drafted:
+        step = steps.get(step_of.get(old.shot_id, ""))
+        if old.shot_id in kept or not old.generated or old.beat != "demo" or step is None:
+            continue
+        events.emit("script", f"{old.shot_id}: claim not backed, kept the flow step's own words instead "
+                              f"({step.step_id}: {step.text})")
+        i = next((k for k, s in enumerate(out) if order.index(s.shot_id) > order.index(old.shot_id)), len(out))
+        out.insert(i, old.model_copy(update={"voice_line": step.text, "claims": []}))
+    return out
+
+
 def readme_section(readme: str, heading: str) -> str:
     """The heading's line and its text up to the next heading of the same or a higher level."""
     level, out, fenced = None, [], False
@@ -789,19 +816,46 @@ def add_zoom(run_dir: Path, shots: list[Shot]) -> list[Shot]:
 
 def _segment_lines(segments: list[Segment], moments: Moments, scores: FrameScores) -> str:
     kinds = {m.moment_id: m for m in moments.moments}
+    context = not shows_app(moments)  # B24: clips of a take that never shows the app say what they show
     best: dict[str, float] = {}
     for fs in scores.scores:
         best[fs.segment_id] = max(best.get(fs.segment_id, 0.0), fs.total)
     lines = []
     for s in segments:
         m = kinds.get(s.moment_id or "")
-        what = f"{m.kind}: {m.description}" if m else "scene cut"
+        if m is None and context:  # a scene clip: describe it by the moment it lies in
+            m = max(moments.moments, key=lambda x: min(x.end, s.end) - max(x.start, s.start), default=None)
+            m = m if m and min(m.end, s.end) - max(m.start, s.start) > 0 else None
+            # only clips kept from a dead stretch (B24) say more; others read as before, so prompts stay the same
+            what = f"context footage, no app on screen: {m.description}" if m and m.kind == "dead" else "scene cut"
+        elif m is None:
+            what = "scene cut"
+        else:
+            what = (f"context footage, no app on screen: {m.description}" if context and m.kind == "dead"
+                    else f"{m.kind}: {m.description}")
         if m and m.quality:  # a run with a flow (A13)
             what += f", quality {m.quality}" + (f", shows step {m.flow_step}" if m.flow_step else "")
         cap = round(WORDS_PER_S * (s.end - s.start + HOLD_S))  # what fit_voice keeps at most
         lines.append(f"{s.segment_id} {s.start:g}-{s.end:g}s, {what}, score {best.get(s.segment_id, 0):.2f}, "
                      f"voice up to {cap} words")
     return "\n".join(lines)
+
+
+def shows_app(moments: Moments) -> bool:
+    """Does any moment of the take show the app (anything but "dead")?"""
+    return any(m.kind != "dead" for m in moments.moments)
+
+
+def context_rules(has_segments: bool) -> str:
+    """Extra rules for a take that never shows the app (or no usable take): make a video anyway."""
+    use = ("Its segments are context footage (the team, people, places): use them for the problem and impact "
+           "shots (and how, if it fits), with claims backed only by README headings or repo files listed above, "
+           "never footage evidence, since the app isn't on screen. "
+           if has_segments else "There are no usable segments: every middle shot is generated, segment_id \"\". ")
+    return ("\n\nThe recording never shows the app on screen. These rules override the footage rules above. "
+            + use + "Every demo shot is generated (generated true) from the flow steps above, in flow order, "
+            "one step per demo shot, with a card_prompt for the app's screen at that step. The rule that half the "
+            "runtime stays real footage does not apply to this video.")
 
 
 def flow_block(summary: Summary, moments: Moments) -> str:
@@ -859,18 +913,26 @@ def run(run_dir: Path, run: RunConfig) -> None:
 
     summary, repo = load("summary.json", Summary), load("repo_files.json", RepoFiles)
     segments = load("candidates.json", Candidates).segments
-    if not segments:
-        raise ValueError("Nothing in the recording could be used as footage. Record a longer take that "
-                         "shows the app's main results clearly.")
-    moments = load("moments.json", Moments)
-    lines = _segment_lines(segments, moments, load("frame_scores.json", FrameScores))
+    mpath = run_dir / "moments.json"
+    moments = load("moments.json", Moments) if mpath.exists() else Moments(moments=[])
+    fpath = run_dir / "frame_scores.json"
+    lines = _segment_lines(segments, moments, load("frame_scores.json", FrameScores) if fpath.exists()
+                           else FrameScores(questions=[], scores=[]))
+    context = not segments or not shows_app(moments)  # no app in the take: never fail, generate the flow
+    if context:
+        events.emit("script", "The recording doesn't show the app: " + (
+            f"its {len(segments)} clips are context footage, the app's flow is generated from the repo"
+            if segments else "every shot is generated from the repo"))
 
-    draft = draft_script(run, summary, lines, repo, flow_block(summary, moments))
+    draft = draft_script(run, summary, lines or "(none)", repo,
+                         flow_block(summary, moments) + context_rules(bool(segments)) if context
+                         else flow_block(summary, moments))
     judgement = judge_hooks(summary, draft.hooks)
     hooks, verdict = score_hooks(draft.hooks, judgement, summary.name)
     chosen = next(h for h in hooks if h.hook_id == verdict.hook_id) if verdict else hooks[-1]
     ties: dict[str, tuple[str, str]] = {}
-    drafted = cap_generated(build_shots(draft, chosen.text, segments, repo, moments, summary.flow, ties))
+    min_real = 0.0 if context else MIN_REAL
+    drafted = cap_generated(build_shots(draft, chosen.text, segments, repo, moments, summary.flow, ties), min_real)
     events.emit("script", "Shots: " + ", ".join(
         f"{s.shot_id} {s.beat} {'generated' if s.generated else 'footage'}" for s in drafted)
         + f"; real footage {real_share(drafted):.0%} of the plan")
@@ -880,8 +942,9 @@ def run(run_dir: Path, run: RunConfig) -> None:
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         results = list(pool.map(lambda cg: check_claim(cg[0], *evidence_shown(cg[0].evidence, run_dir, by_id, repo, cg[1])),
                                 claims))
-    shots = cap_generated(keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted,
-                                       summary.problem, segments))
+    checked = apply_checks(drafted, {c.claim_id: c for c, _ in results})
+    checked = keep_flow_steps(checked, drafted, summary.flow, demo_steps(draft))
+    shots = cap_generated(keep_problem(checked, drafted, summary.problem, segments), min_real)
     shots = add_callouts(shots, ties)
     if run.mode != "cheap":
         shots = add_zoom(run_dir, shots)

@@ -236,9 +236,9 @@ def fix_moments(raw: list[_RawMoment], duration: float, feature_ids: set[str],
             flow_step=r.flow_step if r.flow_step in flow_ids else None,
         ))
         prev_end = end
-    if not out:
-        raise ValueError("The recording doesn't show clear steps in the app. Record a 1–4 minute take of the "
-                         "app in use, pausing about a second after each result.")
+    if not out:  # not fatal: candidates keeps the take's scenes and script generates the flow from the repo
+        events.emit("understand", "No clear steps in the app found in the recording: its scenes stay as "
+                                  "context footage and the flow is generated from the repo")
     return Moments(moments=out)
 
 
