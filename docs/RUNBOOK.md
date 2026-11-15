@@ -408,6 +408,10 @@ B turns decisions into pixels. B needs no keys until B4, so B can start immediat
 | B16 | Animation clips | `broll` clips from fal play fitted to the voice (speed ≤ 1.5, hold, push-in on holds), any size / fps, no audio of their own, "illustration" tag; a missing clip falls back to the panel | 13:30 | To do |
 | B17 | No take in B's stages | Ingest, candidates, timeline and render run without a recording (no `audio.wav` / candidates, only generated shots); a run with a take is unchanged | 13:30 | Done (Nov 15): no take = empty or missing `recording`; ingest writes 1 s of silence, candidates none, footage shots become cards, hero mockups show the README screenshots. Needs C17 (API) and A20 (script) to be used |
 | B18 | Cuts on the beat | Shot boundaries snap to the music's beats (within ±0.25 s, never cutting a voice line) when there is a music bed | 14:00 | To do |
+| B19 | Brief in the prompts | The pasted brief (`brief.text` in run.json when C14 lands, `brief.txt` until then) goes into understand ×2, judge_frames, judge_takes, script_draft, script_hooks and rubric through `{brief_block}` (`backend/brief.py` + a hook in `gemini.prompt()`); it steers what to show, never counts as evidence; with no brief every prompt is unchanged | 14:00 | Done (Nov 15) |
+| B20 | Truth check reads stills | `script_claim.md`: an action (adds, filters, completes...) is backed when the frames show its result; stops most footage-claim drops | 14:00 | Done (Nov 15) |
+| B21 | Rubric: long enough | Code check "at least 60% of the target length" (runs in cheap mode too); the 24 s cut would now fail | 14:00 | Done (Nov 15) |
+| B22 | Draft checklist | Short checklist at the end of `script_draft.md` (word limits, claims with evidence, no facts in hook/ask, demo order, answer the brief, nothing invented) | 14:00 | Done (Nov 15) |
 
 ## Tickets · C · App, board, MCP and pitch
 
@@ -470,6 +474,9 @@ Three checkpoints decide what gets cut. Each person sleeps once, staggered, so t
 cards), then fal infographic backgrounds (keep render's text overlays on plain backgrounds), then music, then the MCP tool, then GitHub login (keep the paste-a-repo-URL field). Never cut
 the truth check: it is the pitch. Never cut the three inputs on the phone: they are the pitch too.
 
+> B19–B22 (prompt plan, Nov 15): B edited A's prompt files and `gemini.prompt()` for these, with A told; the
+> script tests were re-recorded with `pytest --live`.
+>
 > Version 2 tickets (A12–A20, B15–B18, C14–C17) come from "Version 2 of the idea", "Taste and references"
 > and "Recording optional" above (Nov 15, ~11:00–12:30).
 > The feature freeze moves for them; order: A15 and A12 first (they stop the empty videos), then A13/A14,

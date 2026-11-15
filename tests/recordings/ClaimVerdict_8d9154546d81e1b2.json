@@ -1,0 +1,7 @@
+{
+  "score": 1.0,
+  "reason": "The README describes taking one photo of an open fridge to detect ingredients, and vision.py asks a vision model for detected ingredients.",
+  "action": "keep",
+  "rewrite": "",
+  "rewrite_supported": false
+}

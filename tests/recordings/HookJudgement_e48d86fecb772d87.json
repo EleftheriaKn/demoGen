@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.4,
+          "reason": "It is an overused, generic opening question that sparks minimal curiosity."
+        },
+        {
+          "score": 0.2,
+          "reason": "It could apply to any generic recipe or food delivery service."
+        },
+        {
+          "score": 0.4,
+          "reason": "It targets a broad user pain point rather than conveying what this specific app does."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "The relatable mental image grabs attention quickly within five seconds."
+        },
+        {
+          "score": 0.7,
+          "reason": "Referencing the fridge connects directly to the core feature of photographing fridge ingredients."
+        },
+        {
+          "score": 0.6,
+          "reason": "It frames the specific user moment and dilemma the app actively resolves."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It highlights a relatable problem quickly, though it feels slightly indirect."
+        },
+        {
+          "score": 0.3,
+          "reason": "Food spoilage is a secondary outcome rather than specific to a fridge-photo recipe tool."
+        },
+        {
+          "score": 0.3,
+          "reason": "It focuses on an indirect byproduct rather than what the app directly provides the user."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

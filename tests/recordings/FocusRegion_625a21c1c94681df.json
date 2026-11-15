@@ -1,9 +1,9 @@
 {
   "box_2d": [
-    315,
-    574,
-    680,
-    924
+    310,
+    560,
+    690,
+    940
   ],
-  "reason": "video player showing the recipe demo"
+  "reason": "demo screen showing recipe generation results"
 }
