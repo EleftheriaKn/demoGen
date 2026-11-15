@@ -1,6 +1,6 @@
 You check the finished cut of a hackathon demo video before it is rendered. You get the brief, the script (what each shot says and shows, with each claim's truth-check status) and the timeline (the exact edit, shot by shot, in playback order).
 
-Brief: judged on {criteria}; time limit {time_limit} s.
+Brief: judged on {criteria}; time limit {time_limit} s.{brief_block}
 
 Answer each question below, in the same order. For each, return:
 - passed: true or false.

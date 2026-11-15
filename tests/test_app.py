@@ -83,10 +83,15 @@ def test_installable_on_phone():
 
 def test_brief_text_saved(runs):
     client = TestClient(api.app)
-    r = client.post("/runs", data={"repo_url": "https://github.com/x/y", "brief_text": "  Judged on usefulness.  "})
-    assert (runs / r.json()["run_id"] / "brief.txt").read_text() == "Judged on usefulness.\n"
+    r = client.post("/runs", data={"repo_url": "https://github.com/x/y", "brief_text": "  Judged on usefulness. Μέχρι 3 λεπτά.  "})
+    d = runs / r.json()["run_id"]
+    cfg = json.loads((d / "run.json").read_text(encoding="utf-8"))
+    assert cfg["brief"]["text"] == "Judged on usefulness. Μέχρι 3 λεπτά."          # C14: in run.json
+    assert (d / "brief.txt").read_text(encoding="utf-8") == "Judged on usefulness. Μέχρι 3 λεπτά.\n"
     r = client.post("/runs", data={"repo_url": "https://github.com/x/y"})
-    assert not (runs / r.json()["run_id"] / "brief.txt").exists()
+    d = runs / r.json()["run_id"]
+    assert "text" not in json.loads((d / "run.json").read_text(encoding="utf-8"))["brief"]  # unset: left out
+    assert not (d / "brief.txt").exists()
 
 
 def test_short_video_lengths(runs):
@@ -100,8 +105,8 @@ def test_short_video_lengths(runs):
 
 def test_cut_panel_on_board():
     page = TestClient(api.app).get("/").text
-    # C13: generated-shot badges and the real-footage share (>= 70%) read from timeline.json
-    assert 'id="strip"' in page and "renderCut" in page and "REAL_TARGET = 0.7" in page
+    # C13: generated-shot badges and the real-footage share (>= 50%, v2) read from timeline.json
+    assert 'id="strip"' in page and "renderCut" in page and "REAL_TARGET = 0.5" in page
     assert '"timeline.json"' in page
 
 

@@ -9,6 +9,8 @@ address. Nothing on a card is a claim: name, address and a real frame. Greek and
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -18,6 +20,30 @@ from backend.pipeline.ff import FONTS, ff, hdr_to_sdr, video_info
 
 FONT = FONTS / "NotoSans-Bold.ttf"
 BG_PLAIN = (17, 24, 39)
+SUBSTITUTE = {"→": "›", "⇒": "›", "➜": "›", "⟶": "›", "➔": "›", "←": "‹", "⇐": "‹", "↔": "‹›",
+              "✓": "•", "✔": "•", "✅": "•", "★": "•", "☆": "•"}
+_NOTDEF: dict = {}
+
+
+def _has_glyph(ch: str) -> bool:
+    f = _font(40)
+    if "m" not in _NOTDEF:
+        m = f.getmask("\U0010FFFF")
+        _NOTDEF["m"] = (m.getbbox(), bytes(m))
+    m = f.getmask(ch)
+    return (m.getbbox(), bytes(m)) != _NOTDEF["m"]
+
+
+def font_safe(text: str) -> str:
+    """Text our font can draw: arrows / check marks become ›, ‹, •; other missing glyphs are dropped.
+    Noto Sans Bold has Latin and Greek but no arrows or dingbats, which would render as boxes."""
+    out = []
+    for ch in text:
+        if ch.isspace() or ch.isascii() or _has_glyph(ch):
+            out.append(ch)
+        elif ch in SUBSTITUTE:
+            out.append(SUBSTITUTE[ch])
+    return " ".join("".join(out).split())
 
 
 def best_frames(d: Path, n: int = 2) -> list[float]:
@@ -110,6 +136,7 @@ def hero_card(out: Path, size: tuple[int, int], title: str, background: Path | N
               frame: Path | None = None, subtitle: str = "") -> Path:
     """Compose one card PNG: background, title, optional framed real screen, optional subtitle."""
     w, h = size
+    title, subtitle = font_safe(title), font_safe(subtitle)
     if background and background.exists():
         bg = Image.open(background).convert("RGB")
         k = max(w / bg.width, h / bg.height)
@@ -147,4 +174,87 @@ def hero_card(out: Path, size: tuple[int, int], title: str, background: Path | N
                       anchor="mm")
     out.parent.mkdir(parents=True, exist_ok=True)
     img.convert("RGB").save(out)
+    return out
+
+
+def rasterize(src: Path, out: Path, size: tuple[int, int]) -> Path:
+    """SVG (fal Ideogram Vector) -> PNG fitted inside size; other images are returned as they are."""
+    if src.suffix.lower() != ".svg":
+        return src
+    w, h = size
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.which("rsvg-convert"):  # keeps the drawing's aspect ratio at our size
+        subprocess.run(["rsvg-convert", "-a", "-w", str(w), "-h", str(h), "-o", str(out), str(src)], check=True)
+        return out
+    try:  # ffmpeg built with librsvg (most Linux builds, the Windows "full" builds) reads SVG too
+        ff("-i", src, "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease", "-frames:v", "1", out)
+        return out
+    except RuntimeError:
+        raise RuntimeError(f"can't rasterize {src.name}: install rsvg-convert (librsvg) or an ffmpeg with librsvg") \
+            from None
+
+
+def _halftone(size: tuple[int, int], step: int, alpha: int) -> Image.Image:
+    """A faint dot grid: the 'printed panel' texture behind generated art."""
+    layer = Image.new("RGBA", size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    r = max(1, step // 5)
+    for y in range(0, size[1], step):
+        for x in range((y // step % 2) * step // 2, size[0], step):
+            d.ellipse((x - r, y - r, x + r, y + r), fill=(255, 255, 255, alpha))
+    return layer
+
+
+def panel_card(out: Path, size: tuple[int, int], art: Path | None, tag: str = "Illustration") -> Path:
+    """A generated shot (fal panel / infographic) as a designed panel: the art fitted in a rounded frame with a
+    white border and shadow, over a blurred, darkened copy of itself with a faint halftone, and a small tag
+    so viewers know it is an illustration, not footage (honesty rule)."""
+    w, h = size
+    pad, radius, border = round(h * 0.07), max(10, h // 45), max(3, h // 220)
+    if art and art.exists():
+        src = Image.open(art).convert("RGB")
+        k = max(w / src.width, h / src.height)
+        bg = src.resize((round(src.width * k), round(src.height * k)), Image.LANCZOS)
+        x0, y0 = (bg.width - w) // 2, (bg.height - h) // 2
+        bg = bg.crop((x0, y0, x0 + w, y0 + h)).filter(ImageFilter.GaussianBlur(h // 30)).convert("RGBA")
+        bg = Image.alpha_composite(bg, Image.new("RGBA", (w, h), (10, 12, 20, 150)))
+    else:
+        src, bg = None, Image.new("RGBA", (w, h), BG_PLAIN + (255,))
+    img = Image.alpha_composite(bg, _halftone((w, h), max(10, h // 70), 18))
+    if src is not None:
+        k = min((w - 2 * pad) / src.width, (h - 2 * pad - round(h * 0.08)) / src.height)
+        pw, ph = round(src.width * k), round(src.height * k)
+        x, y = (w - pw) // 2, pad
+        img = Image.alpha_composite(img, _shadow((w, h), (x, y + h // 90, x + pw, y + ph + h // 90), radius, h // 60))
+        frame = Image.new("RGBA", (pw + 2 * border, ph + 2 * border), (0, 0, 0, 0))
+        ImageDraw.Draw(frame).rounded_rectangle((0, 0, frame.width - 1, frame.height - 1), radius + border,
+                                                fill=(255, 255, 255, 255))
+        mask = Image.new("L", (pw, ph), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, pw - 1, ph - 1), radius, fill=255)
+        frame.paste(src.resize((pw, ph), Image.LANCZOS).convert("RGBA"), (border, border), mask)
+        img.alpha_composite(frame, (x - border, y - border))
+    if tag:
+        _draw_tag(img, tag)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.convert("RGB").save(out)
+    return out
+
+
+def _draw_tag(img: Image.Image, tag: str) -> None:
+    """The small "Illustration" pill in the top-left corner (same place on panels and broll clips)."""
+    h = img.height
+    d, pad = ImageDraw.Draw(img), round(h * 0.07)
+    f = _font(max(12, round(h * 0.024)))
+    tw = d.textlength(tag, font=f)
+    tx, ty, ph_ = pad // 2, pad // 2, round(h * 0.04)
+    d.rounded_rectangle((tx, ty, tx + tw + ph_, ty + ph_), ph_ // 2, fill=(0, 0, 0, 150))
+    d.text((tx + ph_ / 2, ty + ph_ / 2), tag, font=f, fill=(255, 255, 255, 230), anchor="lm")
+
+
+def tag_overlay(out: Path, size: tuple[int, int], tag: str = "Illustration") -> Path:
+    """A transparent w x h PNG with only the tag on it, for render to lay over generated video (B16)."""
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    _draw_tag(img, tag)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out)
     return out

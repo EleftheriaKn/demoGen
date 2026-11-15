@@ -17,6 +17,7 @@ from pathlib import Path
 
 from backend import events
 from backend.contracts import RunConfig, Timeline, TimelineMusic, TimelineShot
+from backend.pipeline.cards import font_safe, tag_overlay
 from backend.pipeline.ff import (AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, filter_path, hdr_to_sdr, inner_size,
                                  place, video_info)
 
@@ -24,6 +25,7 @@ MAX_ZOOM = 3.0
 DRIFT = 0.05          # slow push-in on cards and held frames: +5% over the shot
 HOLD_MOTION_S = 1.0   # held frames longer than this get the push-in
 UPSCALE = 2           # zoompan works on a 2x picture so slow moves do not jitter
+CALLOUT_IN_S = 0.35   # the callout pops in shortly after the shot starts
 WORKERS = 4
 LOUDNESS = -16  # LUFS, the usual target for web video
 
@@ -52,6 +54,22 @@ def zoom_filter(s: TimelineShot, iw: int, ih: int, fps: int) -> str:
             f"zoompan=z='{zexp}':x='{x}':y='{y}':d=1:s={iw}x{ih}:fps={fps}")
 
 
+def callout_filter(d: Path, s: TimelineShot, w: int, h: int) -> str:
+    """Kinetic callout (B15): the shot's <= 5 words in a dark pill near the top, fading and sliding in at
+    CALLOUT_IN_S. Text comes from a file with expansion off, so any characters (Greek, %) are drawn as written."""
+    if not s.callout:
+        return ""
+    txt = d / "shots" / f"{s.shot_id}.callout.txt"
+    txt.parent.mkdir(parents=True, exist_ok=True)
+    txt.write_text(font_safe(s.callout.strip()), encoding="utf-8")
+    t0, ramp = CALLOUT_IN_S, 0.25
+    alpha = f"if(lt(t\\,{t0})\\,0\\,min(1\\,(t-{t0})/{ramp}))"
+    y = f"h*0.07+{h // 60}*max(0\\,1-(t-{t0})/{ramp})"
+    return (f"drawtext=fontfile={filter_path(FONTS / 'NotoSans-Bold.ttf')}:textfile={filter_path(txt.resolve())}:"
+            f"expansion=none:fontsize={round(h * 0.045)}:fontcolor=white:box=1:boxcolor=0x111827@0.85:"
+            f"boxborderw={round(h * 0.014)}:x=(w-tw)/2:y='{y}':alpha='{alpha}',")
+
+
 def shot(d: Path, s: TimelineShot, tl: Timeline, out: Path) -> None:
     """One timeline shot -> shots/<id>.mp4 (w x h, fps, yuv420p, 48 kHz stereo), whatever the source."""
     w, h, fps, v = tl.width, tl.height, tl.fps, s.visual
@@ -65,10 +83,16 @@ def shot(d: Path, s: TimelineShot, tl: Timeline, out: Path) -> None:
         inp = ["-ss", f"{v.source_start:.3f}", "-to", f"{v.source_end:.3f}", "-i", v.path]
         src = (f"[0:v]{hdr_to_sdr(info)}setpts=(PTS-STARTPTS)/{v.speed},fps={fps},scale={iw}:{ih},setsar=1,"
                f"tpad=stop_mode=clone:stop_duration={v.freeze_s + 1:.3f}{zoom_filter(s, iw, ih, fps)}[src]")
+    tag, extra = "", []
+    if v.kind == "broll":  # generated video: the same "Illustration" pill as the panels (honesty rule)
+        extra = ["-i", tag_overlay(d / "shots" / f"{s.shot_id}.tag.png", (w, h)).relative_to(d)]
+        tag = "[placed][2:v]overlay=0:0:format=auto,format=yuv420p[tagged];[tagged]"
+    else:
+        tag = "[placed]"
     graph = ";".join([src, place("src", "placed", iw, ih, w, h),
-                      f"[placed]trim=duration={dur}[v]",
-                      f"[1:a]aresample={SAMPLE_RATE},apad[a]"])
-    ff(*inp, "-i", s.voice_path, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
+                      f"{tag}{callout_filter(d, s, w, h)}trim=duration={dur}[v]",
+                      f"[1:a]aresample={SAMPLE_RATE},apad[a]"])  # a broll clip's own sound is never mapped
+    ff(*inp, "-i", s.voice_path, *extra, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
        "-t", dur, "-r", fps, *VIDEO, *AUDIO, out.relative_to(d), cwd=d)
 
 

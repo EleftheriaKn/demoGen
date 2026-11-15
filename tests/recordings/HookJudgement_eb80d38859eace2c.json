@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.4,
+          "reason": "It is an overused, generic rhetorical question that sparks little curiosity."
+        },
+        {
+          "score": 0.2,
+          "reason": "It applies to any recipe website, meal kit, or food delivery app rather than PantryPal."
+        },
+        {
+          "score": 0.4,
+          "reason": "It highlights a general user problem rather than what the app actually delivers."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "The relatable and vivid imagery quickly grabs attention within seconds."
+        },
+        {
+          "score": 0.5,
+          "reason": "It highlights the fridge scenario central to the app, though still misses the photo-to-recipe mechanic."
+        },
+        {
+          "score": 0.5,
+          "reason": "It captures the user's immediate pain point before using the app rather than the solution."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.3,
+          "reason": "It sounds like a routine chore query and fails to evoke strong intrigue."
+        },
+        {
+          "score": 0.3,
+          "reason": "It fits any generic pantry-inventory or recipe finder app."
+        },
+        {
+          "score": 0.4,
+          "reason": "It focuses on the user's dilemma without indicating how the app assists them."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Literal, Optional, get_args
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 # --------------------------------------------------------------------------- #
 # Shared types
@@ -71,6 +71,15 @@ def _check_span(start: float, end: float, what: str) -> None:
         raise ValueError(f"{what}: end ({end}) must be > start ({start})")
 
 
+def _drop_none(data: dict, *keys: str) -> dict:
+    """Leave optional fields added later out of the JSON while they are unset, so older files, fixtures and
+    recorded prompts stay byte-for-byte the same."""
+    for k in keys:
+        if isinstance(data, dict) and data.get(k) is None:
+            data.pop(k, None)
+    return data
+
+
 def _unique(ids: list[str], what: str) -> None:
     dupes = {i for i in ids if ids.count(i) > 1}
     if dupes:
@@ -93,6 +102,14 @@ class Brief(Contract):
     second_language: Optional[str] = Field(
         None, description="Optional BCP-47 code for a second caption/voice language (e.g. 'el'), or null."
     )
+    text: Optional[str] = Field(
+        None, description="The brief as the user pasted it, verbatim, or null. Optional (v2, C14): understand, script "
+        "and rubric read it (A12, A14, A18). Old runs have it in brief.txt instead."
+    )
+
+    @model_serializer(mode="wrap")
+    def _no_empty_text(self, handler):
+        return _drop_none(handler(self), "text")
 
 
 class RunConfig(Contract):
@@ -388,6 +405,14 @@ class Shot(Contract):
     visual: ShotVisual = Field(description="What is on screen.")
     claims: list[Claim] = Field(description="Factual claims made in voice_line, with truth-check status.")
     generated: bool = Field(description="True if the visual is generated (card/broll), not real footage.")
+    callout: Optional[str] = Field(
+        None, description="On-screen callout, at most 5 words (a benefit or an on-screen fact); a claim, so it is "
+        "truth-checked like the voice line. Optional (v2, B15)."
+    )
+
+    @model_serializer(mode="wrap")
+    def _no_empty_callout(self, handler):
+        return _drop_none(handler(self), "callout")
 
 
 class Script(Contract):
@@ -544,6 +569,11 @@ class TimelineShot(Contract):
     voice_path: str = Field(description="Voice file for this shot (from assets.json).")
     visual: TimelineVisual = Field(description="What to render.")
     caption: str = Field(description="Caption text (normally the voice line).")
+    callout: Optional[str] = Field(None, description="Callout from script.json drawn on screen, or null. Optional (B15).")
+
+    @model_serializer(mode="wrap")
+    def _no_empty_callout(self, handler):
+        return _drop_none(handler(self), "callout")
 
 
 class TimelineMusic(Contract):

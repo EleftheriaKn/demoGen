@@ -55,3 +55,11 @@ def test_make_then_cached(runs):
 def test_bad_inputs(runs, name, args):
     with pytest.raises(Exception):  # over stdio, the client gets an error result instead
         call(name, args)
+
+
+def test_brief_text_in_run_and_cache_key(runs):
+    a = call("make_demo_video", {"repo_url": REPO, "brief_text": "Judged on craft."})
+    cfg = json.loads((runs / a["run_id"] / "run.json").read_text(encoding="utf-8"))
+    assert cfg["brief"]["text"] == "Judged on craft."
+    assert call("make_demo_video", {"repo_url": REPO, "brief_text": "Judged on craft."})["cached"]
+    assert not call("make_demo_video", {"repo_url": REPO, "brief_text": "Judged on aura."})["cached"]

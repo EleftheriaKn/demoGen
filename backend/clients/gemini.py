@@ -93,8 +93,13 @@ def explain(service: str, e: BaseException, key: str) -> RuntimeError:
 
 
 def prompt(name: str, **values: str) -> str:
-    """Fill ``backend/prompts/<name>.md``; ``{key}`` placeholders take ``values``."""
-    return (PROMPTS / f"{name}.md").read_text(encoding="utf-8").format(**values)
+    """Fill ``backend/prompts/<name>.md``; ``{key}`` placeholders take ``values``.
+    ``{brief_block}`` is filled with the run's judging brief (backend/brief.py, B19) unless given."""
+    template = (PROMPTS / f"{name}.md").read_text(encoding="utf-8")
+    if "{brief_block}" in template and "brief_block" not in values:
+        from backend import brief  # B's module; empty when the run has no brief
+        values = {**values, "brief_block": brief.block()}
+    return template.format(**values)
 
 
 def mime_type(path: Path, table: dict[str, str]) -> str:

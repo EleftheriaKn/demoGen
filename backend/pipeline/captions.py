@@ -14,6 +14,7 @@ import math
 from pathlib import Path
 
 from backend.contracts import Assets, RunConfig, Timeline
+from backend.pipeline.cards import font_safe
 from backend.pipeline.ff import FONT_NAME
 
 MAX_CHARS = 42       # one comfortable caption line
@@ -82,7 +83,8 @@ def ass_time(t: float) -> str:
 
 
 def ass_text(text: str) -> str:
-    return text.replace("\\", "⧵").replace("{", "(").replace("}", ")")
+    """Caption text for the burned-in ASS: no override braces or backslashes, only glyphs our font has."""
+    return font_safe(text.replace("\\", "/").replace("{", "(").replace("}", ")"))
 
 
 def ass(tl: Timeline, cs: list[tuple[float, float, str, str]]) -> str:

@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.8,
+          "reason": "Instantly evokes a relatable daily frustration that piques curiosity."
+        },
+        {
+          "score": 0.5,
+          "reason": "Connects to looking in the fridge, but could easily apply to food delivery or meal kits."
+        },
+        {
+          "score": 0.6,
+          "reason": "Focuses on the user pain point rather than the direct action or feature the app delivers."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "Addresses common food waste guilt but feels like a conventional problem statement."
+        },
+        {
+          "score": 0.3,
+          "reason": "Speaks broadly to food spoilage rather than photo-based recipe generation."
+        },
+        {
+          "score": 0.4,
+          "reason": "Highlights a secondary side-effect rather than the primary value proposition of getting recipes."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "Engaging culinary prompt but lacks an intriguing or urgent hook."
+        },
+        {
+          "score": 0.4,
+          "reason": "Generic to any leftover recipe generator or standard search engine query."
+        },
+        {
+          "score": 0.7,
+          "reason": "Directly touches on the core user outcome of turning available ingredients into a meal."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}
