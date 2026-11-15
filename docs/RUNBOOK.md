@@ -289,19 +289,19 @@ C builds what people see and owns the story. C sets up the repo first, so A and 
 
 | ID | Ticket | Done when | By | Status |
 |---|---|---|---|---|
-| C1 | Repo from the starter zip | GitHub repo up, A and B invited, `.env` template, `.gitignore` | 22:15 | To do |
-| C2 | Test take | Rough 3-minute recording of any app in `samples/`, with its repo URL | 23:00 | To do |
-| C3 | Orchestrator and API | `POST /runs` starts a run; `/runs/{id}/events` streams a fixture run | 00:30 | To do |
-| C4 | Board | `web/index.html` uploads, shows progress, plays `final.mp4` | 01:30 | To do |
-| C5 | MCP tool | `make_demo_video` listed in Claude Code and returns a cached run | 02:00 | To do |
-| C6 | Board shows the decisions | Rankings, rejected claims and facts from `decisions.json` | 08:00 | To do |
+| C1 | Repo from the starter zip | GitHub repo up, A and B invited, `.env` template, `.gitignore` | 22:15 | Done |
+| C2 | Test take | Rough 3-minute recording of any app in `samples/`, with its repo URL | 23:00 | Done |
+| C3 | Orchestrator and API | `POST /runs` starts a run; `/runs/{id}/events` streams a fixture run | 00:30 | Done |
+| C4 | Board | `web/index.html` uploads, shows progress, plays `final.mp4` | 01:30 | Done |
+| C5 | MCP tool | `make_demo_video` listed in Claude Code and returns a cached run | 02:00 | Done |
+| C6 | Board shows the decisions | Rankings, rejected claims and facts from `decisions.json` | 08:00 | Done |
 | C7 | DemoCut's own take | Rough 4-minute recording of DemoCut in use | 10:00 | To do |
 | C8 | 20-second test | 5–10 people: our cut vs a video another team made by hand | 13:00 | To do |
-| C9 | Pitch, slides, README | 3-minute script, 3 slides, cached live demo; manual OBS video by 15:00 if checkpoint 3 fails | 14:00 | To do |
+| C9 | Pitch, slides, README | 3-minute script, 3 slides, cached live demo; manual OBS video by 15:00 if checkpoint 3 fails | 14:00 | In progress: README done; pitch script and 3 slides drafted, numbers to fill |
 | C10 | Mobile app flow | `web/index.html` works on a phone: repo → recording → brief → progress → player; installable (manifest); repo-URL field works without login | 05:30 | Done |
 | C11 | GitHub login | OAuth login; repo list from `GET /user/repos`; tap a repo fills `repo_url`; token kept server-side only | 09:00 | Done |
 | C12 | Big uploads from the phone | Chunked, resumable upload of a 7-minute take (≤ 1 GiB); API rejects > 420 s or > 1 GiB; phone reaches the API through a tunnel | 05:30 | Done |
-| C13 | Generated badges | Board marks generated shots (`Shot.generated`) and shows the real-footage share from the rubric | 11:00 | Proposed |
+| C13 | Generated badges | Board marks generated shots (`Shot.generated`) and shows the real-footage share from the rubric | 11:00 | Done |
 
 ## Make runs fast
 
