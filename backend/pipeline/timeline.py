@@ -22,7 +22,8 @@ FPS = 30
 BREATH_S = 0.25      # footage keeps running this long after the voice ends
 MAX_SPEED = 1.5      # contract limit
 MAX_FREEZE_S = 1.5   # longer gaps play more real footage instead of a held frame...
-MAX_BEYOND_S = 2.0   # ...but only this much from outside the segment (it may contradict the voice line)
+MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment can contradict the voice line
+                     # (B9: "Active filter" line over the Completed view). Render moves held frames instead.
 ZOOM_EASE_S = 0.8
 MUSIC_GAIN_DB = -18.0
 
@@ -95,16 +96,24 @@ def app_name(d: Path) -> str:
         return ""
 
 
-def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int]) -> str:
-    """Dark card with the app name in the middle (no claims on it: the voice line is in the captions)."""
+def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int], background: str | None = None) -> str:
+    """The app name in the middle of a card, in our font ("fal draws, we write": A's card backgrounds carry no
+    text). With `background` (A's fal card) it is cropped to fill the frame and darkened a little so white text
+    reads; without, a dark plain card. No claims on it: the voice line is in the captions."""
     w, h = size
-    rel = f"cards/plain/{shot_id}.png"
+    rel = f"cards/{'titled' if background else 'plain'}/{shot_id}.png"
     (d / rel).parent.mkdir(parents=True, exist_ok=True)
-    text = d / "cards" / "plain" / f"{shot_id}.txt"
+    text = d / rel.replace(".png", ".txt")
     text.write_text(title, encoding="utf-8")
-    draw = (f",drawtext=fontfile={filter_path(FONTS / 'NotoSans-Bold.ttf')}:textfile={filter_path(text.resolve())}:"
-            f"fontcolor=white:fontsize={round(h * 0.11)}:x=(w-tw)/2:y=(h-th)/2") if title.strip() else ""
-    ff("-f", "lavfi", "-i", f"color=c=0x111827:s={w}x{h}:d=1{draw}", "-frames:v", "1", d / rel)
+    font = filter_path(FONTS / "NotoSans-Bold.ttf")
+    draw = (f"drawtext=fontfile={font}:textfile={filter_path(text.resolve())}:fontcolor=white:"
+            f"fontsize={round(h * 0.11)}:x=(w-tw)/2:y=(h-th)/2:shadowcolor=black@0.45:shadowx=0:shadowy={h // 180}"
+            if title.strip() else "null")
+    if background:
+        ff("-i", d / background, "-vf", f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,"
+           f"eq=brightness=-0.08,drawbox=color=black@0.18:t=fill,{draw}", "-frames:v", "1", d / rel)
+    else:
+        ff("-f", "lavfi", "-i", f"color=c=0x111827:s={w}x{h}:d=1", "-vf", draw, "-frames:v", "1", d / rel)
     text.unlink(missing_ok=True)
     return rel
 
@@ -125,6 +134,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
     segments = {g.segment_id: (g.start, g.end) for g in cands.segments} if cands else {}
     brolls = {b.shot_id: b for b in assets.broll}
 
+    name = app_name(d)
     spans = [(s.visual.source_start, s.visual.source_end) if s.visual.kind == "footage" else None
              for s in script.shots]
     shots, t, last_end = [], 0.0, None
@@ -149,9 +159,11 @@ def run(run_dir: Path, run: RunConfig) -> None:
             visual = TimelineVisual(kind="broll", path=b.path, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze)
         elif s.shot_id in cards and (d / cards[s.shot_id]).exists():
-            visual = TimelineVisual(kind="card", path=cards[s.shot_id])
+            path = plain_card(d, s.shot_id, name, size_for(run.mode), background=cards[s.shot_id]) if name \
+                else cards[s.shot_id]
+            visual = TimelineVisual(kind="card", path=path)
         else:  # no card / b-roll file (no fal, cheap mode, a failed call): the video still renders
-            visual = TimelineVisual(kind="card", path=plain_card(d, s.shot_id, app_name(d), size_for(run.mode)))
+            visual = TimelineVisual(kind="card", path=plain_card(d, s.shot_id, name, size_for(run.mode)))
             events.emit("timeline", f"{s.shot_id}: no {vis.kind} file in assets.json, using a plain card")
         shots.append(TimelineShot(shot_id=s.shot_id, start=round(t, 3), duration_s=dur,
                                   voice_path=voice_path, visual=visual, caption=s.voice_line))

@@ -21,25 +21,35 @@ from backend.pipeline.ff import (AUDIO, FONTS, SAMPLE_RATE, VIDEO, ff, filter_pa
                                  place, video_info)
 
 MAX_ZOOM = 3.0
+DRIFT = 0.05          # slow push-in on cards and held frames: +5% over the shot
+HOLD_MOTION_S = 1.0   # held frames longer than this get the push-in
+UPSCALE = 2           # zoompan works on a 2x picture so slow moves do not jitter
 WORKERS = 4
 LOUDNESS = -16  # LUFS, the usual target for web video
 
 
 def zoom_filter(s: TimelineShot, iw: int, ih: int, fps: int) -> str:
-    """Ease from the full frame into the focus box over ease_s, then hold.
-    Runs on the source picture (iw x ih, its own shape) before it is placed in the output frame,
-    so the box means the same thing for portrait, 4:3 or 16:9 takes. Uniform zoom: no stretching."""
-    z = s.visual.zoom
-    if z is None:
+    """Camera move for one shot, on the source picture (iw x ih, its own shape) before it is placed in the
+    output frame, so the box means the same for portrait, 4:3 or 16:9 takes. Uniform zoom: no stretching.
+    - focus box: ease from the full frame into the box over ease_s, then hold
+    - a held frame longer than HOLD_MOTION_S, and every card: a slow push-in (DRIFT over the shot), so a
+      still reads as a camera move, not a stuck video
+    The picture is upscaled first: zoompan rounds to whole pixels and a slow zoom would jitter."""
+    z, v = s.visual.zoom, s.visual
+    drift = DRIFT if v.kind == "card" or v.freeze_s > HOLD_MOTION_S else 0.0
+    if z is None and not drift:
         return ""
-    bx, by, bw, bh = z.box
-    target = min(1 / max(bw, bh), MAX_ZOOM)
-    ease = max(1, round(z.ease_s * fps))
-    zexp = f"1+{target - 1:.4f}*min(on/{ease}\\,1)"
-    cx, cy = bx + bw / 2, by + bh / 2
+    total = max(1, round(s.duration_s * fps))
+    if z is None:
+        target, ease, cx, cy = 1.0, 1, 0.5, 0.5
+    else:
+        bx, by, bw, bh = z.box
+        target, ease, cx, cy = min(1 / max(bw, bh), MAX_ZOOM), max(1, round(z.ease_s * fps)), bx + bw / 2, by + bh / 2
+    zexp = f"1+{target - 1:.4f}*min(on/{ease}\\,1)+{drift:.4f}*on/{total}"
     x = f"max(0\\,min(iw-iw/zoom\\,iw*{cx:.4f}-iw/zoom/2))"
     y = f"max(0\\,min(ih-ih/zoom\\,ih*{cy:.4f}-ih/zoom/2))"
-    return f",zoompan=z='{zexp}':x='{x}':y='{y}':d=1:s={iw}x{ih}:fps={fps}"
+    return (f",scale={iw * UPSCALE}:{ih * UPSCALE}:flags=bicubic,"
+            f"zoompan=z='{zexp}':x='{x}':y='{y}':d=1:s={iw}x{ih}:fps={fps}")
 
 
 def shot(d: Path, s: TimelineShot, tl: Timeline, out: Path) -> None:
@@ -50,15 +60,13 @@ def shot(d: Path, s: TimelineShot, tl: Timeline, out: Path) -> None:
     iw, ih = inner_size(info.width, info.height, w, h)
     if v.kind == "card":
         inp = ["-loop", 1, "-framerate", fps, "-t", dur, "-i", v.path]
-        src = f"[0:v]scale={iw}:{ih},setsar=1,fps={fps}[src]"
-        tail = ""
-    else:
+        src = f"[0:v]scale={iw}:{ih},setsar=1,fps={fps}{zoom_filter(s, iw, ih, fps)}[src]"
+    else:  # the freeze comes before the camera move, so held frames move too
         inp = ["-ss", f"{v.source_start:.3f}", "-to", f"{v.source_end:.3f}", "-i", v.path]
-        src = (f"[0:v]{hdr_to_sdr(info)}setpts=(PTS-STARTPTS)/{v.speed},fps={fps},"
-               f"scale={iw}:{ih},setsar=1{zoom_filter(s, iw, ih, fps)}[src]")
-        tail = f"tpad=stop_mode=clone:stop_duration={v.freeze_s + 1:.3f},"
+        src = (f"[0:v]{hdr_to_sdr(info)}setpts=(PTS-STARTPTS)/{v.speed},fps={fps},scale={iw}:{ih},setsar=1,"
+               f"tpad=stop_mode=clone:stop_duration={v.freeze_s + 1:.3f}{zoom_filter(s, iw, ih, fps)}[src]")
     graph = ";".join([src, place("src", "placed", iw, ih, w, h),
-                      f"[placed]{tail}trim=duration={dur}[v]",
+                      f"[placed]trim=duration={dur}[v]",
                       f"[1:a]aresample={SAMPLE_RATE},apad[a]"])
     ff(*inp, "-i", s.voice_path, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
        "-t", dur, "-r", fps, *VIDEO, *AUDIO, out.relative_to(d), cwd=d)
