@@ -105,6 +105,8 @@
   /* QR for the phone (B14 serves /qr.svg) */
   section.qr { margin-top: 20px; text-align: center; }
   section.qr img { display: block; margin: 0 auto 6px; width: 180px; height: 180px; background: #fff; border-radius: 8px; padding: 6px; }
+  section.qr .qr-head { display: flex; align-items: center; justify-content: center; gap: 8px; }
+  section.qr .qr-head h2 { margin: 0; }
 
   /* the cut (C13) */
   .strip { display: flex; height: 28px; border-radius: 6px; overflow: hidden; margin: 4px 0 8px; gap: 2px; }
@@ -231,9 +233,14 @@
       </section>
 
       <section class="qr" id="qr" hidden>
-        <h2>Open on your phone</h2>
-        <img id="qr-img" alt="QR code that opens DemoCut on a phone" width="180" height="180">
-        <div class="hint">Scan with the phone's camera (same Wi-Fi as this laptop).</div>
+        <div class="qr-head">
+          <h2>Open on your phone</h2>
+          <button type="button" class="link" id="qr-toggle" aria-controls="qr-body" aria-expanded="true">Hide QR</button>
+        </div>
+        <div id="qr-body">
+          <img id="qr-img" alt="QR code that opens DemoCut on a phone" width="180" height="180">
+          <div class="hint">Scan with the phone's camera (same Wi-Fi as this laptop).</div>
+        </div>
       </section>
 
       <section style="margin-top:20px">
@@ -688,6 +695,22 @@ if (window.matchMedia("(min-width: 821px)").matches && !window.matchMedia("(poin
   img.onload = () => { $("qr").hidden = false; };
   img.onerror = () => { $("qr").hidden = true; };   // plain uvicorn: no /qr.svg, no box
   img.src = "/qr.svg";
+
+  // Hide / show the QR; the choice is remembered in this browser (works without storage too).
+  const toggle = $("qr-toggle"), body = $("qr-body");
+  const setQr = (shown) => {
+    body.hidden = !shown;
+    toggle.textContent = shown ? "Hide QR" : "Show QR";
+    toggle.setAttribute("aria-expanded", String(shown));
+  };
+  let shown = true;
+  try { shown = localStorage.getItem("democut-qr") !== "hidden"; } catch (e) {}
+  setQr(shown);
+  toggle.onclick = () => {
+    shown = !shown;
+    setQr(shown);
+    try { localStorage.setItem("democut-qr", shown ? "shown" : "hidden"); } catch (e) {}
+  };
 }
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
