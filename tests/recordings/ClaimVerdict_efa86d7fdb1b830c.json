@@ -1,0 +1,7 @@
+{
+  "score": 0.0,
+  "reason": "The frames show only synthetic test patterns and timestamps, with no fridge photo or ingredient detection.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

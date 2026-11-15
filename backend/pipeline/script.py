@@ -12,7 +12,16 @@ beats: up to 30 s it is hook, problem, 1 demo, ask; up to 45 s hook, problem, 1-
 ask; longer, the full hook, problem, 2-4 demo, how, impact, ask.
 
 Gemini fills a ``Draft`` (``DraftMid``, ``DraftShort`` for short targets) whose shape fixes the
-beat order, so only hook and ask can be cards. Code then keeps footage inside real
+beat order. Without a flow (an old summary.json) only hook and ask are cards. With ``summary.flow``
+the prompt also gets the flow, each moment's quality and step and the missing steps (the brief comes
+through B's ``{brief_block}``), and
+the ``...G`` variants let a middle shot be generated (a card with ``reference_frames``). Code
+decides the treatment: footage on a weak moment becomes a generated panel of its own frames; a
+generated problem / demo shot on a step a wow / ok moment shows goes back to footage; a missing
+step's panel takes frames of the nearest shown step. Generated shots' claims lose footage evidence
+and gain their flow step's README / file evidence; a demo claim, or a footage claim with no repo
+evidence, carries its own segment. Generated middle shots past MIN_REAL of the planned runtime are
+dropped, last first (before and after the truth check). Code then keeps footage inside real
 segments, drops evidence that doesn't exist, turns any unlisted factual sentence of a problem,
 demo, how or impact line into a claim (evidence: the shot's footage) and numbers shots and claims. A second call
 scores the three hooks on HOOK_QUESTIONS and flags hooks that state a fact; the best mean
@@ -60,9 +69,11 @@ from backend.contracts import (
     Claim,
     Decisions,
     Evidence,
+    FlowStep,
     FrameScores,
     Hook,
     JudgeAnswer,
+    Moment,
     Moments,
     RepoFiles,
     RunConfig,
@@ -74,7 +85,7 @@ from backend.contracts import (
     Summary,
 )
 from backend.decisions import append_decision, drop_stage
-from backend.pipeline.understand import readme_headings
+from backend.pipeline.understand import missing_steps, readme_headings
 
 TARGET_S = 75  # the longest script, whatever the limit
 TARGET_WORDS = 190
@@ -99,6 +110,8 @@ ZOOM_BEATS = {"demo", "impact"}
 MIN_ZOOM_W = 0.2  # narrower boxes zoom in too far to read
 WORDS_PER_S = 3.0  # voice-over pace; a footage shot's line may not outrun its clip (+ HOLD_S)
 HOLD_S = 2.0  # the timeline holds a clip's last frame (slow push-in) up to this long past its end
+MIN_REAL = 0.5  # share of the planned runtime that must stay real footage
+BREATH_S = 0.4  # ponytail: per-shot gap in the runtime estimate, mirrors timeline's pause; read it there if it drifts
 
 
 # --------------------------------------------------------------------------- #
@@ -152,11 +165,43 @@ class DraftShort(BaseModel):  # target up to 30 s: no how, no impact
     ask: CardDraft
 
 
+class ShotDraft(FootageDraft):  # a run with a flow: a middle shot may be generated instead of footage
+    generated: bool = Field(description="True = a generated illustration instead of real footage.")
+    flow_step: str = Field(description='The flow step id this shot covers, e.g. "s2" (not a shot id), or "".')
+    card_prompt: str = Field(description="Generated shots: the picture to draw (no text, letters or logos). "
+                             "Empty for footage.")
+
+
+class DraftG(Draft):  # up to 2 more demo shots, for steps the take doesn't show well
+    problem: ShotDraft
+    demos: list[ShotDraft] = Field(min_length=2, max_length=6)
+    how: ShotDraft
+    impact: ShotDraft
+
+
+class DraftMidG(DraftMid):
+    problem: ShotDraft
+    demos: list[ShotDraft] = Field(min_length=1, max_length=3)
+    impact: ShotDraft
+
+
+class DraftShortG(DraftShort):
+    problem: ShotDraft
+    demos: list[ShotDraft] = Field(min_length=1, max_length=2)
+
+
 AnyDraft = Union[Draft, DraftMid, DraftShort]
-DEMO_BEAT = {Draft: "2 to 4 demo shots", DraftMid: "1 to 2 demo shots", DraftShort: "1 demo shot"}
+WITH_FLOW = {Draft: DraftG, DraftMid: DraftMidG, DraftShort: DraftShortG}
+DEMO_BEAT = {Draft: "2 to 4 demo shots", DraftMid: "1 to 2 demo shots", DraftShort: "1 demo shot",
+             DraftG: "2 to 6 demo shots", DraftMidG: "1 to 3 demo shots", DraftShortG: "1 to 2 demo shots"}
 DEMO_COUNT = {Draft: "3 to 4 shots (2 only if the recording has fewer usable moments)",
               DraftMid: "1 to 2 shots (2 only if the take has two strong moments)",
-              DraftShort: "exactly 1 shot, the take's strongest moment"}
+              DraftShort: "exactly 1 shot, the take's strongest moment",
+              DraftG: "3 to 4 footage shots (2 only if the take has fewer wow / ok steps), plus 1 to 2 generated "
+                      "shots for the most important weak or missing steps",
+              DraftMidG: "1 to 2 footage shots, plus 1 generated shot for the most important weak or missing step",
+              DraftShortG: "1 footage shot (the take's strongest moment), plus 1 generated shot only if a key "
+                           "step is weak or missing"}
 BEAT_LINES = {"how": "- how: one shot on how it works under the hood.\n",
               "impact": "- impact: one shot on what changes for the user.\n"}
 
@@ -167,8 +212,10 @@ def target(time_limit_s: int) -> tuple[int, int]:
     return s, TARGET_WORDS if s == TARGET_S else round(TARGET_RATE * s)  # the longest keeps its 190 words
 
 
-def draft_model(target_s: int) -> type[AnyDraft]:
-    return DraftShort if target_s <= 30 else DraftMid if target_s <= 45 else Draft
+def draft_model(target_s: int, flow: bool = False) -> type[AnyDraft]:
+    """The draft shape for the target; with a flow, the variant whose middle shots may be generated."""
+    model = DraftShort if target_s <= 30 else DraftMid if target_s <= 45 else Draft
+    return WITH_FLOW[model] if flow else model
 
 
 def beats_of(model: type[AnyDraft]) -> list[str]:
@@ -265,9 +312,66 @@ def unclaimed_sentences(line: str, claims: list[str]) -> list[str]:
     return out
 
 
-def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: RepoFiles) -> list[Shot]:
-    """Draft -> shots in beat order, footage inside real segments, claims ``pending``."""
+def _step_id(text: str) -> str:
+    """'step s2', 'S2' -> 's2'."""
+    return text.strip().lower().removeprefix("step").strip()
+
+
+def _step_evidence(step: Optional[FlowStep]) -> list[Evidence]:
+    return [Evidence(type="readme", ref=e) if e.startswith("README#") else Evidence(type="file", ref=e)
+            for e in (step.evidence if step else [])]
+
+
+def _quality(seg: Optional[Segment], moments: dict[str, Moment]) -> Optional[str]:
+    m = moments.get(seg.moment_id or "") if seg else None
+    return m.quality if m else None
+
+
+def reference_frames(seg: Optional[Segment], step: str, segments: list[Segment], moments: dict[str, Moment],
+                     flow: list[FlowStep]) -> list[str]:
+    """Frames fal redraws for a generated shot: a weak moment's own segment; else a segment of the
+    shot's flow step, or for a step the take never shows, of the nearest step it does show."""
+    if _quality(seg, moments) == "weak":
+        return list(seg.frames)
+    shown = {}
+    for g in segments:
+        m = moments.get(g.moment_id or "")
+        if m and m.flow_step and m.kind != "dead":
+            shown.setdefault(m.flow_step, g)
+    order = [f.step_id for f in flow]
+    if step in order:
+        near = sorted((t for t in order if t in shown), key=lambda t: abs(order.index(t) - order.index(step)))
+        if near:
+            return list(shown[near[0]].frames)
+    return list(seg.frames) if seg is not None else []
+
+
+def treatment(d: FootageDraft, beat: str, by_id: dict[str, Segment], moments: dict[str, Moment]
+              ) -> tuple[bool, Optional[Segment]]:
+    """(generated, segment) for a middle shot. Footage on a weak moment becomes generated; a generated
+    problem or demo shot whose flow step a wow / ok moment shows becomes footage on that moment."""
+    seg = by_id.get(d.segment_id)
+    gen = getattr(d, "generated", False)
+    step = _step_id(getattr(d, "flow_step", ""))
+    if not gen and _quality(seg, moments) == "weak":
+        return True, seg
+    if gen and step and beat in ("problem", "demo"):
+        good = [g for g in by_id.values() if _quality(g, moments) in ("wow", "ok")
+                and moments[g.moment_id].flow_step == step and moments[g.moment_id].kind != "dead"]
+        if good:
+            return False, seg if seg in good else max(good, key=lambda g: _quality(g, moments) == "wow")
+    return gen, seg
+
+
+def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: RepoFiles,
+                moments: Optional[Moments] = None, flow: list[FlowStep] = ()) -> list[Shot]:
+    """Draft -> shots in beat order, footage inside real segments, claims ``pending``.
+
+    Evidence follows the shot type: every claim of a footage shot carries its own segment; a
+    generated shot's claims carry only README / file evidence (plus its flow step's)."""
     by_id = {s.segment_id: s for s in segments}
+    by_moment = {m.moment_id: m for m in moments.moments} if moments else {}
+    steps = {f.step_id: f for f in flow}
     real = {
         "footage": set(by_id),
         "readme": {f"README#{h}" for h in readme_headings(repo.readme)},
@@ -282,34 +386,76 @@ def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: 
     ]
     shots, n_claims = [], 0
     for i, (beat, d) in enumerate(beats, 1):
+        own: list[Evidence] = []  # evidence every claim of this shot carries
         if isinstance(d, FootageDraft):
-            seg = by_id.get(d.segment_id)
-            if seg is None:
-                raise ValueError(f"{gemini.INCOMPLETE} [script: {beat} shot uses unknown segment {d.segment_id!r}]")
-            start, end, line = fit_voice(d.voice_line, seg, *_span(d, seg))
-            if line != d.voice_line:
-                events.emit("script", f"Voice s{i:02d} ({beat}): trimmed {len(d.voice_line.split())} -> "
-                            f"{len(line.split())} words to fit {end - start:.1f}s of {seg.segment_id}",
-                            data={"before": d.voice_line, "after": line})
-                # a claim cut away (wholly or partly) goes; what's left of it is an unclaimed sentence below
-                d = d.model_copy(update={"voice_line": line,
-                                         "claims": [c for c in d.claims if _locate(line.split(), c.text)]})
-            visual = ShotVisual(kind="footage", segment_id=seg.segment_id, source_start=start, source_end=end)
+            gen, seg = treatment(d, beat, by_id, by_moment)
+            step = steps.get(_step_id(getattr(d, "flow_step", "")))
+            if gen:
+                frames = reference_frames(seg, step.step_id if step else "", segments, by_moment, flow)
+                prompt = getattr(d, "card_prompt", "").strip() or d.voice_line
+                visual = ShotVisual(kind="card", card_prompt=prompt, reference_frames=frames)
+                own = _step_evidence(step)
+            else:
+                if seg is None:
+                    raise ValueError(f"{gemini.INCOMPLETE} [script: {beat} shot uses unknown segment {d.segment_id!r}]")
+                if seg.segment_id != d.segment_id:  # moved onto the wow / ok moment of its step
+                    d = d.model_copy(update={"segment_id": seg.segment_id, "source_start": seg.start,
+                                             "source_end": seg.end})
+                start, end, line = fit_voice(d.voice_line, seg, *_span(d, seg))
+                if line != d.voice_line:
+                    events.emit("script", f"Voice s{i:02d} ({beat}): trimmed {len(d.voice_line.split())} -> "
+                                f"{len(line.split())} words to fit {end - start:.1f}s of {seg.segment_id}",
+                                data={"before": d.voice_line, "after": line})
+                    # a claim cut away (wholly or partly) goes; what's left of it is an unclaimed sentence below
+                    d = d.model_copy(update={"voice_line": line,
+                                             "claims": [c for c in d.claims if _locate(line.split(), c.text)]})
+                visual = ShotVisual(kind="footage", segment_id=seg.segment_id, source_start=start, source_end=end)
+                own = [Evidence(type="footage", ref=seg.segment_id)]
         else:
             visual = ShotVisual(kind="card", card_prompt=d.card_prompt)
+        generated = visual.kind != "footage"
         drafts = list(d.claims)
         if beat in CHECKED_BEATS:
-            # a factual sentence the draft didn't list still gets checked, against the shot's own footage
-            drafts += [ClaimDraft(text=t, evidence=[Evidence(type="footage", ref=seg.segment_id)])
+            # a factual sentence the draft didn't list still gets checked, against the shot's own evidence
+            drafts += [ClaimDraft(text=t, evidence=[])
                        for t in unclaimed_sentences(d.voice_line, [c.text for c in d.claims])]
         claims = []
         for c in drafts:
             n_claims += 1
-            evidence = [e for e in c.evidence if e.ref in real[e.type]]
+            evidence = [e for e in c.evidence if not (generated and e.type == "footage") and e.ref in real[e.type]]
+            # footage: a demo claim (or one with no repo evidence) is about the screen, so it carries its
+            # own segment; a README-backed problem / how / impact claim isn't judged on frames.
+            if generated or beat == "demo" or not evidence:
+                evidence += [e for e in own if e not in evidence and e.ref in real[e.type]]
             claims.append(Claim(claim_id=f"cl{n_claims}", text=c.text, evidence=evidence, status="pending"))
         shots.append(Shot(shot_id=f"s{i:02d}", beat=beat, voice_line=d.voice_line, visual=visual,
-                          claims=claims, generated=visual.kind != "footage"))
+                          claims=claims, generated=generated))
     return shots
+
+
+def planned_s(shot: Shot) -> float:
+    """Rough runtime of a shot: the timeline plays each shot as long as its voice."""
+    return len(shot.voice_line.split()) / TARGET_RATE + BREATH_S
+
+
+def real_share(shots: list[Shot]) -> float:
+    total = sum(map(planned_s, shots))
+    return sum(planned_s(s) for s in shots if not s.generated) / total if total else 1.0
+
+
+def cap_generated(shots: list[Shot]) -> list[Shot]:
+    """Drop generated middle shots, last first, until real footage is at least MIN_REAL of the
+    planned runtime. Hook and ask cards stay (they count as generated)."""
+    out = list(shots)
+    while real_share(out) < MIN_REAL:
+        k = next((k for k in range(len(out) - 1, -1, -1)
+                  if out[k].generated and out[k].beat not in ("hook", "ask")), None)
+        if k is None:
+            break
+        events.emit("script", f"Dropped generated {out[k].shot_id} ({out[k].beat}): real footage "
+                              f"{real_share(out):.0%} < {MIN_REAL:.0%}")
+        out.pop(k)
+    return out
 
 
 def score_hooks(texts: list[str], judgement: HookJudgement, app: str) -> tuple[list[Hook], Optional[HookVerdict]]:
@@ -414,9 +560,10 @@ def apply_checks(shots: list[Shot], checked: dict[str, Claim]) -> list[Shot]:
 def keep_problem(shots: list[Shot], drafted: list[Shot], problem: str) -> list[Shot]:
     """If the truth check emptied the problem shot, put it back with ``summary.problem`` as a
     fact-free line (no claim to check) on the same footage, right after the hook."""
-    if any(s.beat == "problem" for s in shots):
+    old = next((s for s in drafted if s.beat == "problem"), None)
+    if old is None or any(s.beat == "problem" for s in shots):
         return shots
-    shot = next(s for s in drafted if s.beat == "problem").model_copy(update={"voice_line": problem, "claims": []})
+    shot = old.model_copy(update={"voice_line": problem, "claims": []})
     i = next((k + 1 for k, s in enumerate(shots) if s.beat == "hook"), 0)
     return [*shots[:i], shot, *shots[i:]]
 
@@ -575,15 +722,29 @@ def _segment_lines(segments: list[Segment], moments: Moments, scores: FrameScore
     for s in segments:
         m = kinds.get(s.moment_id or "")
         what = f"{m.kind}: {m.description}" if m else "scene cut"
+        if m and m.quality:  # a run with a flow (A13)
+            what += f", quality {m.quality}" + (f", shows step {m.flow_step}" if m.flow_step else "")
         cap = round(WORDS_PER_S * (s.end - s.start + HOLD_S))  # what fit_voice keeps at most
         lines.append(f"{s.segment_id} {s.start:g}-{s.end:g}s, {what}, score {best.get(s.segment_id, 0):.2f}, "
                      f"voice up to {cap} words")
     return "\n".join(lines)
 
 
-def draft_script(run: RunConfig, summary: Summary, segment_lines: str, repo: RepoFiles) -> AnyDraft:
+def flow_block(summary: Summary, moments: Moments) -> str:
+    """The flow and the steps the take never shows, for a run with a flow ("" without). The brief
+    reaches the prompt through B's {brief_block}."""
+    if not summary.flow:
+        return ""
+    gone = {s.step_id for s in missing_steps(summary, moments)}
+    steps = "\n".join(f"- step {s.step_id}: {s.text}" + (" (MISSING: the take never shows it)" if s.step_id in gone else "")
+                      + f" [evidence: {', '.join(s.evidence) or 'none'}]" for s in summary.flow)
+    return f"User flow from the repo, in the order a user meets it (step ids, not shot ids):\n<flow>\n{steps}\n</flow>"
+
+
+def draft_script(run: RunConfig, summary: Summary, segment_lines: str, repo: RepoFiles,
+                 flow: str = "") -> AnyDraft:
     target_s, total = target(run.brief.time_limit_s)
-    model = draft_model(target_s)
+    model = draft_model(target_s, bool(flow))
     beats = beats_of(model)
     footage = [b for b in beats if b not in ("hook", "ask")]
     text = gemini.prompt(
@@ -594,6 +755,7 @@ def draft_script(run: RunConfig, summary: Summary, segment_lines: str, repo: Rep
         words=str(total),
         footage=", ".join("demos" if b == "demo" else b for b in footage),
         demo_count=DEMO_COUNT[model],
+        flow=flow or "No user flow is given: every problem, demo, how and impact shot is footage.",
         beat_lines="".join(BEAT_LINES.get(b, "") for b in footage),
         budget="\n".join(f"- {b}: {w} words" + (" across all demo shots" if b == "demo" else "")
                          for b, w in budget(beats, total).items()),
@@ -626,20 +788,25 @@ def run(run_dir: Path, run: RunConfig) -> None:
     if not segments:
         raise ValueError("Nothing in the recording could be used as footage. Record a longer take that "
                          "shows the app's main results clearly.")
-    lines = _segment_lines(segments, load("moments.json", Moments), load("frame_scores.json", FrameScores))
+    moments = load("moments.json", Moments)
+    lines = _segment_lines(segments, moments, load("frame_scores.json", FrameScores))
 
-    draft = draft_script(run, summary, lines, repo)
+    draft = draft_script(run, summary, lines, repo, flow_block(summary, moments))
     judgement = judge_hooks(summary, draft.hooks)
     hooks, verdict = score_hooks(draft.hooks, judgement, summary.name)
     chosen = next(h for h in hooks if h.hook_id == verdict.hook_id) if verdict else hooks[-1]
-    drafted = build_shots(draft, chosen.text, segments, repo)
+    drafted = cap_generated(build_shots(draft, chosen.text, segments, repo, moments, summary.flow))
+    events.emit("script", "Shots: " + ", ".join(
+        f"{s.shot_id} {s.beat} {'generated' if s.generated else 'footage'}" for s in drafted)
+        + f"; real footage {real_share(drafted):.0%} of the plan")
 
     by_id = {s.segment_id: s for s in segments}
     claims = [(c, s.generated) for s in drafted for c in s.claims]
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         results = list(pool.map(lambda cg: check_claim(cg[0], *evidence_shown(cg[0].evidence, run_dir, by_id, repo, cg[1])),
                                 claims))
-    shots = keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted, summary.problem)
+    shots = cap_generated(keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted,
+                                       summary.problem))
     if run.mode != "cheap":
         shots = add_zoom(run_dir, shots)
     script = Script(language=run.brief.language, hooks=hooks, chosen_hook_id=chosen.hook_id, shots=shots)
@@ -687,7 +854,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
     events.emit("script", f"Truth check: {tally['backed']} backed, {tally['rewritten']} rewritten, "
                 f"{tally['dropped']} dropped; {len(drafted) - len(shots)} shots left with no words removed")
     target_s, total = target(run.brief.time_limit_s)
-    plan = budget(beats_of(draft_model(target_s)), total)
+    plan = budget(beats_of(draft_model(target_s, bool(summary.flow))), total)
     words_per = {b: sum(len(s.voice_line.split()) for s in shots if s.beat == b) for b in plan}
     over = [f"{b} {w}/{plan[b]}" for b, w in words_per.items() if w > plan[b]]
     events.emit("script", f"Script: {len(shots)} shots, {sum(words_per.values())}/{total} words (~{target_s} s)"

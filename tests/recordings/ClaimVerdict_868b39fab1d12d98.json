@@ -1,0 +1,7 @@
+{
+  "score": 0.5,
+  "reason": "Evidence shows recipe logic matching ingredients, but does not mention fridge items.",
+  "action": "rewrite",
+  "rewrite": "recipe logic matches ingredients.",
+  "rewrite_supported": true
+}

@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.3,
+          "reason": "It is a generic rhetorical question that lacks a novel hook to spark curiosity."
+        },
+        {
+          "score": 0.2,
+          "reason": "It could apply broadly to any recipe website, cookbook, or meal planner rather than this photo app."
+        },
+        {
+          "score": 0.4,
+          "reason": "It highlights a user pain point rather than explaining the specific benefit or function the app provides."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.3,
+          "reason": "It feels like a standard infomercial opening that fails to generate immediate intrigue."
+        },
+        {
+          "score": 0.3,
+          "reason": "It fits many food waste reduction or grocery tracking apps instead of specifically PantryPal."
+        },
+        {
+          "score": 0.3,
+          "reason": "It focuses on the user's struggle with waste rather than what the app actively does for them."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It paints a relatable everyday scene instantly, though rhetorical questions generate limited curiosity."
+        },
+        {
+          "score": 0.4,
+          "reason": "It captures the fridge-to-meal dilemma well, but omits the photo-based recipe generation mechanic."
+        },
+        {
+          "score": 0.4,
+          "reason": "It describes the user's initial predicament rather than the solution the app delivers."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

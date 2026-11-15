@@ -1,0 +1,104 @@
+{
+  "hooks": [
+    "Tired of wondering what to cook with leftover ingredients?",
+    "Do you constantly struggle with unused food in your fridge?",
+    "Ever open your fridge and have no idea what dinner is?"
+  ],
+  "hook_card_prompt": "Clean vector illustration of a gently glowing open refrigerator bathed in warm pastel light, soft sage green and kitchen yellow tones with subtle textures, no text or icons.",
+  "problem": {
+    "voice_line": "People waste food and time because they do not know what to cook with what they already have.",
+    "segment_id": "c01",
+    "source_start": 0.0,
+    "source_end": 4.0,
+    "claims": [
+      {
+        "text": "People waste food and time because they do not know what to cook with what they already have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ]
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Snap a single photo of your fridge to instantly detect your ingredients.",
+      "segment_id": "c02",
+      "source_start": 5.0,
+      "source_end": 10.0,
+      "claims": [
+        {
+          "text": "Snap a single photo of your fridge to instantly detect your ingredients.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "voice_line": "Explore three recipe suggestions ranked with matched ingredients highlighted.",
+      "segment_id": "c04",
+      "source_start": 12.0,
+      "source_end": 19.0,
+      "claims": [
+        {
+          "text": "Explore three recipe suggestions ranked with matched ingredients highlighted.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "A vision model processes fridge items while recipe logic matches ingredients.",
+    "segment_id": "c03",
+    "source_start": 10.0,
+    "source_end": 12.0,
+    "claims": [
+      {
+        "text": "A vision model processes fridge items while recipe logic matches ingredients.",
+        "evidence": [
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          },
+          {
+            "type": "file",
+            "ref": "backend/recipes.py"
+          }
+        ]
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Turn leftover pantry items into effortless home-cooked meals.",
+    "segment_id": "c05",
+    "source_start": 19.0,
+    "source_end": 22.0,
+    "claims": [
+      {
+        "text": "Turn leftover pantry items into effortless home-cooked meals.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          }
+        ]
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and make every meal count.",
+    "card_prompt": "Stylized flat illustration of a fresh kitchen counter with fresh vegetables and warm morning sunlight in soft mint and pastel tones, without any labels, text, or interface components.",
+    "claims": []
+  }
+}
