@@ -1,13 +1,13 @@
 {
   "name": "PantryPal",
-  "one_liner": "Snap a photo of your fridge to get three recipes you can cook right away.",
-  "problem": "Deciding what to cook based on what you already have in your fridge can be difficult and time-consuming.",
-  "audience": "Home cooks looking for quick recipe ideas based on the ingredients they have on hand.",
+  "one_liner": "Snap a photo of your fridge, get 3 recipes.",
+  "problem": "People often do not know what recipes they can make with the random ingredients already inside their fridge.",
+  "audience": "Everyday home cooks looking to make meals from ingredients they already have on hand.",
   "features": [
     {
       "feature_id": "f1",
-      "name": "Ingredient detection from fridge photo",
-      "description": "Take a photo of your open fridge using the camera button to automatically detect visible ingredients.",
+      "name": "Fridge Photo Ingredient Detection",
+      "description": "Users take a photo of their open fridge using the camera to automatically detect available ingredients.",
       "evidence": [
         "README#How it works",
         "README#Features",
@@ -17,8 +17,8 @@
     },
     {
       "feature_id": "f2",
-      "name": "Ranked recipe suggestions",
-      "description": "View three suggested recipes ranked by how many of your detected ingredients they use.",
+      "name": "Recipe Suggestions",
+      "description": "Presents three recipes ranked by how many of the detected ingredients they use.",
       "evidence": [
         "README#Features",
         "backend/recipes.py"
@@ -26,8 +26,8 @@
     },
     {
       "feature_id": "f3",
-      "name": "Missing ingredients shopping list",
-      "description": "Generate a shopping list containing the missing items required to make suggested recipes.",
+      "name": "Shopping List Generation",
+      "description": "Generates a shopping list for the missing ingredients needed to complete suggested recipes.",
       "evidence": [
         "README#Features",
         "frontend/src/ShoppingList.tsx"
