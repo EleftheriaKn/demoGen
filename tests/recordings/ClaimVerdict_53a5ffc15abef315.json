@@ -1,0 +1,7 @@
+{
+  "score": 0.5,
+  "reason": "The README mentions recipes ranked by your ingredients, but makes no mention of a fridge.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

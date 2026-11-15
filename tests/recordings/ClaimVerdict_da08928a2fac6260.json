@@ -1,0 +1,7 @@
+{
+  "score": 0.0,
+  "reason": "The frames only show test patterns and the code stub only mentions a camera component, with no fridge or ingredient detection shown.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}

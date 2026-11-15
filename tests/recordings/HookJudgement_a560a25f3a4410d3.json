@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "It quickly sets up an instantly relatable everyday scene in under five seconds."
+        },
+        {
+          "score": 0.4,
+          "reason": "It captures fridge dilemma generally but omits the photo-to-recipe mechanic."
+        },
+        {
+          "score": 0.8,
+          "reason": "It directly highlights the immediate problem the app solves for home cooks."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "Food waste is a common hook, though a bit standard and familiar."
+        },
+        {
+          "score": 0.3,
+          "reason": "It frames the issue around waste tracking rather than instant visual recipe generation."
+        },
+        {
+          "score": 0.6,
+          "reason": "It targets a side benefit rather than the core action of turning fridge items into meals."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It is a common question format that feels slightly generic."
+        },
+        {
+          "score": 0.3,
+          "reason": "Leftover dinner ideas apply to any recipe site or pantry app broadly."
+        },
+        {
+          "score": 0.7,
+          "reason": "It addresses the user's core cooking struggle solved by the app."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

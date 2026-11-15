@@ -20,6 +20,11 @@ that adds a word, or that the judge says is still partly unsupported, is dropped
 words, a drop cuts the sentence holding it. A shot left with no words is removed, except the problem
 shot: it comes back with ``summary.problem`` as a fact-free line, so a problem is always stated.
 
+Voice fits footage: a footage shot's line may take about WORDS_PER_S words per second of its
+clip. A longer line first gets a longer clip inside the same segment; what still doesn't fit
+is trimmed (whole sentences from the end, then words) before claims are built, so the truth
+check runs on what remains. Each trim is logged.
+
 Zoom boxes (full mode only): each demo and impact shot takes its segment's ``frame_pick``
 winner from decisions.json; Gemini is asked once per chosen frame for the region to zoom into.
 Code keeps the box only if it lies inside the frame and is at least MIN_ZOOM_W wide, else
@@ -82,6 +87,7 @@ WORKERS = 6  # parallel claim checks
 CHECKED_BEATS = {"problem", "demo", "how", "impact"}  # every factual sentence here must be a claim
 ZOOM_BEATS = {"demo", "impact"}
 MIN_ZOOM_W = 0.2  # narrower boxes zoom in too far to read
+WORDS_PER_S = 2.5  # calm voice-over pace; a footage shot's line may not outrun its clip
 
 
 # --------------------------------------------------------------------------- #
@@ -167,6 +173,26 @@ def _span(d: FootageDraft, seg: Segment) -> tuple[float, float]:
     return (start, end) if end > start else (seg.start, seg.end)
 
 
+def fit_voice(line: str, seg: Segment, start: float, end: float) -> tuple[float, float, str]:
+    """Make ``line`` fit its clip at WORDS_PER_S: first grow the clip inside ``seg`` (end, then
+    start), then trim the line to the cap, dropping whole sentences from the end and cutting
+    words only if the first sentence alone is too long."""
+    tokens = line.split()
+    need = len(tokens) / WORDS_PER_S
+    if need > end - start:
+        end = min(seg.end, start + need)
+        start = max(seg.start, end - need)
+    cap = max(1, round(WORDS_PER_S * (end - start)))
+    if len(tokens) <= cap:
+        return start, end, line
+    cut = max((k + 1 for k in range(cap) if _ends_sentence(tokens[k])), default=0)
+    if cut == 0:  # the first sentence alone is too long: keep its first ``cap`` words
+        kept = tokens[:cap]
+        kept[-1] = kept[-1].rstrip(",;:—-") + ("" if _ends_sentence(kept[-1]) else ".")
+        return start, end, " ".join(kept)
+    return start, end, " ".join(tokens[:cut])
+
+
 def unclaimed_sentences(line: str, claims: list[str]) -> list[str]:
     """Sentences of ``line`` that hold none of ``claims`` and aren't questions: facts that would skip the truth check."""
     tokens, out, sentence = line.split(), [], []
@@ -204,7 +230,14 @@ def build_shots(draft: Draft, hook_line: str, segments: list[Segment], repo: Rep
             seg = by_id.get(d.segment_id)
             if seg is None:
                 raise ValueError(f"script: {beat} shot uses unknown segment {d.segment_id!r}")
-            start, end = _span(d, seg)
+            start, end, line = fit_voice(d.voice_line, seg, *_span(d, seg))
+            if line != d.voice_line:
+                events.emit("script", f"Voice s{i:02d} ({beat}): trimmed {len(d.voice_line.split())} -> "
+                            f"{len(line.split())} words to fit {end - start:.1f}s of {seg.segment_id}",
+                            data={"before": d.voice_line, "after": line})
+                # a claim cut away (wholly or partly) goes; what's left of it is an unclaimed sentence below
+                d = d.model_copy(update={"voice_line": line,
+                                         "claims": [c for c in d.claims if _locate(line.split(), c.text)]})
             visual = ShotVisual(kind="footage", segment_id=seg.segment_id, source_start=start, source_end=end)
         else:
             visual = ShotVisual(kind="card", card_prompt=d.card_prompt)
