@@ -104,6 +104,23 @@ def test_problem_by_20_check():
     assert not item.passed and shot is None
 
 
+def test_min_length_boundary():
+    """60 s limit -> 51 s target -> 30.6 s minimum. Never names a shot."""
+    item, shot = judge.check_min_length(_fixture_cut([10, 10, 10.5])[0], 60)
+    assert not item.passed and shot is None and item.reason == "Final cut is 30 s, under 60% of the 51 s target."
+    item, shot = judge.check_min_length(_fixture_cut([10, 10, 10.7])[0], 60)
+    assert item.passed and shot is None
+
+
+def test_footage_share_boundary():
+    """Fixture shots are card, footage, footage. Never names a shot."""
+    item, shot = judge.check_footage_share(_fixture_cut([10.1, 5, 5])[0])
+    assert not item.passed and shot is None and item.reason == "Real footage is 49% of the runtime."
+    for first in (10, 9.9):
+        item, shot = judge.check_footage_share(_fixture_cut([first, 5, 5])[0])
+        assert item.passed and shot is None
+
+
 def _rubric_dir(tmp_path, mode: str):
     for name in ("script.json", "timeline.json", "decisions.json"):
         shutil.copy2(FIXTURE_RUN / name, tmp_path / name)
@@ -118,10 +135,9 @@ def test_rubric_cheap_mode_skips_gemini_checks(tmp_path):
     judge.run_rubric(tmp_path, cfg)
     log = Decisions.model_validate_json((tmp_path / "decisions.json").read_text())
     assert [r.question for r in log.rubric] == [
-        judge.Q_PROBLEM, "Under the 180 s time limit?", judge.Q_CLAIMS, judge.Q_RESULT,
-        "At least 60% of the 75 s target?"]
-    assert [r.reason for r in log.rubric[2:4]] == [judge.SKIPPED] * 2 and log.recut is None
-    assert not log.rubric[4].passed  # B21: the 15 s fixture cut is far under the 75 s target
+        judge.Q_PROBLEM, "Under the 180 s time limit?", "At least 60% of the 75 s target?",
+        "At least 50% real footage?", judge.Q_CLAIMS, judge.Q_RESULT]
+    assert [r.reason for r in log.rubric[4:]] == [judge.SKIPPED] * 2 and log.recut is None
 
 
 def test_rubric_full_mode_gemini_checks(tmp_path):
@@ -131,12 +147,12 @@ def test_rubric_full_mode_gemini_checks(tmp_path):
     judge.run_rubric(tmp_path, cfg)
     judge.run_rubric(tmp_path, cfg)
     log = Decisions.model_validate_json((tmp_path / "decisions.json").read_text())
-    assert len(log.rubric) == 5 and all(r.reason != judge.SKIPPED for r in log.rubric)
+    assert len(log.rubric) == 6 and all(r.reason != judge.SKIPPED for r in log.rubric)
     rubric = [d for d in log.decisions if d.stage == "rubric"]
     assert len(rubric) == 1 and [a.question for a in rubric[0].answers] == [r.question for r in log.rubric]
     assert len(log.decisions) == len([d for d in before.decisions if d.stage != "rubric"]) + 1
-    assert all(r.passed for r in log.rubric[:4]) and log.recut is None  # the fixture cut is fine...
-    assert not log.rubric[4].passed  # ...except B21's length check: 15 s of a 75 s target
+    # The fixture cut is fine except its length: 15 s against a 75 s target, which names no shot.
+    assert [r.passed for r in log.rubric] == [True, True, False, True, True, True] and log.recut is None
 
 
 def test_one_shot_failure_reruns_timeline_once(tmp_path, monkeypatch):

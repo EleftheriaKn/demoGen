@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It quickly sets up a relatable situation, though rhetorical questions can feel familiar."
+        },
+        {
+          "score": 0.3,
+          "reason": "It fits almost any recipe or meal-planning service rather than PantryPal specifically."
+        },
+        {
+          "score": 0.4,
+          "reason": "It highlights the user's problem rather than showing what the app will actually do."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.4,
+          "reason": "It is a standard opening question that lacks novelty to immediately grab curiosity."
+        },
+        {
+          "score": 0.3,
+          "reason": "It applies broadly to any cooking or food-related app."
+        },
+        {
+          "score": 0.4,
+          "reason": "It focuses on the user's frustration instead of the app's direct solution."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "Framing around food waste adds an emotional angle, but it remains a typical question."
+        },
+        {
+          "score": 0.4,
+          "reason": "It touches on using leftover fridge items, but still lacks the app's unique photo feature."
+        },
+        {
+          "score": 0.4,
+          "reason": "It describes a negative user situation rather than what PantryPal delivers."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

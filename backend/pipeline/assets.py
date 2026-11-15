@@ -4,6 +4,10 @@ Voice: one fal TTS take per shot, cached, 6 at a time.
 Cards: for every card shot, 4 FLUX 2 drafts (no text: "fal draws, we write"), judged by
 ``pick_best``, one ``take_pick`` decision each. A draft with
 drawn text can't win; if all 4 have text the card is plain. Cheap mode: one plain colour card, no judge.
+Panels: a card shot with ``reference_frames`` is an illustrated panel instead: Ideogram Vector
+text-to-vector with the frames as references, 4 drafts in one call. (image-to-vector redraws a
+frame's text as garbled shapes, which the no-text check then rejects, so even one frame goes
+through text-to-vector.) fal returns SVG; we rasterize to PNG at the output size, then judge as cards.
 Music: one instrumental bed about as long as the voice track (silence in cheap mode).
 
 fal failures still give a video: after ``cache.retry`` gives up, a voice take is left out of
@@ -17,6 +21,8 @@ Run alone: python -m backend.pipeline.assets runs/<run_id>
 
 from __future__ import annotations
 
+import io
+import json
 import re
 import shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -33,6 +39,12 @@ from backend.pipeline import ff, judge
 
 PARALLEL = 6
 DRAFTS = 4
+# Taste brief ("generated shots look designed, not fake"): every fal image prompt ends with this.
+FAL_STYLE = (
+    "Flat vector art that looks designed, not fake: only 2 to 3 colours taken from the app's own screenshots, "
+    "generous empty space, soft gradients. No text, letters or logos anywhere."
+)
+PANEL_SEED = 20261115  # one seed for every panel call: one consistent look, and cache hits across runs
 NO_TEXT = (
     "Background artwork only, with no typography: no words, letters, numbers, logos, buttons or UI anywhere. "
     "Leave calm empty space in the centre for a title we add later."
@@ -77,7 +89,55 @@ def _draft(run_dir: Path, rel: str, prompt: str, n: int) -> bool:
 def card_prompt(prompt: str) -> str:
     """fal draws, we write: drop quoted titles from the script's prompt and keep only its look."""
     look = " ".join(QUOTED.sub("", prompt).split())
-    return f"Background for a video title card, in this style: {look} {NO_TEXT}"
+    return f"Background for a video title card, in this style: {look} {FAL_STYLE} {NO_TEXT}"
+
+
+def panel_prompt(prompt: str) -> str:
+    """Prompt for a text-to-vector panel: the script's scene, without quoted titles, in our style."""
+    scene = " ".join(QUOTED.sub("", prompt).split())
+    return (f"An illustrated panel for a product demo video showing: {scene} Use the reference screenshots for the "
+            f"app's screens and colours, redrawn as simplified UI cards and icons. {FAL_STYLE}")
+
+
+def _rasterize(svg: str, out: Path) -> None:
+    """SVG fitted inside the full output size, centred on the plain card colour, saved as PNG."""
+    try:
+        import resvg_py  # here, not at the top: a machine without it still runs assets, panels go plain
+    except ImportError as e:
+        raise RuntimeError("resvg-py is not installed, so the panel can't be drawn; "
+                           "`pip install -r requirements/a.txt` fixes it") from e
+    w, h = ff.size_for("full")
+    art = Image.open(io.BytesIO(resvg_py.svg_to_bytes(svg_string=svg, width=w, height=h))).convert("RGBA")
+    canvas = Image.new("RGBA", (w, h), CHEAP_CARD_RGB)
+    canvas.alpha_composite(art, ((w - art.width) // 2, (h - art.height) // 2))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.convert("RGB").save(out)
+
+
+def _panel(run_dir: Path, shot: Shot, frames: list[Path]) -> list[str]:
+    """PNG drafts of an illustrated panel from real frames; [] (with an event) if fal or the SVG failed."""
+    prompt = panel_prompt(shot.visual.card_prompt or "")
+    request = {"endpoint": fal.VECTOR_SCENE_ENDPOINT, "frames": frames, "prompt": prompt, "n": DRAFTS, "seed": PANEL_SEED}
+
+    def make(tmp: Path) -> None:  # one fal call, its SVGs stored together as one JSON list
+        svgs = [tmp.with_name(f"{tmp.stem}_{i}.svg") for i in range(DRAFTS)]
+        try:
+            cache.retry(lambda: fal.vector_scene(prompt, frames, svgs, PANEL_SEED))
+            tmp.write_text(json.dumps([p.read_text(encoding="utf-8") for p in svgs if p.exists()]), encoding="utf-8")
+        finally:
+            for p in svgs:
+                p.unlink(missing_ok=True)
+
+    try:
+        out = cache.file_call("panel", request, run_dir / f"cards/drafts/{shot.shot_id}_svg.json", make)
+        rels = []
+        for i, svg in enumerate(json.loads(out.read_text(encoding="utf-8"))):
+            rels.append(f"cards/drafts/{shot.shot_id}_{i}.png")
+            _rasterize(svg, run_dir / rels[-1])
+        return rels
+    except Exception as e:
+        events.emit("assets", f"Card {shot.shot_id}: panel failed ({e})", data={"shot_id": shot.shot_id})
+        return []
 
 
 def _plain(run_dir: Path, rel: str, mode: str) -> None:
@@ -94,18 +154,23 @@ def _cheap_card(run_dir: Path, shot: Shot, mode: str, why: str = "cheap") -> Car
 
 
 def _judge(run_dir: Path, shot: Shot, drafts: list[str]) -> judge.PickResult:
-    context = f"a title card for a product demo video, generated from: {shot.visual.card_prompt}"
+    what = "an illustrated panel" if shot.visual.reference_frames else "a title card"
+    context = f"{what} for a product demo video, generated from: {shot.visual.card_prompt}"
     paths = [run_dir / d for d in drafts]
     request = {"drafts": paths, "questions": CARD_QUESTIONS, "context": context, "must_pass": NO_TEXT_Q}
     return cache.json_call("pick", request, lambda: judge.pick_best(paths, CARD_QUESTIONS, context, NO_TEXT_Q))
 
 
 def _cards(run_dir: Path, shots: list[Shot]) -> list[CardAsset]:
-    drafts = {s.shot_id: [f"cards/drafts/{s.shot_id}_{n}.png" for n in range(DRAFTS)] for s in shots}
-    jobs = [(rel, card_prompt(s.visual.card_prompt), n) for s in shots for n, rel in enumerate(drafts[s.shot_id])]
+    # frames the script named but that aren't on disk are skipped; none left means a plain FLUX card
+    refs = {s.shot_id: [run_dir / f for f in s.visual.reference_frames if (run_dir / f).is_file()] for s in shots}
+    panels, flux = [s for s in shots if refs[s.shot_id]], [s for s in shots if not refs[s.shot_id]]
+    drafts = {s.shot_id: [f"cards/drafts/{s.shot_id}_{n}.png" for n in range(DRAFTS)] for s in flux}
+    jobs = [(rel, card_prompt(s.visual.card_prompt), n) for s in flux for n, rel in enumerate(drafts[s.shot_id])]
     with ThreadPoolExecutor(PARALLEL) as pool:
         made = {j[0] for j, ok in zip(jobs, pool.map(lambda j: _draft(run_dir, *j), jobs)) if ok}
         drafts = {k: [d for d in v if d in made] for k, v in drafts.items()}  # judge only the drafts fal made
+        drafts.update(zip([s.shot_id for s in panels], pool.map(lambda s: _panel(run_dir, s, refs[s.shot_id]), panels)))
         judged = [s for s in shots if drafts[s.shot_id]]
         picks = dict(zip([s.shot_id for s in judged], pool.map(lambda s: _judge(run_dir, s, drafts[s.shot_id]), judged)))
 

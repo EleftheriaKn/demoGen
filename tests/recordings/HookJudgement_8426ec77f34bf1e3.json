@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.4,
+          "reason": "It is a generic infomercial question that generates little genuine curiosity."
+        },
+        {
+          "score": 0.2,
+          "reason": "It could apply broadly to any recipe website or meal-planning service."
+        },
+        {
+          "score": 0.5,
+          "reason": "It highlights the user pain point of meal planning, but does not state what the app delivers."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "The relatable takeout dilemma creates a quick emotional spark for the judge."
+        },
+        {
+          "score": 0.4,
+          "reason": "It references staring into the fridge, though it lacks mention of photo scanning or recipes."
+        },
+        {
+          "score": 0.6,
+          "reason": "It connects directly to solving the user's decision fatigue around fridge contents."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "Framing dinner as 'hiding' in the fridge sparks visual intrigue right away."
+        },
+        {
+          "score": 0.5,
+          "reason": "It closely evokes looking into the fridge for meals, aligning well with fridge photo recognition."
+        },
+        {
+          "score": 0.6,
+          "reason": "It reflects the app's core benefit of discovering viable meals from existing fridge items."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

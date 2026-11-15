@@ -189,7 +189,34 @@ def test_evidence_that_cannot_be_shown_counts_as_none(tmp_path):
     ev.append(Evidence(type="footage", ref="c02"))  # no frames in tmp_path
     assert script.evidence_shown(ev, tmp_path, segs, REPO) == ([], [])
     blocks, images = script.evidence_shown([Evidence(type="footage", ref="c02")], FIXTURE_RUN, segs, REPO)
-    assert len(blocks) == 1 and [p.name for p in images] == [f.split("/")[1] for f in segs["c02"].frames]
+    assert len(blocks) == 1 and "before frames/c01_3s.jpg" in blocks[0] and "after frames/c03_10.5s.jpg" in blocks[0]
+    assert [p.name for p in images] == ["c01_3s.jpg", *(f.split("/")[1] for f in segs["c02"].frames), "c03_10.5s.jpg"]
+
+
+def test_ordered_frames_add_non_overlapping_neighbours_in_time_order(tmp_path):
+    segs = {s.segment_id: s for s in SEGMENTS}
+    # first segment: nothing before it
+    assert [lab for lab, _ in script.ordered_frames(segs["c01"], segs, FIXTURE_RUN)] == ["during"] * 3 + ["after"]
+    # last segment: nothing after it
+    last = script.ordered_frames(segs["c06"], segs, FIXTURE_RUN)
+    assert last[0] == ("before", "frames/c05_21.25s.jpg") and last[-1][0] == "during"
+    # an overlapping segment is not a neighbour: c04 (12-19) spans the long one's start, so c03 ends before
+    long = segs["c04"].model_copy(update={"segment_id": "cx", "start": 12.5, "end": 21.0})
+    with_long = {**segs, "cx": long}
+    out = script.ordered_frames(long, with_long, FIXTURE_RUN)
+    assert out[0] == ("before", "frames/c03_11.5s.jpg") and out[-1] == ("after", "frames/c06_23.5s.jpg")
+    # no own frames on disk: nothing, even though neighbours exist
+    assert script.ordered_frames(segs["c02"], segs, tmp_path) == []
+
+
+def test_generated_shot_claims_never_use_footage():
+    segs = {s.segment_id: s for s in SEGMENTS}
+    heading = sorted(script.readme_headings(REPO.readme))[0]
+    ev = [Evidence(type="footage", ref="c02"), Evidence(type="readme", ref=f"README#{heading}")]
+    blocks, images = script.evidence_shown(ev, FIXTURE_RUN, segs, REPO, generated=True)
+    assert images == [] and len(blocks) == 1 and blocks[0].startswith("README section:")
+    # footage alone on a generated shot is no evidence, so the claim drops without a call
+    assert script.evidence_shown(ev[:1], FIXTURE_RUN, segs, REPO, generated=True) == ([], [])
 
 
 def test_check_claim_drops_without_evidence_and_when_a_rewrite_adds_words_or_is_unsupported(monkeypatch):

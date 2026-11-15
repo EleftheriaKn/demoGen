@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from backend import events
 from backend.clients import gemini
-from backend.contracts import Feature, Moments, RepoFiles, Summary
+from backend.contracts import Feature, FlowStep, Moments, RepoFiles, Summary
 from backend.pipeline import understand
 from backend.run import FIXTURE_RUN, load_run
 
@@ -46,9 +46,63 @@ def test_check_evidence_drops_unknown_refs_and_unbacked_features():
         understand.check_evidence(_summary(s.features[1]), REPO)
 
 
-def _raw(start, end, kind="action", feature_id=None, settled_at=None):
+def test_check_evidence_drops_unbacked_flow_steps_and_nulls_dropped_features():
+    s = _summary(
+        Feature(feature_id="a", name="Scan", description="d", evidence=["backend/vision.py"]),
+        Feature(feature_id="b", name="Ghost", description="d", evidence=["src/x.py"]),
+    ).model_copy(update={"flow": [
+        FlowStep(step_id="s1", text="open", feature_id=None, evidence=["README#How it works", "README#Nope"]),
+        FlowStep(step_id="s2", text="ghost", feature_id="a", evidence=["src/ghost.py"]),
+        FlowStep(step_id="s3", text="scan", feature_id="b", evidence=["backend/vision.py"]),
+    ]})
+    out = understand.check_evidence(s, REPO)
+    assert [(x.step_id, x.feature_id, x.evidence) for x in out.flow] == [
+        ("s1", None, ["README#How it works"]), ("s3", None, ["backend/vision.py"])]
+
+
+def test_old_summary_and_moments_without_new_fields_still_load():
+    summary = Summary.model_validate_json((FIXTURE_RUN / "summary.json").read_text(encoding="utf-8"))
+    moments = Moments.model_validate_json((FIXTURE_RUN / "moments.json").read_text(encoding="utf-8")).moments
+    assert summary.flow == [] and "flow" not in summary.model_dump_json()
+    assert all(m.quality is None and m.flow_step is None for m in moments)
+
+
+def test_brief_text_reads_brief_txt_when_run_has_no_text(tmp_path):
+    shutil.copy2(FIXTURE_RUN / "run.json", tmp_path / "run.json")
+    cfg = load_run(tmp_path)
+    assert understand.brief_text(tmp_path, cfg) == ""
+    (tmp_path / "brief.txt").write_text("Judged on usefulness. 60 s max.\n", encoding="utf-8")
+    assert understand.brief_text(tmp_path, cfg) == "Judged on usefulness. 60 s max."
+
+
+def _raw(start, end, kind="action", feature_id=None, settled_at=None, quality="ok", flow_step=None):
     return understand._RawMoment(start=start, end=end, description="d", feature_id=feature_id,
-                                 kind=kind, settled_at=settled_at, confidence=1.2)
+                                 kind=kind, settled_at=settled_at, confidence=1.2, quality=quality,
+                                 flow_step=flow_step)
+
+
+def test_fix_moments_keeps_quality_and_nulls_unknown_flow_steps():
+    raw = [_raw(0, 4, "setup", quality="weak", flow_step="s1"),
+           _raw(5, 8, "action", "f1", flow_step="s2"), _raw(8.2, 9, "result", "f1", quality="wow"),
+           _raw(10, 12, "result", "f1", quality="ok", flow_step="s9")]
+    out = understand.fix_moments(raw, 60.0, {"f1"}, {"s1", "s2"}).moments
+    assert [(m.quality, m.flow_step) for m in out] == [("weak", "s1"), ("wow", "s2"), ("ok", None)]
+    assert understand.fix_moments(raw, 60.0, {"f1"}).moments[0].flow_step is None  # no flow: all null
+
+
+def test_missing_steps_are_flow_steps_no_moment_shows(tmp_path, monkeypatch):
+    summary = _summary(Feature(feature_id="f1", name="Add", description="d", evidence=["x"])).model_copy(
+        update={"flow": [FlowStep(step_id=f"s{i}", text=f"step {i}") for i in (1, 2, 3)]})
+    moments = understand.fix_moments([_raw(0, 4, flow_step="s2"), _raw(4, 8)], 60.0, {"f1"}, {"s1", "s2", "s3"})
+    assert [s.step_id for s in understand.missing_steps(summary, moments)] == ["s1", "s3"]
+
+    said = []
+    monkeypatch.setattr(understand.ff, "duration", lambda _: 60.0)
+    monkeypatch.setattr(understand.gemini, "generate", lambda *a, **k: understand._RawMoments(
+        moments=[_raw(0, 4, flow_step="s2"), _raw(4, 8)]))
+    monkeypatch.setattr(understand.events, "emit", lambda stage, msg: said.append(msg))
+    understand.find_moments(tmp_path / "rec.mp4", summary)
+    assert said == ["Flow steps the take never shows: s1 step 1; s3 step 3"]
 
 
 def test_fix_moments_clamps_sorts_trims_and_renumbers():
@@ -116,9 +170,14 @@ def test_understand_writes_checked_summary_and_moments(tmp_path):
         assert f.evidence
         for e in f.evidence:
             assert understand.evidence_ok(e, headings, tree), e
+    assert summary.flow
+    for s in summary.flow:
+        assert s.evidence and all(understand.evidence_ok(e, headings, tree) for e in s.evidence), s
 
     # TodoMVC take: typing todos ~12-30 s (samples/todomvc/notes.md); on-screen text is copied.
     assert moments and moments[-1].end <= 60.1
     assert all(a.end <= b.start for a, b in zip(moments, moments[1:]))
     assert any(m.kind in ("action", "result") and m.start < 30 and m.end > 12 for m in moments)
     assert any("Buy milk" in m.description for m in moments)
+    assert all(m.quality in ("wow", "ok", "weak") for m in moments)
+    assert all(m.flow_step in {s.step_id for s in summary.flow} | {None} for m in moments)

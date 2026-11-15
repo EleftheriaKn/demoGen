@@ -9,8 +9,8 @@ Two stages plus one function other tracks call:
   total = 80% mean judge score + 20% sharpness. Cheap mode judges only the 2 sharpest frames
   of each segment. Re-running replaces this stage's earlier decisions.
 - ``run_rubric``  stage ``rubric``: reads timeline.json, script.json, brief; writes the
-  rubric (and an optional ``recut``) into decisions.json. Four fixed checks: time limit and
-  "problem by 0:20" in code, claims backed and core result shown by Gemini (skipped in cheap
+  rubric (and an optional ``recut``) into decisions.json. Six fixed checks: time limit,
+  "problem by 0:20", at least 60% of the script's target length and at least half real footage in code, claims backed and core result shown by Gemini (skipped in cheap
   mode). A recut is asked only when a failure is pinned on one shot that is in the timeline.
 - ``pick_best``   called by the assets stage to choose among N generated drafts (images judged; audio/video stubbed).
 
@@ -33,6 +33,7 @@ from backend.contracts import (
     Candidates, Decisions, FrameScore, FrameScores, JudgeAnswer, Recut, RubricItem, RunConfig, Script, Summary, Timeline,
 )
 from backend.decisions import append_decision, drop_stage
+from backend.pipeline.script import target
 
 # Judge questions: fixed per criterion, asked every run (CONTEXT.md "Judge question").
 QUESTIONS = {
@@ -208,6 +209,8 @@ def run_frames(run_dir: Path, run: RunConfig) -> None:
 
 
 PROBLEM_BY_S = 20.0
+MIN_LENGTH_SHARE = 0.6  # of the script's target length
+MIN_FOOTAGE_SHARE = 0.5  # of the runtime
 Q_PROBLEM = "Problem stated by 0:20?"
 Q_CLAIMS = "Is every remaining claim backed by footage or the repo?"
 Q_RESULT = "Is the app's core result shown on screen?"
@@ -229,19 +232,20 @@ def check_time_limit(timeline: Timeline, limit_s: int) -> Check:
     return item, None
 
 
-MIN_SHARE = 0.6  # B21: a cut shorter than this share of the script's target lost too much (v3: 24 s of 75)
+def check_min_length(timeline: Timeline, limit_s: int) -> Check:
+    """Too short is the whole video's fault, so it never names a shot."""
+    target_s = target(limit_s)[0]
+    ok = timeline.duration_s >= MIN_LENGTH_SHARE * target_s
+    reason = f"Final cut is {timeline.duration_s:.0f} s, " + ("at least" if ok else "under") + f" {MIN_LENGTH_SHARE:.0%} of the {target_s} s target."
+    return RubricItem(question=f"At least {MIN_LENGTH_SHARE:.0%} of the {target_s} s target?", passed=ok, reason=reason), None
 
 
-def check_long_enough(timeline: Timeline, limit_s: int) -> Check:
-    """Too short is the whole video's fault too: shots were dropped (failed claims), not one bad shot."""
-    from backend.pipeline.script import target  # here, not at the top: script imports this module
-
-    want = target(limit_s)[0]
-    ok = timeline.duration_s >= MIN_SHARE * want
-    item = RubricItem(question=f"At least {MIN_SHARE:.0%} of the {want} s target?", passed=ok,
-                      reason=f"Final cut is {timeline.duration_s:.0f} s" + (
-                          "." if ok else f", under {MIN_SHARE * want:.0f} s: too many shots were dropped."))
-    return item, None
+def check_footage_share(timeline: Timeline) -> Check:
+    """Too little real footage is the whole cut's fault, so it never names a shot."""
+    share = sum(s.duration_s for s in timeline.shots if s.visual.kind == "footage") / timeline.duration_s
+    ok = share >= MIN_FOOTAGE_SHARE
+    return RubricItem(question=f"At least {MIN_FOOTAGE_SHARE:.0%} real footage?", passed=ok,
+                      reason=f"Real footage is {int(share * 100)}% of the runtime."), None
 
 
 def check_problem_by_20(timeline: Timeline, script: Script) -> Check:
@@ -296,13 +300,14 @@ def gemini_checks(script: Script, timeline: Timeline, run: RunConfig) -> list[Ch
 def run_rubric(run_dir: Path, run: RunConfig) -> None:
     script = Script.model_validate_json((run_dir / "script.json").read_text(encoding="utf-8"))
     timeline = Timeline.model_validate_json((run_dir / "timeline.json").read_text(encoding="utf-8"))
-    checks = [check_problem_by_20(timeline, script), check_time_limit(timeline, run.brief.time_limit_s)]
+    limit = run.brief.time_limit_s
+    checks = [check_problem_by_20(timeline, script), check_time_limit(timeline, limit),
+              check_min_length(timeline, limit), check_footage_share(timeline)]
     if run.mode == "cheap":
         # The contract has no "skipped" flag: a skipped check passes (it can't block or recut) and says so.
         checks += [(RubricItem(question=q, passed=True, reason=SKIPPED), None) for q in GEMINI_QUESTIONS]
     else:
         checks += gemini_checks(script, timeline, run)
-    checks.append(check_long_enough(timeline, run.brief.time_limit_s))  # B21, code only: runs in cheap mode too
 
     items = [i for i, _ in checks]
     blame = next(((i, shot) for i, shot in checks if shot is not None), None)

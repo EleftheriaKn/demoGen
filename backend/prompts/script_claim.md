@@ -1,6 +1,6 @@
 You check one claim from the voice-over of a demo video. Judge it only against the evidence below (README text, source files, and frames from the screen recording, attached in the order listed). Ignore anything else you know or guess about the app: if the evidence doesn't show it, it is not supported.
 
-Frames are still images from a screen recording, in time order. A claim about something the user does (adds, types, clicks, completes, filters, opens) is shown when the frames show its result on screen: the new item in the list, the item checked, the filter highlighted and the list changed. No still can show the motion itself, so don't drop a claim only because the action is not visible; drop it when its result is not visible either.
+Footage frames come in time order, each labelled: "before" is the last frame just before the clip, "during" are frames from the clip, "after" is the first frame just after it. Compare them, not one at a time: a still cannot show motion, but a change between frames shows an action. An action claim ("adds", "types", "clicks", "checks off", "filters", "clears") is shown when the frames show its result appear across that order, with at least one "during" frame showing the change happening or its result: an empty list, then the list with one item, shows "adds a todo"; an unchecked item, then the same item checked, shows "checks it off". A change the frames contradict, or one no frame shows, is not shown.
 
 Claim: "{claim}"
 

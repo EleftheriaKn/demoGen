@@ -13,6 +13,8 @@ RAW = {
     fal.TTS_ENDPOINT: {"audio": {"url": "u-tts"}},
     fal.CARD_ENDPOINT: {"images": [{"url": "u-card", "width": 1024, "height": 576}], "seed": 1, "prompt": "p"},
     fal.CARD_EDIT_ENDPOINT: {"images": [{"url": "u-edit"}], "description": ""},
+    fal.VECTOR_REDRAW_ENDPOINT: {"images": [{"url": "u-redraw", "content_type": "image/svg+xml"}], "seed": None},
+    fal.VECTOR_SCENE_ENDPOINT: {"images": [{"url": f"u-scene{i}", "content_type": "image/svg+xml"} for i in range(2)], "seed": 7},
     fal.MUSIC_ENDPOINT: {"audio": {"url": "u-music", "content_type": "audio/mpeg"}},
     fal.SCRIBE_ENDPOINT: {
         "text": "Add a todo.",
@@ -39,13 +41,19 @@ def test_fal_field_mapping(monkeypatch, tmp_path):
     fal.card_image("bg", tmp_path / "c.png")
     fal.card_edit("bg", [tmp_path / "f.jpg"], tmp_path / "e.png")
     fal.music("calm", 10, tmp_path / "m.mp3")
+    fal.vector_redraw(tmp_path / "f.jpg", tmp_path / "r.svg")
+    scene = fal.vector_scene("ui", [tmp_path / f"f{i}.jpg" for i in range(7)], [tmp_path / "s0.svg", tmp_path / "s1.svg"], seed=7)
     transcript = fal.transcribe(tmp_path / "a.wav")
 
-    assert downloads == ["u-tts", "u-card", "u-edit", "u-music"]
+    assert downloads == ["u-tts", "u-card", "u-edit", "u-music", "u-redraw", "u-scene0", "u-scene1"]
+    assert scene == [tmp_path / "s0.svg", tmp_path / "s1.svg"]
     args = dict(calls)
     assert args[fal.TTS_ENDPOINT]["language_code"] == "en"
     assert args[fal.CARD_EDIT_ENDPOINT]["image_urls"] == [f"up:{tmp_path / 'f.jpg'}"]
     assert args[fal.MUSIC_ENDPOINT]["music_length_ms"] == 10000
+    assert args[fal.VECTOR_REDRAW_ENDPOINT] == {"image_url": f"up:{tmp_path / 'f.jpg'}", "mode": "simple"}
+    sc = args[fal.VECTOR_SCENE_ENDPOINT]
+    assert (len(sc["image_urls"]), sc["aspect_ratio"], sc["num_images"], sc["seed"]) == (5, "16:9", 2, 7)  # fal takes at most 5 refs
     assert args[fal.SCRIBE_ENDPOINT]["audio_url"] == f"up:{tmp_path / 'a.wav'}"
     assert transcript == {
         "language": "en",

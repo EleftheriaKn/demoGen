@@ -1,10 +1,10 @@
 {
   "hooks": [
-    "Tired of wondering what to cook tonight?",
-    "Staring at random ingredients in your fridge?",
-    "Do you waste food because you lack dinner ideas?"
+    "Tired of wondering what to cook with random leftover ingredients?",
+    "Staring at your fridge and still ordering takeout again?",
+    "Ever wondered what dinner is hiding inside your half-empty fridge?"
   ],
-  "hook_card_prompt": "Clean minimalist kitchen counter aesthetic with fresh vegetables and warm ambient morning lighting, soft focus depth of field.",
+  "hook_card_prompt": "Clean modern kitchen background with soft morning light, fresh produce textures, gentle mint green and warm cream gradient tones, high resolution, minimalist aesthetic.",
   "problem": {
     "voice_line": "People waste food and time because they do not know what to cook with what they already have.",
     "segment_id": "c01",
@@ -24,13 +24,13 @@
   },
   "demos": [
     {
-      "voice_line": "Snap a clear picture of your open fridge shelves to automatically capture all your available groceries.",
+      "voice_line": "Snap a photo of your open fridge to let the camera detect all your available ingredients.",
       "segment_id": "c02",
       "source_start": 5.2,
       "source_end": 9.8,
       "claims": [
         {
-          "text": "Snap a clear picture of your open fridge shelves to automatically capture all your available groceries.",
+          "text": "Snap a photo of your open fridge to let the camera detect all your available ingredients.",
           "evidence": [
             {
               "type": "footage",
@@ -41,13 +41,13 @@
       ]
     },
     {
-      "voice_line": "Review three recipe suggestions that instantly appear with your matched pantry ingredients highlighted.",
+      "voice_line": "Browse three ranked recipe cards sliding in with your matched fridge ingredients already highlighted.",
       "segment_id": "c04",
-      "source_start": 12.2,
-      "source_end": 18.8,
+      "source_start": 12.5,
+      "source_end": 18.5,
       "claims": [
         {
-          "text": "Review three recipe suggestions that instantly appear with your matched pantry ingredients highlighted.",
+          "text": "Browse three ranked recipe cards sliding in with your matched fridge ingredients already highlighted.",
           "evidence": [
             {
               "type": "footage",
@@ -59,34 +59,34 @@
     }
   ],
   "how": {
-    "voice_line": "Computer vision detects every grocery item and ranks recipes using your available ingredients.",
-    "segment_id": "c03",
-    "source_start": 10.0,
-    "source_end": 12.0,
+    "voice_line": "Computer vision inspects the photo while recipe ranking matches ingredients in seconds.",
+    "segment_id": "c05",
+    "source_start": 19.2,
+    "source_end": 21.8,
     "claims": [
       {
-        "text": "Computer vision detects every grocery item and ranks recipes using your available ingredients.",
+        "text": "Computer vision inspects the photo while recipe ranking matches ingredients in seconds.",
         "evidence": [
-          {
-            "type": "readme",
-            "ref": "README#How it works"
-          },
           {
             "type": "file",
             "ref": "backend/vision.py"
+          },
+          {
+            "type": "file",
+            "ref": "backend/recipes.py"
           }
         ]
       }
     ]
   },
   "impact": {
-    "voice_line": "You save time and stop wasting groceries every single week.",
-    "segment_id": "c05",
-    "source_start": 19.2,
-    "source_end": 21.8,
+    "voice_line": "Save money and cut food waste every night.",
+    "segment_id": "c03",
+    "source_start": 10.1,
+    "source_end": 11.9,
     "claims": [
       {
-        "text": "You save time and stop wasting groceries every single week.",
+        "text": "Save money and cut food waste every night.",
         "evidence": [
           {
             "type": "readme",
@@ -97,8 +97,8 @@
     ]
   },
   "ask": {
-    "voice_line": "Try PantryPal today and vote for our project!",
-    "card_prompt": "Warm modern kitchen flat-lay with cutting board, fresh herbs, and soft evening ambient glow.",
+    "voice_line": "Vote for PantryPal and make dinner effortless today.",
+    "card_prompt": "Warm ambient kitchen counter with fresh culinary herbs and soft ambient lighting, clean and modern minimalist design.",
     "claims": []
   }
 }

@@ -1,18 +1,18 @@
 {
   "hooks": [
     "Tired of wondering what to cook tonight?",
-    "Staring at your fridge with no ideas?",
-    "Ever let fresh food spoil by accident?"
+    "Staring blankly at an open fridge again?",
+    "What will you make with remaining groceries?"
   ],
-  "hook_card_prompt": "Clean kitchen counter with fresh colorful vegetables and soft warm ambient lighting, modern aesthetic, photography style.",
+  "hook_card_prompt": "A warm minimalist kitchen counter scene with soft ambient lighting, fresh vegetables in a bowl, blurred cozy background, pastel green and soft cream palette, clean aesthetic illustration",
   "problem": {
-    "voice_line": "People waste food and time because they do not know what to cook with what they already have.",
+    "voice_line": "People waste food and time because they do not know what to cook with leftover ingredients.",
     "segment_id": "c01",
-    "source_start": 0.0,
-    "source_end": 4.0,
+    "source_start": 0.5,
+    "source_end": 3.8,
     "claims": [
       {
-        "text": "People waste food and time because they do not know what to cook with what they already have.",
+        "text": "People waste food and time because they do not know what to cook with leftover ingredients.",
         "evidence": [
           {
             "type": "readme",
@@ -24,13 +24,13 @@
   },
   "demos": [
     {
-      "voice_line": "Snap a photo of your open fridge directly with the camera button.",
+      "voice_line": "Snap a single photo of your open fridge to scan your ingredients instantly.",
       "segment_id": "c02",
-      "source_start": 5.0,
-      "source_end": 10.0,
+      "source_start": 5.2,
+      "source_end": 9.8,
       "claims": [
         {
-          "text": "Snap a photo of your open fridge directly with the camera button.",
+          "text": "Snap a single photo of your open fridge to scan your ingredients instantly.",
           "evidence": [
             {
               "type": "footage",
@@ -41,13 +41,13 @@
       ]
     },
     {
-      "voice_line": "Review three recipe cards with your matched ingredients highlighted.",
+      "voice_line": "Review three tailored recipes ranked by your matched ingredients on screen.",
       "segment_id": "c04",
-      "source_start": 12.0,
-      "source_end": 19.0,
+      "source_start": 12.5,
+      "source_end": 18.5,
       "claims": [
         {
-          "text": "Review three recipe cards with your matched ingredients highlighted.",
+          "text": "Review three tailored recipes ranked by your matched ingredients on screen.",
           "evidence": [
             {
               "type": "footage",
@@ -59,13 +59,13 @@
     }
   ],
   "how": {
-    "voice_line": "The vision backend detects your fridge ingredients from the image.",
+    "voice_line": "Computer vision detects ingredients right from your captured image.",
     "segment_id": "c03",
     "source_start": 10.0,
     "source_end": 12.0,
     "claims": [
       {
-        "text": "The vision backend detects your fridge ingredients from the image.",
+        "text": "Computer vision detects ingredients right from your captured image.",
         "evidence": [
           {
             "type": "file",
@@ -76,13 +76,13 @@
     ]
   },
   "impact": {
-    "voice_line": "Cook delicious meals effortlessly while reducing household food waste.",
+    "voice_line": "Turn leftover pantry items into delicious homemade meals.",
     "segment_id": "c05",
-    "source_start": 19.0,
-    "source_end": 22.0,
+    "source_start": 19.2,
+    "source_end": 21.8,
     "claims": [
       {
-        "text": "Cook delicious meals effortlessly while reducing household food waste.",
+        "text": "Turn leftover pantry items into delicious homemade meals.",
         "evidence": [
           {
             "type": "readme",
@@ -93,8 +93,8 @@
     ]
   },
   "ask": {
-    "voice_line": "Try PantryPal today and vote for us!",
-    "card_prompt": "Warm minimalist kitchen interior with wooden shelves, soft morning sunlight, peaceful culinary atmosphere, digital art.",
+    "voice_line": "Try PantryPal today and vote for our project!",
+    "card_prompt": "Clean modern kitchen tabletop with soft morning sunlight, wooden cutting board, cozy warm culinary vibe, digital vector art style",
     "claims": []
   }
 }
