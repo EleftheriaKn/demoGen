@@ -1,2 +1,3 @@
 -r common.txt
 segno  # QR codes for the phone address (B14)
+playwright  # B26: the app records itself (uses system Chromium if `playwright install chromium` was not run)
