@@ -20,6 +20,11 @@ that adds a word, or that the judge says is still partly unsupported, is dropped
 words, a drop cuts the sentence holding it. A shot left with no words is removed, except the problem
 shot: it comes back with ``summary.problem`` as a fact-free line, so a problem is always stated.
 
+Zoom boxes (full mode only): each demo and impact shot takes its segment's ``frame_pick``
+winner from decisions.json; Gemini is asked once per chosen frame for the region to zoom into.
+Code keeps the box only if it lies inside the frame and is at least MIN_ZOOM_W wide, else
+``focus_box`` stays null.
+
 Run alone: python -m backend.run runs/<run_id> --only script
 """
 
@@ -40,6 +45,7 @@ from backend.clients import gemini
 from backend.contracts import (
     Candidates,
     Claim,
+    Decisions,
     Evidence,
     FrameScores,
     Hook,
@@ -74,6 +80,8 @@ CLAIM_OPTIONS = ["keep", "rewrite", "drop"]
 STATUS = {"keep": "backed", "rewrite": "rewritten", "drop": "dropped"}
 WORKERS = 6  # parallel claim checks
 CHECKED_BEATS = {"problem", "demo", "how", "impact"}  # every factual sentence here must be a claim
+ZOOM_BEATS = {"demo", "impact"}
+MIN_ZOOM_W = 0.2  # narrower boxes zoom in too far to read
 
 
 # --------------------------------------------------------------------------- #
@@ -141,6 +149,11 @@ class ClaimVerdict(BaseModel):
     rewrite_supported: bool = Field(
         description="For rewrite: true only if the evidence shows every part of the rewrite. False otherwise."
     )
+
+
+class FocusRegion(BaseModel):
+    box_2d: list[int] = Field(description="[ymin, xmin, ymax, xmax], each 0-1000, relative to the frame.")
+    reason: str = Field(description="One short line naming what the region shows.")
 
 
 # --------------------------------------------------------------------------- #
@@ -389,6 +402,54 @@ def check_claim(claim: Claim, blocks: list[str], images: list[Path]) -> tuple[Cl
 
 
 # --------------------------------------------------------------------------- #
+# Zoom boxes
+# --------------------------------------------------------------------------- #
+
+
+def focus_box(box_2d: list[int]) -> Optional[list[float]]:
+    """Gemini's [ymin, xmin, ymax, xmax] (0-1000) -> [x, y, w, h] in 0-1, or None if it leaves
+    the frame, is empty or is narrower than MIN_ZOOM_W."""
+    if len(box_2d) != 4:
+        return None
+    y0, x0, y1, x1 = (v / 1000 for v in box_2d)
+    if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1) or x1 - x0 < MIN_ZOOM_W:
+        return None
+    return [x0, y0, x1 - x0, y1 - y0]
+
+
+def ask_focus(frame: Path, lines: list[str]) -> FocusRegion:
+    text = gemini.prompt("script_zoom", lines="\n".join(f'"{line}"' for line in lines))
+    return gemini.generate(text, FocusRegion, images=[frame])
+
+
+def add_zoom(run_dir: Path, shots: list[Shot]) -> list[Shot]:
+    """Fill ``visual.focus_box`` of demo/impact footage shots from their segment's chosen frame."""
+    path = run_dir / "decisions.json"
+    log = Decisions.model_validate_json(path.read_text(encoding="utf-8")) if path.exists() else None
+    picks = {d.subject: d.chosen for d in (log.decisions if log else []) if d.kind == "frame_pick"}
+    frame_of = {s.shot_id: picks.get(s.visual.segment_id or "") for s in shots
+                if s.beat in ZOOM_BEATS and s.visual.kind == "footage"}
+    frame_of = {k: f for k, f in frame_of.items() if f and (run_dir / f).exists()}
+    lines: dict[str, list[str]] = {}
+    for s in shots:
+        if s.shot_id in frame_of:
+            lines.setdefault(frame_of[s.shot_id], []).append(s.voice_line)
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:  # one call per chosen frame
+        regions = dict(zip(lines, pool.map(lambda f: ask_focus(run_dir / f, lines[f]), lines)))
+
+    out = []
+    for s in shots:
+        if s.shot_id in frame_of:
+            region = regions[frame_of[s.shot_id]]
+            box = focus_box(region.box_2d)
+            note = f"{[round(v, 3) for v in box]} ({region.reason})" if box else f"none, {region.box_2d} rejected"
+            events.emit("script", f"Zoom {s.shot_id} from {frame_of[s.shot_id]}: {note}", data={"focus_box": box})
+            s = s.model_copy(update={"visual": s.visual.model_copy(update={"focus_box": box})})
+        out.append(s)
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # Stage
 # --------------------------------------------------------------------------- #
 
@@ -451,6 +512,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         results = list(pool.map(lambda c: check_claim(c, *evidence_shown(c.evidence, run_dir, by_id, repo)), claims))
     shots = keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted, summary.problem)
+    if run.mode != "cheap":
+        shots = add_zoom(run_dir, shots)
     script = Script(language=run.brief.language, hooks=hooks, chosen_hook_id=chosen.hook_id, shots=shots)
     (run_dir / "script.json").write_text(script.model_dump_json(indent=2), encoding="utf-8")
 
