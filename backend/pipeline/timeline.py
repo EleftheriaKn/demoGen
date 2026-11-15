@@ -24,6 +24,7 @@ from backend.pipeline.ff import duration, ff, size_for, take_path
 FPS = 30
 BREATH_S = 0.25      # footage keeps running this long after the voice ends
 MAX_SPEED = 1.5      # contract limit
+MIN_BROLL_SPEED = 0.75  # generated clips may play this slow before their last frame is held
 HERO_BEATS = {"hook", "ask"}  # these cards get the hero look; other generated shots are illustration panels
 MAX_FREEZE_S = 1.5   # longer gaps play more real footage instead of a held frame...
 MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment can contradict the voice line
@@ -56,6 +57,15 @@ def fit_source(start: float, end: float, target: float, limit: float | None) -> 
         speed = min(length / target, MAX_SPEED)
         return start, round(start + target * speed, 3), round(speed, 4), 0.0
     return start, end, 1.0, round(target - length, 3)
+
+
+def fit_broll(length: float, target: float) -> tuple[float, float, float, float]:
+    """A generated clip (A17: 4 s) under a longer voice line plays slower first (gentle motion stays
+    natural down to MIN_BROLL_SPEED), and only holds its last frame for what is still missing."""
+    if length >= target:
+        return fit_source(0.0, length, target, length)
+    speed = max(MIN_BROLL_SPEED, length / target)
+    return 0.0, length, round(speed, 4), round(max(0.0, target - length / speed), 3)
 
 
 def grow(start: float, end: float, need: float, lo: float, hi: float) -> tuple[float, float]:
@@ -218,9 +228,10 @@ def run(run_dir: Path, run: RunConfig) -> None:
             visual = TimelineVisual(kind="footage", path=run.recording, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze, zoom=zoom)
         elif vis.kind != "footage" and (b := usable_broll(d, brolls.get(s.shot_id))):
-            # B16: a fal clip (A17) for a generated shot, whatever kind the script gave it: speed up to 1.5x
-            # or hold its last frame (render pushes in on long holds); a missing clip falls to the panel below
-            start, end, speed, freeze = fit_source(0.0, b.duration_s, dur, b.duration_s)
+            # B16: a fal clip (A17) for a generated shot, whatever kind the script gave it: speed up to 1.5x,
+            # or slow down to MIN_BROLL_SPEED and then hold its last frame (render pushes in on long holds);
+            # a missing clip falls to the panel below
+            start, end, speed, freeze = fit_broll(b.duration_s, dur)
             visual = TimelineVisual(kind="broll", path=b.path, source_start=start, source_end=end,
                                     speed=speed, freeze_s=freeze)
         else:  # a card (or footage with no take)
