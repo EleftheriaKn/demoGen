@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.4,
+          "reason": "It is an overused, generic question that creates little novelty or intrigue."
+        },
+        {
+          "score": 0.2,
+          "reason": "It could apply to any food delivery, meal kit, or recipe app rather than fridge scanning."
+        },
+        {
+          "score": 0.5,
+          "reason": "It touches on the user's dinner dilemma, but highlights a broad complaint rather than the app's action."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "The relatable and vivid imagery immediately captures attention and sets up a solution."
+        },
+        {
+          "score": 0.6,
+          "reason": "Mentions the fridge, which aligns well with the app's photo-scanning premise."
+        },
+        {
+          "score": 0.6,
+          "reason": "Focuses on the exact moment of user frustration that this app is built to solve."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It is straightforward and clear, but lacks punch or creative curiosity."
+        },
+        {
+          "score": 0.5,
+          "reason": "Matches the core premise of using on-hand ingredients, but misses the snap-a-photo mechanic."
+        },
+        {
+          "score": 0.8,
+          "reason": "Directly addresses the exact outcome and value the app delivers to the user."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "Immediately paints a relatable scenario, though opening with a standard rhetorical question is slightly cliché."
+        },
+        {
+          "score": 0.6,
+          "reason": "Mentions looking into the fridge for dinner ideas, but misses the unique photo-to-recipe feature."
+        },
+        {
+          "score": 0.7,
+          "reason": "Focuses on the user problem of deciding dinner from available fridge ingredients."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "Points to a common pain point but feels like a generic infomercial opening."
+        },
+        {
+          "score": 0.3,
+          "reason": "Food waste is very broad and applies to any inventory or grocery tracking tool, not fridge photo recipes."
+        },
+        {
+          "score": 0.5,
+          "reason": "Addresses an indirect side benefit rather than the core action of generating dinner recipes."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.8,
+          "reason": "The provocative idea of dinner deciding itself quickly sparks intrigue in under five seconds."
+        },
+        {
+          "score": 0.6,
+          "reason": "Captures the automated recipe generation from on-hand food, though omits the camera mechanic."
+        },
+        {
+          "score": 0.8,
+          "reason": "Directly conveys the core outcome the user experiences: effortless meal decisions from existing items."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

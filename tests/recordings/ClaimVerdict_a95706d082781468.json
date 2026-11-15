@@ -1,0 +1,7 @@
+{
+  "score": 0.2,
+  "reason": "The evidence shows taking a photo rather than detecting from a live camera feed, with no mention of instant processing.",
+  "action": "drop",
+  "rewrite": "",
+  "rewrite_supported": false
+}
