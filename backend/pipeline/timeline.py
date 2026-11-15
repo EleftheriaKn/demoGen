@@ -17,6 +17,7 @@ from pathlib import Path
 from backend import events
 from backend.contracts import (Assets, Candidates, RepoFiles, RunConfig, Script, Summary, Timeline, TimelineMusic,
                                TimelineShot, TimelineVisual, Zoom)
+from backend.pipeline.beats import beat_times, snap
 from backend.pipeline.cards import best_frames, grab_frame, hero_card, panel_card, rasterize
 from backend.pipeline.ff import duration, ff, size_for, take_path
 
@@ -29,6 +30,8 @@ MAX_BEYOND_S = 0.0   # ...but never from outside the segment: the next moment ca
                      # (B9: "Active filter" line over the Completed view). Render moves held frames instead.
 ZOOM_EASE_S = 0.8
 MUSIC_GAIN_DB = -18.0
+MAX_BEAT_SHIFT_S = 0.35  # B18: a cut may wait this long for the next beat
+MIN_TAIL_S = 0.1     # ...and never lands sooner than this after the voice ends
 READ_WPS = 2.6       # a shot whose voice take failed stays up as long as its caption takes to read
 MIN_SILENT_S = 2.0
 
@@ -155,6 +158,11 @@ def run(run_dir: Path, run: RunConfig) -> None:
     segments = {g.segment_id: (g.start, g.end) for g in cands.segments} if cands else {}
     brolls = {b.shot_id: b for b in assets.broll}
 
+    music_file = d / assets.music.path if assets.music else None
+    beats, bpm = beat_times(music_file) if music_file and music_file.exists() else ([], 0.0)
+    if beats and assets.music.duration_s > 1:  # render loops the bed: repeat its beat grid for each loop
+        beats = [round(b + k * assets.music.duration_s, 3) for k in range(4) for b in beats]
+    on_beat = 0
     name = app_name(d) or run.repo_url.rstrip("/").rsplit("/", 1)[-1]
     repo_label = re.sub(r"^https?://(www\.)?", "", run.repo_url).rstrip("/")
     n_card_shots = sum(1 for s in script.shots if s.visual.kind != "footage" or take is None)
@@ -175,6 +183,10 @@ def run(run_dir: Path, run: RunConfig) -> None:
                                     f"({voices[s.shot_id][1]:.1f} s)")
         voice_path, voice_s = voices[s.shot_id]
         dur = frames(voice_s + BREATH_S)
+        if beats:  # B18: end the shot on the music's beat (later only, never before the voice is done)
+            cut = snap(t + dur, t + voice_s + MIN_TAIL_S, beats, MAX_BEAT_SHIFT_S)
+            if cut != t + dur:
+                dur, on_beat = frames(cut - t), on_beat + 1
         vis = s.visual
         if vis.kind == "footage" and take:
             if last_end is not None and room[0] < last_end <= vis.source_start:
@@ -216,6 +228,8 @@ def run(run_dir: Path, run: RunConfig) -> None:
     (d / "timeline.json").write_text(tl.model_dump_json(indent=2), encoding="utf-8")
 
     limit = run.brief.time_limit_s
+    if beats:
+        events.emit("timeline", f"music at {bpm:.0f} BPM: {on_beat} of {len(shots)} cuts moved onto the beat")
     events.emit("timeline", f"{len(shots)} shots, {tl.duration_s:.1f} s at {w}x{h}"
                 + (f" (over the {limit} s limit!)" if tl.duration_s > limit else ""))
 
