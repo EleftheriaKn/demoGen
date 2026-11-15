@@ -67,9 +67,9 @@ app.include_router(settings.router)  # keys from the board, laptop only
 _procs: dict[str, subprocess.Popen] = {}
 
 POLL_S = 0.25
-# Runbook limits: every video 7:00 at most; all videos of a run together 5 GiB (C18; was 1 GiB for one take),
+# Runbook limits: every video 10:00 at most; all videos of a run together 5 GiB (C18; was 1 GiB for one take),
 # checked on the phone AND here.
-MAX_TAKE_S = 420
+MAX_TAKE_S = 600
 MAX_TAKE_BYTES = 5 * 1024**3
 MAX_EXTRAS = 10
 CHUNK_BYTES = 4 * 1024**2  # small parts: each request finishes quickly on venue Wi-Fi
@@ -142,7 +142,7 @@ def uploads_root() -> Path:
 
 
 def check_take(path: Path) -> None:
-    """Server-side limits: a real, readable video of at most 7:00 and 5 GiB (ffprobe, via B's ff)."""
+    """Server-side limits: a real, readable video of at most 10:00 and 5 GiB (ffprobe, via B's ff)."""
     from backend.pipeline.ff import video_info
 
     size = path.stat().st_size
@@ -155,7 +155,7 @@ def check_take(path: Path) -> None:
     if not dur or dur <= 0:
         raise HTTPException(422, "could not read the recording's length")
     if dur > MAX_TAKE_S + 0.5:
-        raise HTTPException(422, f"recording is {int(dur // 60)}:{int(dur % 60):02d} long; the limit is 7:00")
+        raise HTTPException(422, f"recording is {int(dur // 60)}:{int(dur % 60):02d} long; the limit is 10:00")
 
 
 def _upload_paths(upload_id: str) -> tuple[Path, Path]:

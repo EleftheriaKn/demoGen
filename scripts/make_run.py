@@ -8,7 +8,7 @@ Copies the videos into runs/<id>/ (take as recording.<ext>, extras as extras/<n>
 with brief.text and extra_recordings, and with --start runs the pipeline (same as the board's "Make the
 video"). Ingest joins the take and the extras into one take (B23); clips without the app on screen become
 `context` moments (B25) that the trend style uses for the beat montage and the problem / impact shots.
-Limits as in the app: 7 minutes per video, 5 GiB for all of them together.
+Limits as in the app: 10 minutes per video, 5 GiB for all of them together.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from backend.contracts import Brief, RunConfig
 from backend.pipeline.ff import video_info
 from backend.run import RUNS, create_run, new_run_id, run_pipeline
 
-MAX_VIDEO_S = 420
+MAX_VIDEO_S = 600
 MAX_TOTAL_BYTES = 5 * 1024 ** 3
 MAX_EXTRAS = 10
 
@@ -37,7 +37,7 @@ def check(paths: list[Path]) -> None:
         except Exception as e:  # noqa: BLE001
             raise SystemExit(f"{p}: not a video ffprobe can read ({type(e).__name__})")
         if dur > MAX_VIDEO_S + 0.5:
-            raise SystemExit(f"{p}: {dur / 60:.1f} min; the limit is 7:00 per video")
+            raise SystemExit(f"{p}: {dur / 60:.1f} min; the limit is 10:00 per video")
         total += p.stat().st_size
     if total > MAX_TOTAL_BYTES:
         raise SystemExit(f"all videos together are {total / 1024 ** 3:.2f} GiB; the limit is 5 GiB")

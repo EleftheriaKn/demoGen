@@ -52,7 +52,7 @@ python -m backend.serve --tunnel   # also an https link via cloudflared, for Wi-
 ```
 
 Open the address, or scan the QR code with your phone. There are three steps: the repo, the recording
-(up to **7 min and 1 GiB**), then the brief. You watch each stage run live and get the video with Download
+(up to **10 min per video, 5 GiB together**), then the brief. You watch each stage run live and get the video with Download
 and Share. Alongside it, the board shows how each choice was made: real vs generated shots (target ≥ 50%
 real), claims kept or rejected, ranked frames and hooks, and the final rubric check. `/#<run_id>` opens a
 past run.

@@ -205,7 +205,7 @@
             <label for="recording">Recording</label>
             <input id="recording" name="recording" type="file" accept="video/*,.mov,.mp4" multiple>
             <div class="hint">A screen capture of the app, camera footage, or both. Pick one or several videos
-              (the first is the main take). Up to 7 minutes each. Leave empty to try the sample take.</div>
+              (the first is the main take). Up to 10 minutes each. Leave empty to try the sample take.</div>
             <div class="fileinfo" id="fileinfo"></div>
             <label for="extras">More videos <span class="hint">(optional, up to 10)</span></label>
             <input id="extras" name="extras" type="file" accept="video/*,.mov,.mp4" multiple>
@@ -520,7 +520,7 @@ async function loadRuns() {
 }
 
 // ---- the three steps (C10) --------------------------------------------------------
-const MAX_S = 420, MAX_BYTES = 5 * 1024 ** 3, MAX_EXTRAS = 10;   // 7 min per video, 5 GiB for all (C18)
+const MAX_S = 600, MAX_BYTES = 5 * 1024 ** 3, MAX_EXTRAS = 10;   // 10 min per video, 5 GiB for all (C18)
 const REPO_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/i;
 let step = 1;
 let takeOk = true;
@@ -542,7 +542,7 @@ function checkStep(n) {
     $("repo_url").value = v;
     return err(REPO_RE.test(v) ? "" : "That doesn't look like a GitHub repo link, e.g. https://github.com/you/app");
   }
-  if (n === 2) return err(takeOk ? extrasCheck() : "Pick a recording of 7 minutes or less, under 5 GB.");
+  if (n === 2) return err(takeOk ? extrasCheck() : "Pick a recording of 10 minutes or less, under 5 GB.");
   if (n === 3) {
     const c = $("criteria").value.split(",").map(x => x.trim()).filter(Boolean);
     return err(c.length ? "" : "Add at least one judging criterion.");
@@ -574,7 +574,7 @@ $("recording").onchange = () => {
     $("fileinfo").textContent = `${f.name} · ${fmtTime(v.duration)} · ${fmtSize(f.size)}`;
     if (v.duration > MAX_S + 0.5) {
       takeOk = false;
-      $("err-2").textContent = `Too long (${fmtTime(v.duration)}). The limit is 7:00.`;
+      $("err-2").textContent = `Too long (${fmtTime(v.duration)}). The limit is 10:00.`;
     } else {
       $("err-2").textContent = extrasCheck();
     }
