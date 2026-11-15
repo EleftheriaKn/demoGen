@@ -287,23 +287,24 @@ def test_add_zoom_one_call_per_chosen_frame(tmp_path, monkeypatch):
     Script(language="en", hooks=[{"hook_id": "h1", "text": "x", "score": 0}], chosen_hook_id="h1", shots=out)
 
 
-def test_voice_fits_its_clip_by_growing_the_clip_then_trimming():
+def test_voice_fits_its_clip_plus_hold_by_growing_the_clip_then_dropping_sentences():
     seg = next(g for g in SEGMENTS if g.segment_id == "c02")  # 5-10 s
-    assert script.fit_voice("Add todos.", seg, 6.0, 7.0) == (6.0, 7.0, "Add todos.")  # 2 words in 1 s: fits
-    # 10 words want 4 s: the clip grows inside the segment instead of trimming
-    assert script.fit_voice("one two three four five six seven eight nine ten.", seg, 6.0, 7.0)[:2] == (6.0, 10.0)
-    # 18 words want 7.2 s but the segment has 5 s (cap 12): whole sentences go from the end
-    line = "One two three four five six. Seven eight nine ten eleven twelve. Thirteen fourteen fifteen sixteen seventeen eighteen."
-    assert script.fit_voice(line, seg, 6.0, 7.0) == (5.0, 10.0, "One two three four five six. Seven eight nine ten eleven twelve.")
-    # one long sentence is cut to the cap
-    long = " ".join(["word"] * 20) + "."
-    assert script.fit_voice(long, seg, 5.0, 10.0)[2] == " ".join(["word"] * 12) + "."
+    assert script.fit_voice("Add todos.", seg, 6.0, 7.0) == (6.0, 7.0, "Add todos.")  # cap 9 (3 x (1 + 2 s))
+    # 15 words want 3 s of clip (5 s - 2 s hold): the clip grows inside the segment instead of trimming
+    assert script.fit_voice(" ".join(["w"] * 14) + " end.", seg, 6.0, 7.0)[:2] == (6.0, 9.0)
+    # 30 words want 8 s but the segment has 5 s (cap 21): whole sentences go from the end
+    line = " ".join(["a"] * 9 + ["b."] + ["c"] * 9 + ["d."] + ["e"] * 9 + ["f."])
+    assert script.fit_voice(line, seg, 6.0, 7.0)[2] == " ".join(["a"] * 9 + ["b."] + ["c"] * 9 + ["d."])
+    # one sentence longer than the cap stays whole: never cut mid-sentence, never below one sentence
+    long = " ".join(["word"] * 30) + ". Second sentence."
+    assert script.fit_voice(long, seg, 5.0, 10.0)[2] == " ".join(["word"] * 30) + "."
 
 
 def test_trimmed_claim_goes_and_the_rest_is_still_checked():
-    claim = "It syncs your pantry across all of your devices."
-    impact = script.FootageDraft(voice_line=claim, segment_id="c03", source_start=10, source_end=12,
+    claim = "It also plans every meal for the whole week ahead."
+    line = "It syncs your pantry across devices. " + claim  # 16 words; c03 is 10-12 s: cap 12
+    impact = script.FootageDraft(voice_line=line, segment_id="c03", source_start=10, source_end=12,
                                  claims=[script.ClaimDraft(text=claim, evidence=[{"type": "readme", "ref": "README#How it works"}])])
     shot = script.build_shots(_draft(impact=impact), "x", SEGMENTS, REPO)[5]
-    assert shot.voice_line == "It syncs your pantry across."  # c03 is 10-12 s: 2 s, cap 5 words
-    assert [(c.text, [e.ref for e in c.evidence]) for c in shot.claims] == [("It syncs your pantry across.", ["c03"])]
+    assert shot.voice_line == "It syncs your pantry across devices."
+    assert [(c.text, [e.ref for e in c.evidence]) for c in shot.claims] == [("It syncs your pantry across devices.", ["c03"])]

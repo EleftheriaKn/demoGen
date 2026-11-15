@@ -1,0 +1,7 @@
+{
+  "score": 0.4,
+  "reason": "The evidence shows a vision model detects ingredients, but does not show it detects every grocery item or ranks recipes.",
+  "action": "rewrite",
+  "rewrite": "Computer vision detects ingredients.",
+  "rewrite_supported": true
+}
