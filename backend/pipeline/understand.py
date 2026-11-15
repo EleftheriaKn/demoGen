@@ -134,7 +134,7 @@ class _RawMoment(BaseModel):
     end: float = Field(description="End, seconds from the start of the recording.")
     description: str = Field(description="What is on screen at the end time; on-screen text copied word for word.")
     feature_id: Optional[str] = Field(description="Feature shown, or null.")
-    kind: Literal["result", "action", "setup", "dead"]
+    kind: Literal["result", "action", "setup", "context", "dead"]
     settled_at: Optional[float] = Field(
         description="result only: seconds when the outcome is fully on screen and settled; null otherwise.")
     confidence: float = Field(description="0-1.")
@@ -152,7 +152,7 @@ class _WireMoment(BaseModel):
     end: str = Field(description='End as MM:SS.s from the start of the recording, e.g. "01:20.0".')
     description: str = Field(description="What is on screen at the end time; on-screen text copied word for word.")
     feature_id: Optional[str] = Field(description="Feature shown, or null.")
-    kind: Literal["result", "action", "setup", "dead"]
+    kind: Literal["result", "action", "setup", "context", "dead"]
     settled_at: Optional[str] = Field(
         description="result only: MM:SS.s when the outcome is fully on screen and settled; null otherwise.")
     confidence: float = Field(description="0-1.")

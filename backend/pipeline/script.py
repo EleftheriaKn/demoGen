@@ -119,6 +119,7 @@ WORDS_PER_S = 3.0  # voice-over pace; a footage shot's line may not outrun its c
 HOLD_S = 2.0  # the timeline holds a clip's last frame (slow push-in) up to this long past its end
 CALLOUT_WORDS = 5  # a callout longer than this is dropped, never truncated
 MIN_REAL = 0.5  # share of the planned runtime that must stay real footage
+NO_APP = ("context", "dead")  # moment kinds whose frames never show the app's screen
 BREATH_S = 0.4  # ponytail: per-shot gap in the runtime estimate, mirrors timeline's pause; read it there if it drifts
 
 
@@ -335,7 +336,8 @@ def _step_evidence(step: Optional[FlowStep]) -> list[Evidence]:
 
 def _quality(seg: Optional[Segment], moments: dict[str, Moment]) -> Optional[str]:
     m = moments.get(seg.moment_id or "") if seg else None
-    return m.quality if m else None
+    # a context clip (camera footage, no app screen) is never turned into a drawing of the app's screen
+    return m.quality if m and m.kind != "context" else None
 
 
 def reference_frames(seg: Optional[Segment], step: str, segments: list[Segment], moments: dict[str, Moment],
@@ -347,7 +349,7 @@ def reference_frames(seg: Optional[Segment], step: str, segments: list[Segment],
     shown = {}
     for g in segments:
         m = moments.get(g.moment_id or "")
-        if m and m.flow_step and m.kind != "dead":
+        if m and m.flow_step and m.kind not in NO_APP:
             shown.setdefault(m.flow_step, g)
     order = [f.step_id for f in flow]
     if step in order:
@@ -368,7 +370,7 @@ def treatment(d: FootageDraft, beat: str, by_id: dict[str, Segment], moments: di
         return True, seg
     if gen and step and beat in ("problem", "demo"):
         good = [g for g in by_id.values() if _quality(g, moments) in ("wow", "ok")
-                and moments[g.moment_id].flow_step == step and moments[g.moment_id].kind != "dead"]
+                and moments[g.moment_id].flow_step == step and moments[g.moment_id].kind not in NO_APP]
         if good:
             return False, seg if seg in good else max(good, key=lambda g: _quality(g, moments) == "wow")
     return gen, seg
@@ -827,12 +829,12 @@ def _segment_lines(segments: list[Segment], moments: Moments, scores: FrameScore
             m = max(moments.moments, key=lambda x: min(x.end, s.end) - max(x.start, s.start), default=None)
             m = m if m and min(m.end, s.end) - max(m.start, s.start) > 0 else None
             # only clips kept from a dead stretch (B24) say more; others read as before, so prompts stay the same
-            what = f"context footage, no app on screen: {m.description}" if m and m.kind == "dead" else "scene cut"
+            what = f"context footage, no app on screen: {m.description}" if m and m.kind in NO_APP else "scene cut"
         elif m is None:
             what = "scene cut"
         else:
-            what = (f"context footage, no app on screen: {m.description}" if context and m.kind == "dead"
-                    else f"{m.kind}: {m.description}")
+            what = (f"context footage, no app on screen: {m.description}"
+                    if m.kind == "context" or (context and m.kind == "dead") else f"{m.kind}: {m.description}")
         if m and m.quality:  # a run with a flow (A13)
             what += f", quality {m.quality}" + (f", shows step {m.flow_step}" if m.flow_step else "")
         cap = round(WORDS_PER_S * (s.end - s.start + HOLD_S))  # what fit_voice keeps at most
@@ -842,8 +844,8 @@ def _segment_lines(segments: list[Segment], moments: Moments, scores: FrameScore
 
 
 def shows_app(moments: Moments) -> bool:
-    """Does any moment of the take show the app (anything but "dead")?"""
-    return any(m.kind != "dead" for m in moments.moments)
+    """Does any moment of the take show the app (anything but "context" or "dead")?"""
+    return any(m.kind not in NO_APP for m in moments.moments)
 
 
 def context_rules(has_segments: bool) -> str:
@@ -853,8 +855,9 @@ def context_rules(has_segments: bool) -> str:
            "never footage evidence, since the app isn't on screen. "
            if has_segments else "There are no usable segments: every middle shot is generated, segment_id \"\". ")
     return ("\n\nThe recording never shows the app on screen. These rules override the footage rules above. "
-            + use + "Every demo shot is generated (generated true) from the flow steps above, in flow order, "
-            "one step per demo shot, with a card_prompt for the app's screen at that step. The rule that half the "
+            + use + "Every demo shot is generated (generated true) from the flow steps above that best sell the "
+            "app, one step per demo shot, ordered to build to its payoff, with a card_prompt for the app's screen "
+            "at that step. The rule that half the "
             "runtime stays real footage does not apply to this video.")
 
 

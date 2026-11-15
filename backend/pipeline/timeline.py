@@ -146,13 +146,13 @@ def plain_card(d: Path, shot_id: str, title: str, size: tuple[int, int], backgro
 
 
 def take_shows_app(d: Path) -> bool:
-    """False when every moment of the take is "dead" (a camera video of the team, no app on screen): its
+    """False when no moment of the take shows the app (all "context" / "dead": a camera video of the team): its
     frames must not sit in a browser mockup as if they were the app. No moments.json: assume it does."""
     mp = d / "moments.json"
     if not mp.exists():
         return True
     moments = Moments.model_validate_json(mp.read_text(encoding="utf-8")).moments
-    return any(m.kind != "dead" for m in moments)
+    return any(m.kind not in ("context", "dead") for m in moments)
 
 
 def repo_screenshots(d: Path) -> list[Path]:

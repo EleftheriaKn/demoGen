@@ -1,6 +1,6 @@
 # DemoCut
 
-**One rough screen recording + the GitHub repo + the judging brief → a 2–3 minute demo video, cut from the real footage.**
+**One rough recording (a screen capture of the app, camera footage, or both) + the GitHub repo + the judging brief → a launch video that sells the app, cut from the real footage.**
 
 Every hackathon team spends its last hours editing a demo video. DemoCut does it hands-off:
 Gemini watches the recording and decides what to show, fal makes the voice, music and title

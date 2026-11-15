@@ -1,0 +1,58 @@
+{
+  "verdicts": [
+    {
+      "hook_id": "h1",
+      "answers": [
+        {
+          "score": 0.5,
+          "reason": "It highlights a common frustration quickly, but is a very standard rhetorical question."
+        },
+        {
+          "score": 0.3,
+          "reason": "It fits any food waste or inventory tracker, not specifically a fridge-photo recipe generator."
+        },
+        {
+          "score": 0.4,
+          "reason": "It addresses a general user pain point rather than what the app actively does for dinner preparation."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h2",
+      "answers": [
+        {
+          "score": 0.6,
+          "reason": "It sets up an immediate relatable dilemma right away."
+        },
+        {
+          "score": 0.5,
+          "reason": "It describes any recipe generator or cooking site based on leftover ingredients."
+        },
+        {
+          "score": 0.7,
+          "reason": "It touches directly on the user's struggle to find a recipe with available items."
+        }
+      ],
+      "states_fact": false
+    },
+    {
+      "hook_id": "h3",
+      "answers": [
+        {
+          "score": 0.7,
+          "reason": "It instantly paints a clear, relatable everyday visual in under five seconds."
+        },
+        {
+          "score": 0.6,
+          "reason": "It aligns well with snapping a fridge picture to get dinner, though still somewhat broad."
+        },
+        {
+          "score": 0.8,
+          "reason": "It directly frames the exact user problem that the app solves by providing dinner recipes from fridge contents."
+        }
+      ],
+      "states_fact": false
+    }
+  ]
+}

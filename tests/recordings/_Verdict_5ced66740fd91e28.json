@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "Placeholder test pattern with colorful bars and geometric shapes.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It displays a synthetic test graphic rather than the PantryPal application."
+        },
+        {
+          "score": 0.0,
+          "reason": "No actual app interface is visible, only a test card."
+        },
+        {
+          "score": 0.0,
+          "reason": "A blank area with a test pattern does not engage the viewer."
+        }
+      ]
+    },
+    {
+      "note": "Placeholder test pattern showing color bars and a cross symbol.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a test pattern instead of any working application features."
+        },
+        {
+          "score": 0.0,
+          "reason": "There is no product UI present."
+        },
+        {
+          "score": 0.0,
+          "reason": "It offers no indication of what the app does or its value."
+        }
+      ]
+    }
+  ]
+}

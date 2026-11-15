@@ -1,0 +1,38 @@
+{
+  "frames": [
+    {
+      "note": "A synthetic color bar test pattern with geometric overlays.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It displays a synthetic test pattern, not the PantryPal app."
+        },
+        {
+          "score": 0.0,
+          "reason": "No actual app UI is present, only a test video feed."
+        },
+        {
+          "score": 0.0,
+          "reason": "A color bar test card provides no information or interest about the project."
+        }
+      ]
+    },
+    {
+      "note": "A color bar test pattern showing a gray rectangle overlay.",
+      "answers": [
+        {
+          "score": 0.0,
+          "reason": "It shows a test pattern rather than functional app features."
+        },
+        {
+          "score": 0.0,
+          "reason": "No app interface is present on the screen."
+        },
+        {
+          "score": 0.0,
+          "reason": "It is an uninformative test screen with no project content."
+        }
+      ]
+    }
+  ]
+}

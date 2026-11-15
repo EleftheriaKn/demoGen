@@ -1,0 +1,104 @@
+{
+  "hooks": [
+    "Tired of wondering what to cook tonight?",
+    "Staring at a half-empty fridge again?",
+    "Ever let fresh food go to waste?"
+  ],
+  "hook_card_prompt": "Clean modern kitchen background with soft warm lighting, minimalist aesthetic, subtle shades of fresh green and warm white textures, no text",
+  "problem": {
+    "voice_line": "People waste food and time because they don't know what to cook with what they already have.",
+    "segment_id": "c01",
+    "source_start": 0.0,
+    "source_end": 4.0,
+    "claims": [
+      {
+        "text": "People waste food and time because they don't know what to cook with what they already have.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#PantryPal"
+          }
+        ]
+      }
+    ]
+  },
+  "demos": [
+    {
+      "voice_line": "Snap a quick photo of your fridge to instantly detect your ingredients.",
+      "segment_id": "c02",
+      "source_start": 5.0,
+      "source_end": 10.0,
+      "claims": [
+        {
+          "text": "Snap a quick photo of your fridge to instantly detect your ingredients.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c02"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "voice_line": "Browse three ranked recipes with your matched ingredients highlighted.",
+      "segment_id": "c04",
+      "source_start": 12.0,
+      "source_end": 19.0,
+      "claims": [
+        {
+          "text": "Browse three ranked recipes with your matched ingredients highlighted.",
+          "evidence": [
+            {
+              "type": "footage",
+              "ref": "c04"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "how": {
+    "voice_line": "Computer vision detects ingredients from your fridge photo automatically.",
+    "segment_id": "c03",
+    "source_start": 10.0,
+    "source_end": 12.0,
+    "claims": [
+      {
+        "text": "Computer vision detects ingredients from your fridge photo automatically.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#How it works"
+          },
+          {
+            "type": "file",
+            "ref": "backend/vision.py"
+          }
+        ]
+      }
+    ]
+  },
+  "impact": {
+    "voice_line": "Cook delicious meals while reducing food waste effortlessly.",
+    "segment_id": "c05",
+    "source_start": 19.0,
+    "source_end": 22.0,
+    "claims": [
+      {
+        "text": "Cook delicious meals while reducing food waste effortlessly.",
+        "evidence": [
+          {
+            "type": "readme",
+            "ref": "README#Features"
+          }
+        ]
+      }
+    ]
+  },
+  "ask": {
+    "voice_line": "Try PantryPal today and vote for us!",
+    "card_prompt": "Warm minimalist kitchen tabletop aesthetic with soft morning sunlight and pastel culinary tones, no text or icons",
+    "claims": []
+  }
+}

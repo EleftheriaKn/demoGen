@@ -117,7 +117,8 @@ class RunConfig(Contract):
 
     run_id: str = Field(description="Run id; equals the run folder name under runs/.")
     repo_url: str = Field(description="GitHub URL of the app being demoed.")
-    recording: str = Field(description="Path of the raw screen recording, e.g. 'recording.mp4'.")
+    recording: str = Field(description="Path of the raw recording, e.g. 'recording.mp4': a screen capture of the app, "
+                           "camera footage (the team, people using it, the device, the place) or both.")
     brief: Brief = Field(description="The judging brief.")
     mode: Literal["full", "cheap"] = Field(
         description="'full' = best models, more judge calls; 'cheap' = fewer/cheaper calls for iteration."
@@ -236,9 +237,10 @@ class Moment(Contract):
     end: Seconds = Field(description="End time in the recording.")
     description: str = Field(description="What happens on screen.")
     feature_id: Optional[str] = Field(description="Feature shown (Summary.features), or null.")
-    kind: Literal["result", "action", "setup", "dead"] = Field(
+    kind: Literal["result", "action", "setup", "context", "dead"] = Field(
         description="result = payoff on screen; action = user doing something; setup = navigation/loading; "
-        "dead = nothing useful (never cut in)."
+        "context = real footage without the app's screen (the team, people using it, a device, the place): "
+        "good for problem / impact shots, never evidence of what the app does; dead = nothing useful (never cut in)."
     )
     confidence: Score = Field(description="Model confidence 0-1.")
     quality: Optional[Literal["wow", "ok", "weak"]] = Field(

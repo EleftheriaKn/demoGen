@@ -1,6 +1,6 @@
 # DemoCut
 
-DemoCut turns a sloppy screen recording of a hackathon app, plus its GitHub repo, into a short judged demo video that fits the hackathon's brief.
+DemoCut turns a rough recording of a hackathon project (a screen capture of the app, camera footage, or both), plus its GitHub repo, into a short launch video (a reel or pitch spot, not a walkthrough) that fits the hackathon's brief.
 
 ## Inputs
 
@@ -8,7 +8,7 @@ DemoCut turns a sloppy screen recording of a hackathon app, plus its GitHub repo
 One attempt at making a video from one recording, repo and brief. Everything it produces lives in its run folder.
 
 **Recording**:
-The raw screen capture the team uploads. Every time in every run file is a time in the recording, unless it says "in the final video".
+The raw video the team uploads: a screen capture of the app, camera footage, or both. Every time in every run file is a time in the recording, unless it says "in the final video".
 _Avoid_: footage file, input video
 
 **Brief**:

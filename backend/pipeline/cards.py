@@ -46,9 +46,20 @@ def font_safe(text: str) -> str:
     return " ".join("".join(out).split())
 
 
+def no_app_segments(d: Path) -> set[str]:
+    """Segment ids whose moment doesn't show the app's screen (kind "context" or "dead")."""
+    mp, cp = d / "moments.json", d / "candidates.json"
+    if not (mp.exists() and cp.exists()):
+        return set()
+    kinds = {m["moment_id"]: m["kind"] for m in json.loads(mp.read_text(encoding="utf-8"))["moments"]}
+    return {g["segment_id"] for g in json.loads(cp.read_text(encoding="utf-8"))["segments"]
+            if kinds.get(g.get("moment_id") or "") in ("context", "dead")}
+
+
 def best_frames(d: Path, n: int = 2) -> list[float]:
-    """Recording times of the n best-scored frames, one per segment (frame_scores.json, else candidates)."""
-    times, segs = [], set()
+    """Recording times of the n best-scored frames, one per segment (frame_scores.json, else candidates).
+    Clips of camera footage ("context" / "dead" moments) never go in a screen mockup."""
+    times, segs = [], no_app_segments(d)
     fs = d / "frame_scores.json"
     if fs.exists():
         scores = sorted(json.loads(fs.read_text(encoding="utf-8"))["scores"], key=lambda s: -s["total"])
