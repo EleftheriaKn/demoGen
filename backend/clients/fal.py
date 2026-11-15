@@ -15,7 +15,7 @@ from pathlib import Path
 
 import fal_client
 
-from backend.clients.gemini import MissingKey, explain, require  # noqa: F401  (MissingKey: callers re-raise it)
+from backend.clients.gemini import MissingKey, explain, require  # noqa: F401  (MissingKey: callers catch fal.MissingKey)
 
 TTS_ENDPOINT = "fal-ai/elevenlabs/tts/multilingual-v2"
 CARD_ENDPOINT = "fal-ai/flux-2"
@@ -25,9 +25,14 @@ SCRIBE_ENDPOINT = "fal-ai/elevenlabs/speech-to-text/scribe-v2"
 DOWNLOAD_TIMEOUT_S = 60
 
 
+def has_key() -> bool:
+    """True if fal credentials are set (FAL_KEY, or FAL_KEY_ID + FAL_KEY_SECRET)."""
+    return bool(os.environ.get("FAL_KEY") or (os.environ.get("FAL_KEY_ID") and os.environ.get("FAL_KEY_SECRET")))
+
+
 def _key() -> None:
     """Raise MissingKey before any fal call when no fal credentials are set."""
-    if not (os.environ.get("FAL_KEY_ID") and os.environ.get("FAL_KEY_SECRET")):
+    if not has_key():
         require("FAL_KEY")
 
 

@@ -26,6 +26,7 @@ def _verdict(n_drafts, n_questions, best):
 @pytest.fixture
 def fake(tmp_path, monkeypatch):
     monkeypatch.setenv("DEMOCUT_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAL_KEY", "test")
     calls = {"tts": 0, "card": [], "music": [], "gemini": 0}
 
     def fake_tts(text, language, out_path):
@@ -162,6 +163,20 @@ def _fail(monkeypatch, name, when=lambda *a: True):
 def no_sleep(monkeypatch):
     from backend import cache
     monkeypatch.setattr(cache.time, "sleep", lambda s: None)
+
+
+def test_missing_fal_key_falls_back_and_says_so_once(fake, monkeypatch):
+    run_dir, calls = fake
+    for k in ("FAL_KEY", "FAL_KEY_ID", "FAL_KEY_SECRET"):
+        monkeypatch.delenv(k, raising=False)
+    for name in ("tts", "card_image", "music"):
+        monkeypatch.setattr(fal, name, lambda *a, name=name: pytest.fail(f"fal.{name} called without FAL_KEY"))
+    assets.run(run_dir, load_run(run_dir).model_copy(update={"mode": "full"}))
+    shots, out, picks = _load(run_dir)
+    assert out.voice == [] and picks == []
+    assert [c.shot_id for c in out.cards] == [s.shot_id for s in shots if s.visual.kind == "card"]
+    assert all((run_dir / c.path).exists() for c in out.cards) and (run_dir / out.music.path).exists()
+    assert sum(assets.NO_FAL_KEY in e for e in _events(run_dir)) == 1
 
 
 def test_failed_voice_take_is_left_out_with_an_event(fake, monkeypatch, no_sleep):
