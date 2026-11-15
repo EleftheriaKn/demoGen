@@ -78,7 +78,7 @@ def test_full_mode_cards_best_of_4_and_music(fake):
     for c in out.cards:
         assert len(c.drafts) == 4 and 0 <= c.chosen_index < len(c.drafts) and c.chosen_index == 2
         assert (run_dir / c.path).read_bytes() == (run_dir / c.drafts[c.chosen_index]).read_bytes()
-    assert all(assets.NO_TEXT in p for p in calls["card"])
+    assert all(assets.NO_TEXT in p and assets.FAL_STYLE in p for p in calls["card"])
     assert [d.subject for d in picks] == card_shots
     assert all(d.chosen == c.drafts[c.chosen_index] for d, c in zip(picks, out.cards))
     assert out.music is not None and out.music.duration_s > 0 and (run_dir / "music.wav").exists()
@@ -113,7 +113,7 @@ def test_pick_best_judges_image_drafts():
 
 def test_card_prompt_drops_quoted_titles_keeps_look():
     p = assets.card_prompt("Bold title card: 'PantryPal' over a warm orange background, in the app's style")
-    assert "PantryPal" not in p and "warm orange background" in p and "app's style" in p and assets.NO_TEXT in p
+    assert "PantryPal" not in p and "warm orange background" in p and "app's style" in p and assets.NO_TEXT in p and assets.FAL_STYLE in p
 
 
 def _rows(*rows):

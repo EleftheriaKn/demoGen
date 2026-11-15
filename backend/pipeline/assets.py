@@ -33,6 +33,11 @@ from backend.pipeline import ff, judge
 
 PARALLEL = 6
 DRAFTS = 4
+# Taste brief ("generated shots look designed, not fake"): every fal image prompt ends with this.
+FAL_STYLE = (
+    "Flat vector art that looks designed, not fake: only 2 to 3 colours taken from the app's own screenshots, "
+    "generous empty space, soft gradients. No text, letters or logos anywhere."
+)
 NO_TEXT = (
     "Background artwork only, with no typography: no words, letters, numbers, logos, buttons or UI anywhere. "
     "Leave calm empty space in the centre for a title we add later."
@@ -77,7 +82,7 @@ def _draft(run_dir: Path, rel: str, prompt: str, n: int) -> bool:
 def card_prompt(prompt: str) -> str:
     """fal draws, we write: drop quoted titles from the script's prompt and keep only its look."""
     look = " ".join(QUOTED.sub("", prompt).split())
-    return f"Background for a video title card, in this style: {look} {NO_TEXT}"
+    return f"Background for a video title card, in this style: {look} {FAL_STYLE} {NO_TEXT}"
 
 
 def _plain(run_dir: Path, rel: str, mode: str) -> None:
