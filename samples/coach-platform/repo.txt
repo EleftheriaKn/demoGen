@@ -1,1 +1,1 @@
-https://github.com/<owner>/<repo>  # TODO: the Coach Platform repo
+https://github.com/vparik/Coaching_Platform
