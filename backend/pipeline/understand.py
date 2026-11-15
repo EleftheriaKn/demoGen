@@ -10,7 +10,8 @@ dropped (logged as an event) and a summary with no features left raises.
 
 moments.json is real: Gemini watches the recording (uploaded once per run, see
 ``gemini.upload``), then code clamps times to the recording length, sorts the moments, trims
-overlaps, drops slivers, nulls unknown feature ids and numbers them m1, m2, ...
+overlaps, merges each action with the result right after it (so the moment ends once the result is on
+screen), drops slivers, nulls unknown feature ids and numbers them m1, m2, ...
 
 Run alone: python -m backend.pipeline.understand runs/<run_id>
 """
@@ -29,6 +30,7 @@ from backend.contracts import Feature, Moment, Moments, RepoFiles, RunConfig, Su
 from backend.pipeline import ff
 
 MIN_MOMENT_S = 0.5  # shorter after clamping/trimming = dropped
+MERGE_GAP_S = 0.5  # an action and a result this close are one moment
 
 HEADING = re.compile(r"^#+\s+(.+?)(?:\s+#+)?\s*$")
 
@@ -94,11 +96,30 @@ class _RawMoments(BaseModel):
     moments: list[_RawMoment]
 
 
+def merge_results(raw: list[_RawMoment]) -> list[_RawMoment]:
+    """An action followed by its result becomes one result moment ending when the result is on screen.
+
+    Candidate frames sit inside the moment (up to 75% of it), so a moment that stops when the action
+    does would show no result.
+    """
+    out: list[_RawMoment] = []
+    for r in sorted(raw, key=lambda r: (r.start, r.end)):
+        prev = out[-1] if out else None
+        if (prev and prev.kind == "action" and r.kind == "result" and r.start - prev.end <= MERGE_GAP_S
+                and r.feature_id in (prev.feature_id, None)):
+            out[-1] = prev.model_copy(update={"end": max(prev.end, r.end), "kind": "result",
+                                              "description": f"{prev.description} {r.description}",
+                                              "confidence": min(prev.confidence, r.confidence)})
+        else:
+            out.append(r)
+    return out
+
+
 def fix_moments(raw: list[_RawMoment], duration: float, feature_ids: set[str]) -> Moments:
-    """Clamp to [0, duration], sort, trim each start to the previous end, drop slivers, renumber."""
+    """Merge action+result, clamp to [0, duration], sort, trim each start to the previous end, drop slivers, renumber."""
     out: list[Moment] = []
     prev_end = 0.0
-    for r in sorted(raw, key=lambda r: (r.start, r.end)):
+    for r in merge_results(raw):
         start = round(max(r.start, prev_end, 0.0), 2)
         end = round(min(r.end, duration), 2)
         if end - start < MIN_MOMENT_S:

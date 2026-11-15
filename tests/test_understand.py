@@ -62,6 +62,13 @@ def test_fix_moments_clamps_sorts_trims_and_renumbers():
         understand.fix_moments([_raw(80, 90)], 60.0, set())
 
 
+def test_fix_moments_ends_an_action_when_its_result_is_on_screen():
+    raw = [_raw(12, 14, "action", "f1"), _raw(14.2, 15, "result", "f1"), _raw(15, 20, "action", "f1"),
+           _raw(22, 23, "result", "f1")]  # last result is 2 s after its action: not merged
+    out = understand.fix_moments(raw, 60.0, {"f1"}).moments
+    assert [(m.start, m.end, m.kind) for m in out] == [(12, 15, "result"), (15, 20, "action"), (22, 23, "result")]
+
+
 # --------------------------------------------------------------------------- #
 # Gemini client replay
 # --------------------------------------------------------------------------- #
@@ -105,5 +112,5 @@ def test_understand_writes_checked_summary_and_moments(tmp_path):
     # TodoMVC take: typing todos ~12-30 s (samples/todomvc/notes.md); on-screen text is copied.
     assert moments and moments[-1].end <= 60.1
     assert all(a.end <= b.start for a, b in zip(moments, moments[1:]))
-    assert any(m.kind == "action" and m.start < 30 and m.end > 12 for m in moments)
+    assert any(m.kind in ("action", "result") and m.start < 30 and m.end > 12 for m in moments)
     assert any("Buy milk" in m.description for m in moments)

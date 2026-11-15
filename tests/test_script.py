@@ -75,17 +75,18 @@ def test_draft_needs_three_hooks_and_two_to_four_demos():
 
 
 def _judgement(rows) -> script.HookJudgement:
+    """rows: (hook_id, curious, specific, states_fact[, about_user=1.0])."""
     return script.HookJudgement(verdicts=[
-        script.HookVerdict(hook_id=h, states_fact=fact,
-                           answers=[script.Answer(score=a, reason="r"), script.Answer(score=b, reason="r")])
-        for h, a, b, fact in rows
+        script.HookVerdict(hook_id=r[0], states_fact=r[3],
+                           answers=[script.Answer(score=s, reason="r") for s in (r[1], r[2], *(r[4:] or (1.0,)))])
+        for r in rows
     ])
 
 
 def test_judge_hooks_picks_highest_mean():
     verdicts = _judgement([("h1", 0.4, 0.4, False), ("h2", 0.9, 0.8, False), ("h3", 0.9, 0.5, False)])
     hooks, best = script.score_hooks(["a", "b", "c"], verdicts, "App")
-    assert [h.score for h in hooks] == [0.4, 0.85, 0.7]
+    assert [h.score for h in hooks] == [0.6, 0.9, 0.8]
     assert best.hook_id == "h2"
     with pytest.raises(ValueError, match="h3"):
         script.score_hooks(["a", "b", "c"], verdicts.model_copy(update={"verdicts": verdicts.verdicts[:2]}), "App")
@@ -98,6 +99,23 @@ def test_hook_that_states_a_fact_never_wins():
     hooks, best = script.score_hooks(
         ["a", "b", "c"], _judgement([(h, 0.9, 0.9, True) for h in ("h1", "h2", "h3")]), "App")
     assert best is None and hooks[-1].hook_id == "h4" and hooks[-1].text == "App"
+
+
+def test_hook_off_the_users_topic_never_wins():
+    rows = [("h1", 0.5, 0.5, False), ("h2", 1.0, 1.0, False, 0.2), ("h3", 0.6, 0.6, False, 0.5)]
+    hooks, best = script.score_hooks(["a", "b", "c"], _judgement(rows), "App")
+    assert best.hook_id == "h1"  # h2 scores highest but isn't about what the app does for its user
+    hooks, best = script.score_hooks(["a", "b", "c"], _judgement([(h, 1, 1, False, 0.1) for h in ("h1", "h2", "h3")]), "App")
+    assert best is None and hooks[-1].text == "App"
+
+
+def test_problem_shot_comes_back_fact_free_when_emptied():
+    drafted = script.build_shots(_draft(), "Hook line", SEGMENTS, REPO)
+    kept = [s for s in drafted if s.beat != "problem"]
+    out = script.keep_problem(kept, drafted, "Dinner is hard.")
+    assert [s.beat for s in out] == BEATS and out[1].voice_line == "Dinner is hard." and out[1].claims == []
+    assert out[1].visual == drafted[1].visual
+    assert script.keep_problem(drafted, drafted, "x") == drafted
 
 
 # --------------------------------------------------------------------------- #

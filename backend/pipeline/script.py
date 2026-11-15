@@ -17,7 +17,8 @@ Truth check: each claim is judged in its own call against its evidence alone (RE
 text, key-file content, the segment's frames). Evidence that can't be shown counts as none, and
 a claim with none is dropped without a call. A rewrite may only cut words from the claim; one
 that adds a word, or that the judge says is still partly unsupported, is dropped. Code then edits the voice line: a rewrite replaces the claim's
-words, a drop cuts the sentence holding it. A shot left with no words is removed.
+words, a drop cuts the sentence holding it. A shot left with no words is removed, except the problem
+shot: it comes back with ``summary.problem`` as a fact-free line, so a problem is always stated.
 
 Run alone: python -m backend.run runs/<run_id> --only script
 """
@@ -65,7 +66,9 @@ assert sum(BUDGET.values()) == TARGET_WORDS
 HOOK_QUESTIONS = [
     "Does the hook make a judge curious in under 5 seconds?",
     "Is it specific to this app?",
+    "Is this about what the app does for its user?",
 ]
+HOOK_PASS = 0.5  # a hook must score at least this on the last question to win
 CLAIM_QUESTION = "Does the evidence alone support the claim?"
 CLAIM_OPTIONS = ["keep", "rewrite", "drop"]
 STATUS = {"keep": "backed", "rewrite": "rewritten", "drop": "dropped"}
@@ -208,9 +211,10 @@ def build_shots(draft: Draft, hook_line: str, segments: list[Segment], repo: Rep
 
 
 def score_hooks(texts: list[str], judgement: HookJudgement, app: str) -> tuple[list[Hook], Optional[HookVerdict]]:
-    """Hook score = mean answer score; the best hook that states no fact wins (first on ties).
+    """Hook score = mean answer score; the best hook that states no fact and passes the last
+    question (about what the app does for its user) wins (first on ties).
 
-    If every hook states a fact, the app's name is added as a last, unjudged hook and wins:
+    If no hook qualifies, the app's name is added as a last, unjudged hook and wins:
     the result's verdict is then None.
     """
     verdicts = {v.hook_id: v for v in judgement.verdicts}
@@ -220,7 +224,8 @@ def score_hooks(texts: list[str], judgement: HookJudgement, app: str) -> tuple[l
         if v is None or len(v.answers) != len(HOOK_QUESTIONS):
             raise ValueError(f"script: hook judge gave no full verdict for h{i}")
         hooks.append(Hook(hook_id=f"h{i}", text=text, score=round(mean(a.score for a in v.answers), 2)))
-    clean = [h for h in hooks if not verdicts[h.hook_id].states_fact]
+    clean = [h for h in hooks if not verdicts[h.hook_id].states_fact
+             and verdicts[h.hook_id].answers[-1].score >= HOOK_PASS]
     if not clean:
         return [*hooks, Hook(hook_id=f"h{len(hooks) + 1}", text=app, score=0)], None
     best = max(clean, key=lambda h: h.score)
@@ -302,6 +307,16 @@ def apply_checks(shots: list[Shot], checked: dict[str, Claim]) -> list[Shot]:
         if words(line):
             out.append(shot.model_copy(update={"voice_line": line, "claims": claims}))
     return out
+
+
+def keep_problem(shots: list[Shot], drafted: list[Shot], problem: str) -> list[Shot]:
+    """If the truth check emptied the problem shot, put it back with ``summary.problem`` as a
+    fact-free line (no claim to check) on the same footage, right after the hook."""
+    if any(s.beat == "problem" for s in shots):
+        return shots
+    shot = next(s for s in drafted if s.beat == "problem").model_copy(update={"voice_line": problem, "claims": []})
+    i = next((k + 1 for k, s in enumerate(shots) if s.beat == "hook"), 0)
+    return [*shots[:i], shot, *shots[i:]]
 
 
 def readme_section(readme: str, heading: str) -> str:
@@ -435,7 +450,7 @@ def run(run_dir: Path, run: RunConfig) -> None:
     claims = [c for s in drafted for c in s.claims]
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         results = list(pool.map(lambda c: check_claim(c, *evidence_shown(c.evidence, run_dir, by_id, repo)), claims))
-    shots = apply_checks(drafted, {c.claim_id: c for c, _ in results})
+    shots = keep_problem(apply_checks(drafted, {c.claim_id: c for c, _ in results}), drafted, summary.problem)
     script = Script(language=run.brief.language, hooks=hooks, chosen_hook_id=chosen.hook_id, shots=shots)
     (run_dir / "script.json").write_text(script.model_dump_json(indent=2), encoding="utf-8")
 
