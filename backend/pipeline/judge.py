@@ -102,7 +102,7 @@ def judge_segment(run_dir: Path, frames: list[str], questions: list[str], app: s
         verdict = gemini.generate(text, _Verdict, images=[run_dir / f for f in frames])
         if len(verdict.frames) == len(frames) and all(len(f.answers) == len(questions) for f in verdict.frames):
             return verdict.frames
-    raise ValueError(f"judge_frames: Gemini answered the wrong number of frames/questions for {frames}")
+    raise ValueError(f"{gemini.INCOMPLETE} [judge_frames: Gemini answered the wrong number of frames/questions for {frames}]")
 
 
 class PickResult(TypedDict):
@@ -150,7 +150,7 @@ def pick_best(
         if len(verdict.frames) == len(paths) and all(len(f.answers) == len(questions) for f in verdict.frames):
             break
     else:
-        raise ValueError(f"pick_best: Gemini answered the wrong number of drafts/questions for {paths}")
+        raise ValueError(f"{gemini.INCOMPLETE} [pick_best: Gemini answered the wrong number of drafts/questions for {paths}]")
 
     scores = [round(sum(a.score for a in f.answers) / len(f.answers), 3) for f in verdict.frames]
     gate = questions.index(must_pass) if must_pass is not None else None
@@ -269,7 +269,7 @@ def gemini_checks(script: Script, timeline: Timeline, run: RunConfig) -> list[Ch
         if len(verdict.checks) == len(GEMINI_QUESTIONS):
             break
     else:
-        raise ValueError("rubric: Gemini answered the wrong number of questions")
+        raise ValueError(f"{gemini.INCOMPLETE} [rubric: Gemini answered the wrong number of questions]")
     in_cut = {s.shot_id for s in timeline.shots}
     return [
         (RubricItem(question=q, passed=c.passed, reason=c.reason),

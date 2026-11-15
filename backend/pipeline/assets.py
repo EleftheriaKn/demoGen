@@ -45,6 +45,8 @@ CARD_QUESTIONS = [
 ]
 NO_TEXT_Q = CARD_QUESTIONS[0]  # a draft under judge.PASS here can't win
 CHEAP_CARD_RGB = (24, 24, 32)
+NO_FAL_KEY = ("FAL_KEY isn't set, so this video has no voice, generated cards or music. "
+              "Add it in the board's Settings and run again.")
 MUSIC_PROMPT = "Calm, upbeat instrumental background music for a short tech product demo; light and unobtrusive under a voice-over."
 
 
@@ -83,11 +85,11 @@ def _plain(run_dir: Path, rel: str, mode: str) -> None:
     Image.new("RGB", ff.size_for(mode), CHEAP_CARD_RGB).save(run_dir / rel)
 
 
-def _cheap_card(run_dir: Path, shot: Shot, mode: str) -> CardAsset:
+def _cheap_card(run_dir: Path, shot: Shot, mode: str, why: str = "cheap") -> CardAsset:
     rel, draft = f"cards/{shot.shot_id}.png", f"cards/drafts/{shot.shot_id}_0.png"
     _plain(run_dir, draft, mode)
     shutil.copyfile(run_dir / draft, run_dir / rel)
-    events.emit("assets", f"Card {shot.shot_id}: plain card (cheap)", data={"path": rel})
+    events.emit("assets", f"Card {shot.shot_id}: plain card ({why})", data={"path": rel})
     return CardAsset(shot_id=shot.shot_id, path=rel, drafts=[draft], chosen_index=0)
 
 
@@ -166,15 +168,21 @@ def _silent_music(run_dir: Path, seconds: float, why: str = "cheap") -> MusicAss
 
 def run(run_dir: Path, run: RunConfig) -> None:
     script = Script.model_validate_json((run_dir / "script.json").read_text(encoding="utf-8"))
-    with ThreadPoolExecutor(PARALLEL) as pool:
-        voice = [v for v in pool.map(lambda s: _voice(run_dir, s.shot_id, s.voice_line, script.language), script.shots) if v]
+    has_fal = fal.has_key()  # checked once: no key skips every fal call (and its retries) for the B8 fallbacks
+    voice: list[VoiceAsset] = []
+    if has_fal:
+        with ThreadPoolExecutor(PARALLEL) as pool:
+            voice = [v for v in pool.map(lambda s: _voice(run_dir, s.shot_id, s.voice_line, script.language), script.shots) if v]
+    else:
+        events.emit("assets", NO_FAL_KEY)
 
     card_shots = [s for s in script.shots if s.visual.kind == "card"]
     drop_stage(run_dir, "assets")
     shutil.rmtree(run_dir / "cards", ignore_errors=True)  # a re-run (or mode switch) leaves no stale drafts
-    if run.mode == "cheap":
-        cards = [_cheap_card(run_dir, s, run.mode) for s in card_shots]
-        music = _silent_music(run_dir, sum(v.duration_s for v in voice))
+    if run.mode == "cheap" or not has_fal:
+        why = "cheap" if run.mode == "cheap" else "no FAL_KEY"
+        cards = [_cheap_card(run_dir, s, run.mode, why) for s in card_shots]
+        music = _silent_music(run_dir, sum(v.duration_s for v in voice), why)
     else:
         cards = _cards(run_dir, card_shots)
         music = _music(run_dir, sum(v.duration_s for v in voice))

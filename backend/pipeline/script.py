@@ -283,7 +283,7 @@ def build_shots(draft: AnyDraft, hook_line: str, segments: list[Segment], repo: 
         if isinstance(d, FootageDraft):
             seg = by_id.get(d.segment_id)
             if seg is None:
-                raise ValueError(f"script: {beat} shot uses unknown segment {d.segment_id!r}")
+                raise ValueError(f"{gemini.INCOMPLETE} [script: {beat} shot uses unknown segment {d.segment_id!r}]")
             start, end, line = fit_voice(d.voice_line, seg, *_span(d, seg))
             if line != d.voice_line:
                 events.emit("script", f"Voice s{i:02d} ({beat}): trimmed {len(d.voice_line.split())} -> "
@@ -322,7 +322,7 @@ def score_hooks(texts: list[str], judgement: HookJudgement, app: str) -> tuple[l
     for i, text in enumerate(texts, 1):
         v = verdicts.get(f"h{i}")
         if v is None or len(v.answers) != len(HOOK_QUESTIONS):
-            raise ValueError(f"script: hook judge gave no full verdict for h{i}")
+            raise ValueError(f"{gemini.INCOMPLETE} [script: hook judge gave no full verdict for h{i}]")
         hooks.append(Hook(hook_id=f"h{i}", text=text, score=round(mean(a.score for a in v.answers), 2)))
     clean = [h for h in hooks if not verdicts[h.hook_id].states_fact
              and verdicts[h.hook_id].answers[-1].score >= HOOK_PASS]
@@ -598,6 +598,9 @@ def run(run_dir: Path, run: RunConfig) -> None:
 
     summary, repo = load("summary.json", Summary), load("repo_files.json", RepoFiles)
     segments = load("candidates.json", Candidates).segments
+    if not segments:
+        raise ValueError("Nothing in the recording could be used as footage. Record a longer take that "
+                         "shows the app's main results clearly.")
     lines = _segment_lines(segments, load("moments.json", Moments), load("frame_scores.json", FrameScores))
 
     draft = draft_script(run, summary, lines, repo)
