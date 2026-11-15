@@ -4,9 +4,10 @@ Repo summary + timestamped moments (Gemini).
 
 Reads repo_files.json, recording, transcript.json. Writes summary.json, moments.json.
 
-summary.json is real: Gemini reads the README, key files and transcript, then code keeps only
-evidence that names a real README heading or repo file; features left with none are
-dropped (logged as an event) and a summary with no features left raises.
+summary.json is real: Gemini reads the README, key files, transcript and the pasted brief, and writes the
+features plus the flow (the steps a user goes through, in order). Code keeps only evidence that names a
+real README heading or repo file; features and flow steps left with none are dropped (logged as an event)
+and a summary with no features left raises.
 
 moments.json is real: Gemini watches the recording (uploaded once per run, see
 ``gemini.upload``), then code clamps times to the recording length, sorts the moments, trims
@@ -54,20 +55,57 @@ def evidence_ok(ref: str, headings: set[str], tree: set[str]) -> bool:
 
 
 def check_evidence(summary: Summary, repo: RepoFiles) -> Summary:
-    """Keep evidence that resolves to a README heading or tree path; drop features left with none."""
+    """Keep evidence that resolves to a README heading or tree path; drop features and flow steps left
+    with none. A flow step naming a dropped or unknown feature gets feature_id null."""
     headings, tree = readme_headings(repo.readme), set(repo.tree)
-    features: list[Feature] = []
-    for f in summary.features:
-        evidence = [e for e in f.evidence if evidence_ok(e, headings, tree)]
-        if evidence:
-            features.append(f.model_copy(update={"evidence": evidence}))
+
+    def backed(items: list) -> list:
+        out = []
+        for x in items:
+            evidence = [e for e in x.evidence if evidence_ok(e, headings, tree)]
+            if evidence:
+                out.append(x.model_copy(update={"evidence": evidence}))
+        return out
+
+    features: list[Feature] = backed(summary.features)
     if not features:
         raise ValueError("Couldn't match what the app does to its repo. Check the repo URL is the app in the "
                          "recording, and that its README describes the features.")
-    return summary.model_copy(update={"features": features})
+    ids = {f.feature_id for f in features}
+    flow = [s.model_copy(update={"feature_id": s.feature_id if s.feature_id in ids else None})
+            for s in backed(summary.flow)]
+    return summary.model_copy(update={"features": features, "flow": flow})
 
 
-def summarize(repo: RepoFiles, transcript: Transcript) -> Summary:
+class _RawFlowStep(BaseModel):
+    """A flow step as Gemini returns it: every field required, so none is left out."""
+
+    step_id: str = Field(description="'s1', 's2', ... in the order the user meets them.")
+    text: str = Field(description="What the user does or sees at this step, in one short sentence.")
+    feature_id: Optional[str] = Field(description="Feature this step uses, or null.")
+    evidence: list[str] = Field(description="'README#<heading>' or a repo path from the file tree.")
+
+
+class _RawSummary(BaseModel):
+    """Summary as Gemini returns it; flow is required here (optional in the contract, for old runs)."""
+
+    name: str
+    one_liner: str
+    problem: str
+    audience: str
+    features: list[Feature]
+    flow: list[_RawFlowStep]
+
+
+def brief_text(run_dir: Path, run: RunConfig) -> str:
+    """The pasted brief: run.brief.text once C adds it (C14), else brief.txt, else ''."""
+    if text := getattr(run.brief, "text", None):
+        return text
+    path = run_dir / "brief.txt"
+    return path.read_text(encoding="utf-8").strip() if path.exists() else ""
+
+
+def summarize(repo: RepoFiles, transcript: Transcript, brief: str = "") -> Summary:
     key_files = "\n\n".join(f'<file path="{k.path}">\n{k.content}\n</file>' for k in repo.key_files)
     text = gemini.prompt(
         "understand_summary",
@@ -75,12 +113,16 @@ def summarize(repo: RepoFiles, transcript: Transcript) -> Summary:
         tree="\n".join(repo.tree),
         key_files=key_files,
         transcript=transcript.text,
+        brief=brief or "(none)",
     )
-    raw = gemini.generate(text, Summary)
+    raw = Summary.model_validate(gemini.generate(text, _RawSummary).model_dump())
     summary = check_evidence(raw, repo)
     dropped = [f.name for f in raw.features if f.feature_id not in {k.feature_id for k in summary.features}]
     if dropped:
         events.emit("understand", f"Dropped features with no repo evidence: {', '.join(dropped)}")
+    kept = {s.step_id for s in summary.flow}
+    if dropped_steps := [s.text for s in raw.flow if s.step_id not in kept]:
+        events.emit("understand", f"Dropped flow steps with no repo evidence: {'; '.join(dropped_steps)}")
     return summary
 
 
@@ -170,9 +212,10 @@ def find_moments(video: Path, summary: Summary) -> Moments:
 def run(run_dir: Path, run: RunConfig) -> None:
     repo = RepoFiles.model_validate_json((run_dir / "repo_files.json").read_text(encoding="utf-8"))
     transcript = Transcript.model_validate_json((run_dir / "transcript.json").read_text(encoding="utf-8"))
-    summary = summarize(repo, transcript)
+    summary = summarize(repo, transcript, brief_text(run_dir, run))
     (run_dir / "summary.json").write_text(summary.model_dump_json(indent=2), encoding="utf-8")
-    events.emit("understand", f"Summary: {summary.name}, {len(summary.features)} features")
+    events.emit("understand", f"Summary: {summary.name}, {len(summary.features)} features, "
+                              f"{len(summary.flow)} flow steps")
 
     moments = find_moments(run_dir / run.recording, summary)
     (run_dir / "moments.json").write_text(moments.model_dump_json(indent=2), encoding="utf-8")

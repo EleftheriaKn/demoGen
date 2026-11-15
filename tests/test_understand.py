@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from backend import events
 from backend.clients import gemini
-from backend.contracts import Feature, Moments, RepoFiles, Summary
+from backend.contracts import Feature, FlowStep, Moments, RepoFiles, Summary
 from backend.pipeline import understand
 from backend.run import FIXTURE_RUN, load_run
 
@@ -44,6 +44,35 @@ def test_check_evidence_drops_unknown_refs_and_unbacked_features():
     assert out.features[0].evidence == ["README#How it works", "backend/vision.py"]
     with pytest.raises(ValueError, match="match what the app does"):
         understand.check_evidence(_summary(s.features[1]), REPO)
+
+
+def test_check_evidence_drops_unbacked_flow_steps_and_nulls_dropped_features():
+    s = _summary(
+        Feature(feature_id="a", name="Scan", description="d", evidence=["backend/vision.py"]),
+        Feature(feature_id="b", name="Ghost", description="d", evidence=["src/x.py"]),
+    ).model_copy(update={"flow": [
+        FlowStep(step_id="s1", text="open", feature_id=None, evidence=["README#How it works", "README#Nope"]),
+        FlowStep(step_id="s2", text="ghost", feature_id="a", evidence=["src/ghost.py"]),
+        FlowStep(step_id="s3", text="scan", feature_id="b", evidence=["backend/vision.py"]),
+    ]})
+    out = understand.check_evidence(s, REPO)
+    assert [(x.step_id, x.feature_id, x.evidence) for x in out.flow] == [
+        ("s1", None, ["README#How it works"]), ("s3", None, ["backend/vision.py"])]
+
+
+def test_old_summary_and_moments_without_new_fields_still_load():
+    summary = Summary.model_validate_json((FIXTURE_RUN / "summary.json").read_text(encoding="utf-8"))
+    moments = Moments.model_validate_json((FIXTURE_RUN / "moments.json").read_text(encoding="utf-8")).moments
+    assert summary.flow == [] and "flow" not in summary.model_dump_json()
+    assert all(m.quality is None and m.flow_step is None for m in moments)
+
+
+def test_brief_text_reads_brief_txt_when_run_has_no_text(tmp_path):
+    shutil.copy2(FIXTURE_RUN / "run.json", tmp_path / "run.json")
+    cfg = load_run(tmp_path)
+    assert understand.brief_text(tmp_path, cfg) == ""
+    (tmp_path / "brief.txt").write_text("Judged on usefulness. 60 s max.\n", encoding="utf-8")
+    assert understand.brief_text(tmp_path, cfg) == "Judged on usefulness. 60 s max."
 
 
 def _raw(start, end, kind="action", feature_id=None, settled_at=None):
@@ -116,6 +145,9 @@ def test_understand_writes_checked_summary_and_moments(tmp_path):
         assert f.evidence
         for e in f.evidence:
             assert understand.evidence_ok(e, headings, tree), e
+    assert summary.flow
+    for s in summary.flow:
+        assert s.evidence and all(understand.evidence_ok(e, headings, tree) for e in s.evidence), s
 
     # TodoMVC take: typing todos ~12-30 s (samples/todomvc/notes.md); on-screen text is copied.
     assert moments and moments[-1].end <= 60.1

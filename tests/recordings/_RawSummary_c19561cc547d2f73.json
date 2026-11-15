@@ -1,0 +1,83 @@
+{
+  "name": "PantryPal",
+  "one_liner": "Snap a photo of your fridge to get three recipes based on your ingredients.",
+  "problem": "Deciding what to cook with available ingredients at home can be frustrating and leads to wasted food.",
+  "audience": "Home cooks looking to make meals with whatever ingredients they already have in their fridge.",
+  "features": [
+    {
+      "feature_id": "f1",
+      "name": "Fridge Photo Ingredient Detection",
+      "description": "Detects available food ingredients from a single photo of your open fridge.",
+      "evidence": [
+        "README#Features",
+        "backend/vision.py",
+        "frontend/src/Camera.tsx"
+      ]
+    },
+    {
+      "feature_id": "f2",
+      "name": "Recipe Suggestions",
+      "description": "Recommends three recipes ranked by how many of your detected ingredients they use.",
+      "evidence": [
+        "README#Features",
+        "backend/recipes.py"
+      ]
+    },
+    {
+      "feature_id": "f3",
+      "name": "Missing Items Shopping List",
+      "description": "Tracks and displays a shopping list for the missing ingredients needed for recipes.",
+      "evidence": [
+        "README#Features",
+        "frontend/src/ShoppingList.tsx"
+      ]
+    }
+  ],
+  "flow": [
+    {
+      "step_id": "s1",
+      "text": "Open PantryPal and view the main screen.",
+      "feature_id": null,
+      "evidence": [
+        "README#How it works",
+        "frontend/src/App.tsx"
+      ]
+    },
+    {
+      "step_id": "s2",
+      "text": "Tap the camera button to open the camera interface.",
+      "feature_id": "f1",
+      "evidence": [
+        "README#How it works",
+        "frontend/src/Camera.tsx"
+      ]
+    },
+    {
+      "step_id": "s3",
+      "text": "Take a photo of the open fridge using the shutter button.",
+      "feature_id": "f1",
+      "evidence": [
+        "README#How it works",
+        "frontend/src/Camera.tsx"
+      ]
+    },
+    {
+      "step_id": "s4",
+      "text": "View the three suggested recipes ranked by ingredient match.",
+      "feature_id": "f2",
+      "evidence": [
+        "README#How it works",
+        "backend/recipes.py"
+      ]
+    },
+    {
+      "step_id": "s5",
+      "text": "Check the shopping list for the few missing ingredients needed.",
+      "feature_id": "f3",
+      "evidence": [
+        "README#Features",
+        "frontend/src/ShoppingList.tsx"
+      ]
+    }
+  ]
+}
